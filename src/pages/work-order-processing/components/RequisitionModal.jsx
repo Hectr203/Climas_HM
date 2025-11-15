@@ -8,14 +8,10 @@ import useOperac from "../../../hooks/useOperac";
 import useInventory from "../../../hooks/useInventory";
 
 const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
-  const { createRequisition, updateRequisition, getRequisitionById } = useRequisi();
+  const { createRequisition, updateRequisition } = useRequisi();
   const { oportunities, getOportunities } = useOperac();
   const { articulos, getArticulos } = useInventory();
 
-  const [loadingMaterials, setLoadingMaterials] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showInventoryModal, setShowInventoryModal] = useState(false);
-  
   const [formData, setFormData] = useState({
     requestNumber: "",
     orderNumber: "",
@@ -92,69 +88,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
     }
   }, [isOpen]);
 
-  // Cargar materiales cuando se abre una requisición existente
-  useEffect(() => {
-    async function fetchMateriales() {
-      // Limpiar datos anteriores
-      setFormData(prev => ({
-        ...prev,
-        items: [],
-        manualItems: []
-      }));
-
-      if (!requisition?.id) return;
-
-      setLoadingMaterials(true);
-      try {
-        const requisicionCompleta = await getRequisitionById(requisition.id);
-        
-        if (requisicionCompleta) {
-          // Cargar materiales del inventario (con referencia)
-          if (requisicionCompleta.materiales && Array.isArray(requisicionCompleta.materiales)) {
-            const materialesInventario = requisicionCompleta.materiales.map(mat => ({
-              id: mat.id || Date.now() + Math.random(),
-              idArticulo: mat.id || mat.idArticulo || '',
-              codigoArticulo: mat.codigoArticulo || '',
-              name: mat.nombreMaterial || mat.nombre || mat.name || '',
-              quantity: mat.cantidad || mat.quantity || 0,
-              unit: mat.unidad || mat.unit || 'unidades',
-              urgency: mat.urgencia || mat.urgency || 'Normal',
-              description: mat.descripcionEspecificaciones || mat.descripcion || mat.description || ''
-            }));
-            
-            setFormData(prev => ({
-              ...prev,
-              items: materialesInventario
-            }));
-          }
-
-          // Cargar materiales manuales
-          if (requisicionCompleta.materialesManuales && Array.isArray(requisicionCompleta.materialesManuales)) {
-            const materialesManuales = requisicionCompleta.materialesManuales.map(mat => ({
-              id: Date.now() + Math.random(),
-              name: mat.nombreMaterial || mat.nombre || mat.name || '',
-              quantity: mat.cantidad || mat.quantity || 0,
-              unit: mat.unidad || mat.unit || 'unidades',
-              urgency: mat.urgencia || mat.urgency || 'Normal',
-              description: mat.descripcionEspecificaciones || mat.descripcion || mat.description || ''
-            }));
-            
-            setFormData(prev => ({
-              ...prev,
-              manualItems: materialesManuales
-            }));
-          }
-        }
-      } catch (error) {
-        console.error('Error al cargar materiales de la requisición:', error);
-      } finally {
-        setLoadingMaterials(false);
-      }
-    }
-
-    fetchMateriales();
-  }, [requisition?.id, isOpen]);
-
   const priorityOptions = [
     { value: "Crítica", label: "Crítica" },
     { value: "Alta", label: "Alta" },
@@ -186,18 +119,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
     { value: "Normal", label: "Normal" },
     { value: "Baja", label: "Baja" },
   ];
-
-  // Filtrar artículos por búsqueda
-  const filteredArticulos = articulos?.filter(art => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      art.nombre?.toLowerCase().includes(search) ||
-      art.codigoArticulo?.toLowerCase().includes(search) ||
-      art.categoria?.toLowerCase().includes(search) ||
-      art.marca?.toLowerCase().includes(search)
-    );
-  }) || [];
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -254,20 +175,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
     }
   };
 
-  const handleSelectInventoryItem = (articulo) => {
-    setNewItem({
-      idArticulo: articulo.id,
-      codigoArticulo: articulo.codigoArticulo || '',
-      name: articulo.nombre || '',
-      quantity: '',
-      unit: articulo.unidad || 'unidades',
-      description: '',
-      urgency: 'Normal'
-    });
-    setShowInventoryModal(false);
-    setSearchTerm('');
-  };
-
   const handleRemoveItem = (itemId, type) => {
     setFormData((prev) => ({
       ...prev,
@@ -321,14 +228,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
       proyectoNombre: formData.projectName,
     };
 
-    // 🔍 DEBUG: Verificar payload antes de enviar
-    console.log('=== PAYLOAD A ENVIAR ===');
-    console.log('Materiales inventario:', materiales);
-    console.log('Materiales manuales:', materialesManuales);
-    console.log('Payload completo:', JSON.stringify(payload, null, 2));
-    console.log('materialesManuales en payload:', payload.materialesManuales);
-    console.log('Cantidad de materiales manuales:', materialesManuales.length);
-
     // Enviar
     let response;
     if (requisition?.id) {
@@ -336,12 +235,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
     } else {
       response = await createRequisition(payload);
     }
-
-    // 🔍 DEBUG: Verificar respuesta del backend
-    console.log('=== RESPUESTA DEL BACKEND ===');
-    console.log('Response completa:', response);
-    console.log('Materiales guardados:', response?.materiales);
-    console.log('Materiales manuales guardados:', response?.materialesManuales);
 
     if (response) {
       onSave(response);
@@ -462,53 +355,27 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
           {/* Material por Inventario */}
           <div className="bg-muted/30 rounded-lg p-4">
             <h4 className="text-sm font-medium text-foreground mb-3">
-              Agregar Material del Inventario
+              Agregar Material por Inventario
             </h4>
-            
-            {/* Botón para abrir selector de inventario */}
-            <div className="mb-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowInventoryModal(true)}
-                iconName="Package"
-                iconSize={16}
-                className="w-full"
-              >
-                Buscar en Inventario
-              </Button>
-            </div>
-
-            {/* Material seleccionado */}
-            {newItem.name && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-900">
-                    Material Seleccionado
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setNewItem({
-                      idArticulo: "",
-                      codigoArticulo: "",
-                      name: "",
-                      quantity: "",
-                      unit: "unidades",
-                      description: "",
-                      urgency: "Normal",
-                    })}
-                    iconName="X"
-                    iconSize={14}
-                  />
-                </div>
-                <p className="text-sm text-blue-800 font-medium">{newItem.name}</p>
-                {newItem.codigoArticulo && (
-                  <p className="text-xs text-blue-600">Código: {newItem.codigoArticulo}</p>
-                )}
-              </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+              <Select
+                label="Materiales"
+                options={
+                  articulos?.map((art) => ({
+                    label: art.nombre,
+                    value: art.id,
+                  })) || []
+                }
+                value={newItem?.idArticulo}
+                onChange={(value) => {
+                  const selected = articulos.find((a) => a.id === value);
+                  handleNewItemChange("idArticulo", value);
+                  handleNewItemChange("codigoArticulo", selected?.codigoArticulo || "");
+                  handleNewItemChange("name", selected?.nombre || "");
+                  handleNewItemChange("unit", selected?.unidad || "unidades");
+                }}
+              />
+
               <div className="grid grid-cols-2 gap-2">
                 <Input
   label="Cantidad"
@@ -556,86 +423,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               Agregar Material
             </Button>
           </div>
-
-          {/* Modal de búsqueda de inventario */}
-          {showInventoryModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000] p-4">
-              <div className="bg-card rounded-lg border border-border w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Seleccionar Material del Inventario
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setShowInventoryModal(false);
-                      setSearchTerm('');
-                    }}
-                  >
-                    <Icon name="X" size={20} />
-                  </Button>
-                </div>
-
-                <div className="p-4 border-b border-border">
-                  <Input
-                    placeholder="Buscar por nombre, código, categoría o marca..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    icon="Search"
-                  />
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4">
-                  {filteredArticulos.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Icon name="Package" size={48} className="mx-auto mb-3 opacity-30" />
-                      <p>No se encontraron materiales</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {filteredArticulos.map((articulo) => (
-                        <div
-                          key={articulo.id}
-                          className="border border-border rounded-lg p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => handleSelectInventoryItem(articulo)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h4 className="text-sm font-medium text-foreground mb-1">
-                                {articulo.nombre}
-                              </h4>
-                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                {articulo.codigoArticulo && (
-                                  <span className="bg-muted px-2 py-1 rounded">
-                                    Código: {articulo.codigoArticulo}
-                                  </span>
-                                )}
-                                {articulo.categoria && (
-                                  <span className="bg-muted px-2 py-1 rounded">
-                                    {articulo.categoria}
-                                  </span>
-                                )}
-                                {articulo.marca && (
-                                  <span className="bg-muted px-2 py-1 rounded">
-                                    {articulo.marca}
-                                  </span>
-                                )}
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                  Stock: {articulo.cantidad || 0} {articulo.unidad || 'unidades'}
-                                </span>
-                              </div>
-                            </div>
-                            <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Material Manual */}
           <div className="bg-muted/30 rounded-lg p-4 mt-6">
@@ -706,12 +493,7 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
           </div>
 
           {/* Lista de materiales */}
-          {loadingMaterials ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-3 text-muted-foreground">Cargando materiales...</span>
-            </div>
-          ) : (formData.items.length > 0 || formData.manualItems.length > 0) && (
+          {(formData.items.length > 0 || formData.manualItems.length > 0) && (
             <div>
               <h4 className="text-sm font-medium text-foreground mb-3">
                 Materiales Solicitados

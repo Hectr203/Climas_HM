@@ -227,10 +227,10 @@ const mapProjectDocStrict = (doc) => {
       ? doc.assignedPersonnel
       : Array.isArray(doc.personalAsignado)
         ? doc.personalAsignado.map((s) => {
-            if (typeof s !== 'string') return { name: String(s ?? '—'), role: '' };
-            const [n, r] = s.split(' - ');
-            return { name: n || '—', role: r || '' };
-          })
+          if (typeof s !== 'string') return { name: String(s ?? '—'), role: '' };
+          const [n, r] = s.split(' - ');
+          return { name: n || '—', role: r || '' };
+        })
         : null,
     workOrders: Array.isArray(doc.workOrders) ? doc.workOrders : undefined,
     equiposUSD,
@@ -535,7 +535,7 @@ const ProjectTable = ({
           showError('No se pudo eliminar el proyecto');
         }
       },
-      onCancel: () => {},
+      onCancel: () => { },
     });
   };
 
@@ -576,7 +576,7 @@ const ProjectTable = ({
           showError('Ocurrió un error eliminando algunos proyectos');
         }
       },
-      onCancel: () => {},
+      onCancel: () => { },
     });
   };
 
@@ -810,14 +810,14 @@ const ProjectTable = ({
                         <Button variant="ghost" size="icon" onClick={() => toggleRowExpansion(project?.id)} title="Ver detalles">
                           <Icon name={expandedRows?.includes(project?.id) ? 'ChevronUp' : 'ChevronDown'} size={16} />
                         </Button>
-
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/project-detail-gallery/${project?.id}`)} title="Ver galería de imágenes">
+                        {/* <Button variant="ghost" size="icon" onClick={() => navigate(`/project-detail-gallery/${project?.id}`)} title="Ver galería de imágenes">
                           <Icon name="Image" size={16} />
                         </Button>
 
                         <Button variant="ghost" size="icon" onClick={() => handleImageUpload(project)} title="Subir imagen">
                           <Icon name="Upload" size={16} />
                         </Button>
+ */}
 
                         <Button variant="ghost" size="icon" onClick={() => onProjectSelect?.(project)} title="Editar proyecto">
                           <Icon name="Edit" size={16} />
@@ -877,7 +877,7 @@ const ProjectTable = ({
                               {project?.description || '—'}
                             </p>
                           </div>
-
+                          {/*
                           <div>
                             <h4 className="font-medium text-foreground mb-2">Acciones Rápidas</h4>
                             <div className="space-y-2">
@@ -903,7 +903,9 @@ const ProjectTable = ({
                               </Button>
                             </div>
                           </div>
+                           */}
                         </div>
+
                         {/*
                         <div className="mt-6 border-t border-border pt-4">
                           <div className="flex items-start justify-between mb-3">

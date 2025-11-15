@@ -459,9 +459,11 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
         <div className="sticky top-0 bg-card border-b border-border p-6 rounded-t-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">Nuevo Cliente</h2>
+              <h2 className="text-xl font-semibold text-foreground">
+                {mode === 'edit' ? 'Editar Cliente' : 'Nuevo Cliente'}
+              </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Agrega un nuevo cliente al sistema
+                {mode === 'edit' ? 'Actualiza la información del cliente' : 'Agrega un nuevo cliente al sistema'}
               </p>
             </div>
             <Button

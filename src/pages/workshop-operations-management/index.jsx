@@ -223,6 +223,21 @@ const WorkshopOperationsManagement = () => {
               const current = mapToColumnId(order?.status || order?.estado || '');
               const prevCol = getPreviousColumn(current || columns[0]);
               const restoredProgress = computeProgressForColumn(prevCol);
+              
+              // Persistir el cambio en la base de datos
+              const backendId = order?.id || order?.raw?.id;
+              if (backendId && updateWorkOrderRemote) {
+                const remotePayload = {
+                  status: prevCol,
+                  estado: prevCol,
+                  estadoProgreso: restoredProgress,
+                  progress: restoredProgress
+                };
+                updateWorkOrderRemote(backendId, remotePayload).catch((err) => {
+                  console.error('[handleRevertStatus] Error al actualizar en BD:', err);
+                });
+              }
+              
               return {
                 ...order,
                 status: prevCol,
@@ -240,11 +255,32 @@ const WorkshopOperationsManagement = () => {
                     ...order, 
                     materials: {
                       ...order?.materials,
-                      received: receptionData?.received,
+                      received: receptionData?.cantidadRecibida || receptionData?.received || 0,
+                      total: receptionData?.materials?.reduce((sum, m) => sum + (Number(m.required) || 0), 0) || order?.materials?.total || 0,
                       status: receptionData?.status,
-                      issues: receptionData?.issues
+                      issues: receptionData?.problemasFaltantes || receptionData?.issues || []
                     },
-                    recepcionMateriales: receptionData?.recepcionMateriales || null,
+                    recepcionMateriales: receptionData?.recepcionMateriales || {
+                      cantidadRecibida: receptionData?.cantidadRecibida || receptionData?.received || 0,
+                      notasAdicionales: receptionData?.notasAdicionales || receptionData?.notes || '',
+                      problemasFaltantes: receptionData?.problemasFaltantes || receptionData?.issues || [],
+                      totalPendientes: receptionData?.totalPendientes || receptionData?.pendientes || 0,
+                      status: receptionData?.status,
+                      materials: receptionData?.materials || [],
+                      updatedAt: receptionData?.updatedAt || new Date().toISOString()
+                    },
+                    raw: {
+                      ...order?.raw,
+                      recepcionMateriales: receptionData?.recepcionMateriales || {
+                        cantidadRecibida: receptionData?.cantidadRecibida || receptionData?.received || 0,
+                        notasAdicionales: receptionData?.notasAdicionales || receptionData?.notes || '',
+                        problemasFaltantes: receptionData?.problemasFaltantes || receptionData?.issues || [],
+                        totalPendientes: receptionData?.totalPendientes || receptionData?.pendientes || 0,
+                        status: receptionData?.status,
+                        materials: receptionData?.materials || [],
+                        updatedAt: receptionData?.updatedAt || new Date().toISOString()
+                      }
+                    },
                     status: receptionData?.status === 'complete' ? 'safety-checklist' : 'material-reception'
                   }
                 : order

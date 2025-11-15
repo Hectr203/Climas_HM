@@ -8,7 +8,7 @@ import useOperacAlt from '../../../hooks/useOperacAlt';
 
 const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selectedOrder: propSelectedOrder }) => {
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [receptionData, setReceptionData] = useState({ received: 0, notes: '', issues: [], photos: [] });
+  const [receptionData, setReceptionData] = useState({ received: 0, notes: '', issues: [] });
   const [newIssue, setNewIssue] = useState('');
   const [approvedMaterials, setApprovedMaterials] = useState([]);
   const [approvedSource, setApprovedSource] = useState('');
@@ -132,8 +132,7 @@ const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selected
     setReceptionData({
       received: order?.materials?.received || 0,
       notes: '',
-      issues: order?.materials?.issues || [],
-      photos: []
+      issues: order?.materials?.issues || []
     });
     setApprovedSource('');
     // Always load materials for the selected order
@@ -459,8 +458,7 @@ const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selected
           setReceptionData({
             received: receivedValue,
             notes: notesValue,
-            issues: Array.isArray(issuesValue) ? issuesValue : [],
-            photos: existingReception?.photos || []
+            issues: Array.isArray(issuesValue) ? issuesValue : []
           });
           
           // Load existing materials reception data
@@ -472,8 +470,7 @@ const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selected
           setReceptionData({
             received: propSelectedOrder?.materials?.received || 0,
             notes: '',
-            issues: propSelectedOrder?.materials?.issues || [],
-            photos: []
+            issues: propSelectedOrder?.materials?.issues || []
           });
         }
         
@@ -619,15 +616,9 @@ const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selected
       
       // Clear form
       setSelectedOrder(null);
-      setReceptionData({ received: 0, notes: '', issues: [], photos: [] });
+      setReceptionData({ received: 0, notes: '', issues: [] });
       setMaterialsReception([]);
     }
-  };
-
-  const handlePhotoUpload = (event) => {
-    const files = Array.from(event?.target?.files || []);
-    const newPhotos = files.map(file => ({ name: file?.name, size: file?.size, url: URL.createObjectURL(file) }));
-    setReceptionData(prev => ({ ...prev, photos: [...prev?.photos, ...newPhotos] }));
   };
 
   return (
@@ -842,29 +833,6 @@ const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selected
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* Photo Upload */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Evidencia Fotográfica</label>
-                <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center">
-                  <input type="file" multiple accept="image/*" onChange={handlePhotoUpload} className="hidden" id="photo-upload" />
-                  <label htmlFor="photo-upload" className="cursor-pointer">
-                    <Icon name="Camera" size={32} className="mx-auto mb-2 text-muted-foreground" />
-                    <div className="text-sm text-muted-foreground">Haga clic para tomar/subir fotos</div>
-                  </label>
-                </div>
-
-                {receptionData?.photos?.length > 0 && (
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {receptionData?.photos?.map((photo, index) => (
-                      <div key={index} className="relative">
-                        <img src={photo?.url} alt={photo?.name} className="w-full h-16 object-cover rounded" />
-                        <div className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs cursor-pointer" onClick={() => setReceptionData(prev => ({ ...prev, photos: prev?.photos?.filter((_, i) => i !== index) }))}>×</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Notes */}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getDefaultPath } from '../../../utils/auth';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -83,15 +84,12 @@ const LoginForm = () => {
         }
         // Mostrar el valor exacto del rol recibido
         console.log('Rol recibido:', data.data.usuario.rol);
-        // Redirigir según rol (ignorando mayúsculas/minúsculas)
+        
+        // Obtener la ruta por defecto según el rol del usuario
         const role = String(data.data.usuario.rol).toLowerCase();
-        let redirect = '/dashboard';
-        if (role === 'admin') redirect = '/dashboard';
-        else if (role === 'proyect manager') redirect = '/proyectos';
-        else if (role === 'sales representative') redirect = '/clientes';
-        else if (role === 'workshop supervisor') redirect = '/inventario';
-        else if (role === 'financial controller') redirect = '/finanzas';
-        else if (role === 'hr manager') redirect = '/personal';
+        const redirect = getDefaultPath(role);
+        
+        console.log('Redirigiendo a:', redirect);
         navigate(redirect);
         window.location.reload();
       } else {

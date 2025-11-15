@@ -223,12 +223,11 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 )}
               >
                 <option value="">Seleccionar rol</option>
-                <option value="admin">Administrador</option>
-                <option value="project manager">Gerente de Proyecto</option>
-                <option value="sales representative">Representante de Ventas</option>
-                <option value="workshop supervisor">Supervisor de Taller</option>
-                <option value="financial controller">Controlador Financiero</option>
-                <option value="hr manager">Gerente de RH</option>
+                <option value="admin">Admin - Acceso Total</option>
+                <option value="administracion">Administración - Negocio, Personal y Abonos</option>
+                <option value="proyectos">Proyectos - Cotizaciones y Proyectos</option>
+                <option value="ventas">Ventas - Oportunidades y Cotizaciones</option>
+                <option value="taller">Taller - Operaciones, Operaciones de Taller e Inventario</option>
               </select>
               {errors.rol && (
                 <p className="text-sm text-destructive">{errors.rol}</p>

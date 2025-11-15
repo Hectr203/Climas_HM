@@ -2,9 +2,21 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
+import { ROLE_PERMISSIONS } from '../../utils/auth';
 
 const Breadcrumb = ({ customItems = null }) => {
   const location = useLocation();
+
+  // Obtener el rol del usuario desde localStorage
+  const userRole = localStorage.getItem('userRole');
+  
+  // Obtener el defaultPath según el rol del usuario
+  const getDefaultPathForRole = () => {
+    if (userRole && ROLE_PERMISSIONS[userRole]) {
+      return ROLE_PERMISSIONS[userRole].defaultPath;
+    }
+    return '/oportunidades'; // Fallback por defecto
+  };
 
   const pathMapping = {
     '/dashboard': { label: 'Panel', icon: 'LayoutDashboard' },
@@ -32,9 +44,13 @@ const Breadcrumb = ({ customItems = null }) => {
     if (customItems) return customItems;
 
     const pathSegments = location?.pathname?.split('/')?.filter(segment => segment);
-    const breadcrumbs = [{ label: 'Dashboard', path: '/dashboard', icon: 'Home' }];
+    const defaultPath = getDefaultPathForRole();
+    const isOnDefaultPath = location?.pathname === defaultPath;
+    
+    // Breadcrumb ra\u00edz din\u00e1mico seg\u00fan el rol
+    const breadcrumbs = [{ label: 'Inicio', path: defaultPath, icon: 'Home' }];
 
-    if (location?.pathname !== '/dashboard') {
+    if (!isOnDefaultPath) {
       const currentPath = location?.pathname;
       const currentPage = pathMapping?.[currentPath];
       

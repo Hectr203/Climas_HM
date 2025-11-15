@@ -352,6 +352,11 @@ const InventoryManagement = () => {
   const [selectedRequisition, setSelectedRequisition] = useState(null);
   const [showRequisitionModal, setShowRequisitionModal] = useState(false);
 
+  const openRequisitionModal = (req) => {
+  setSelectedRequisition(req);
+  setIsRequisitionModalOpen(true);
+};
+
 
 const handleViewRequisition = (req) => {
   const reqForView = {
@@ -699,6 +704,7 @@ ${order.notas || 'Sin notas adicionales'}
     setShowNewItemModal(false);
   };
 
+
   const viewTabs = [
     { id: 'overview', label: 'Resumen', icon: 'LayoutDashboard' },
     { id: 'inventory', label: 'Inventario', icon: 'Package' },
@@ -758,6 +764,7 @@ ${order.notas || 'Sin notas adicionales'}
     document.title = 'Gestión de Inventario - AireFlow Pro';
   }, []);
 
+  
   return (
     <div className="min-h-screen bg-background">
       <Header 
@@ -1055,12 +1062,12 @@ ${order.notas || 'Sin notas adicionales'}
 
                   {/* VER DETALLES */}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    iconName="Eye"
-                    onClick={() => handleViewRequisition(req)}
+                    iconName="Edit"
+                    onClick={() => handleEditRequisition(req)}
                   >
-                    Ver detalles
+                    Ver
                   </Button>
 
                   {/* EDITAR */}

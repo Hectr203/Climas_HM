@@ -122,320 +122,191 @@ import useGastos from '../../../hooks/useGastos';
                 raw: it
               }));
           };
+// --------------------------------------------
+// GENERATE PDF - DISEÑO BONITO + DATOS COMPLETOS
+// --------------------------------------------
+const generateReport = async () => {
+  if (!selectedOrder) return;
 
-          // async because we may fetch requisitions as a fallback source for approved materials
-          const generateReport = async () => {
-            if (!selectedOrder) return;
+  // --------------------------------------------
+  // CARGAR MATERIALES DESDE MATERIAL RECEPTION PANEL
+  // --------------------------------------------
+  let receptionMaterials = [];
 
-            // Normalization helpers (shared with MaterialReceptionPanel) to improve matching
-            const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            const onlyDigits = (v) => (String(v || '').match(/\d+/g) || []).join('');
+  try {
+    const resp = await inventoryService.getReceptionMaterials(selectedOrder?.ordenTrabajo);
+    if (resp?.success && Array.isArray(resp.data)) {
+      receptionMaterials = resp.data;
+      console.log("Materiales recepción cargados:", receptionMaterials);
+    }
+  } catch (err) {
+    console.error("Error cargando materiales recepción", err);
+  }
 
-            // Helper: try to determine daily progress delta from multiple possible aliases.
-            const computeDailyProgressDelta = () => {
-              try {
-                const raw = selectedOrder?.raw || {};
-                const todayKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                const today = todayKey(new Date());
+  // --------------------------------------------
+  // PROGRESO (DELTA) - SIN CAMBIOS
+  // --------------------------------------------
+  const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const onlyDigits = (v) => (String(v || '').match(/\d+/g) || []).join('');
 
-                // possible history aliases
-                const candidates = raw.progressHistory || raw.progress_logs || raw.updates || raw.progressUpdates || raw.progreso_historial || raw.history || raw.progress_log || null;
-                if (Array.isArray(candidates) && candidates.length) {
-                  // normalize entries to {date, value}
-                  const entries = candidates.map(e => {
-                    if (typeof e === 'number') return { date: today, value: Number(e) };
-                    if (typeof e === 'string') {
-                      // try parse `YYYY-MM-DD:value` or `YYYY-MM-DD` formats
-                      const m = e.match(/(\d{4}-\d{2}-\d{2}).*?([0-9+.\-%]+)/);
-                      if (m) return { date: m[1], value: Number(String(m[2]).replace('%','')) };
-                      return { date: today, value: Number(e.replace(/[^0-9.+-]/g,'')) };
-                    }
-                    // assume object with date/value
-                    return { date: (e.date || e.fecha || e.d) || today, value: Number(e.value ?? e.progreso ?? e.progress ?? e.porcentaje ?? 0) };
-                  });
+  const computeDailyProgressDelta = () => {
+    try {
+      const raw = selectedOrder?.raw || {};
+      const todayKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const today = todayKey(new Date());
 
-                  const todays = entries.filter(en => String(en.date).startsWith(today));
-                  if (todays.length >= 2) {
-                    const first = todays[0].value;
-                    const last = todays[todays.length-1].value;
-                    return Math.round((last - first) * 100) / 100;
-                  }
-                  if (todays.length === 1) {
-                    // try to find the most recent previous entry
-                    const before = entries.filter(en => !String(en.date).startsWith(today)).sort((a,b)=> new Date(a.date)-new Date(b.date)).pop();
-                    if (before) return Math.round(((todays[0].value || 0) - (before.value || 0)) * 100) / 100;
-                    return Math.round((todays[0].value || 0) * 100) / 100;
-                  }
-                }
+      const candidates = raw.progressHistory || raw.progress_logs ||
+                         raw.updates || raw.progressUpdates ||
+                         raw.progreso_historial || raw.history ||
+                         raw.progress_log || null;
 
-                // fallback: try comparing selectedOrder.progress with selectedOrder.raw?.previousProgress or selectedOrder?.previousProgress
-                const cur = Number(selectedOrder?.progress ?? selectedOrder?.estadoProgreso ?? selectedOrder?.progreso ?? 0);
-                const prev = Number(selectedOrder?.raw?.previousProgress ?? selectedOrder?.previousProgress ?? 0);
-                if (!Number.isNaN(cur) && !Number.isNaN(prev)) return Math.round((cur - prev) * 100) / 100;
-                return null;
-              } catch (e) {
-                return null;
-              }
-            };
+      if (Array.isArray(candidates) && candidates.length) {
+        const entries = candidates.map(e => {
+          if (typeof e === 'number') return { date: today, value: Number(e) };
+          if (typeof e === 'string') {
+            const m = e.match(/(\d{4}-\d{2}-\d{2}).*?([0-9+.\-%]+)/);
+            if (m) return { date: m[1], value: Number(String(m[2]).replace('%','')) };
+            return { date: today, value: Number(e.replace(/[^0-9.+-]/g,'')) };
+          }
+          return { date: (e.date || e.fecha || e.d) || today, value: Number(e.value ?? e.progreso ?? e.progress ?? e.porcentaje ?? 0) };
+        });
 
-            // Helper: build materials rows
-            const buildMaterials = () => {
-              const raw = selectedOrder?.materials || selectedOrder?.raw?.materials || selectedOrder?.raw?.materiales || null;
-              if (!raw) return [];
-              // If array of items
-              if (Array.isArray(raw)) {
-                return raw.map(it => {
-                  const name = it?.name || it?.nombre || it?.item || '';
-                  const required = Number(it?.required ?? it?.cantidad ?? it?.total ?? 0);
-                  const received = Number(it?.received ?? it?.recibido ?? it?.have ?? 0);
-                  const missing = Math.max(0, required - received);
-                  return { name, required, received, missing };
-                });
-              }
+        const todays = entries.filter(en => String(en.date).startsWith(today));
+        if (todays.length >= 2) return Math.round((todays.at(-1).value - todays[0].value) * 100) / 100;
+        if (todays.length === 1) {
+          const before = entries.filter(en => !String(en.date).startsWith(today)).sort((a,b)=> new Date(a.date)-new Date(b.date)).pop();
+          if (before) return Math.round((todays[0].value - before.value) * 100) / 100;
+          return Math.round((todays[0].value) * 100) / 100;
+        }
+      }
+      const cur = Number(selectedOrder?.progress ?? selectedOrder?.progreso ?? 0);
+      const prev = Number(selectedOrder?.raw?.previousProgress ?? selectedOrder?.previousProgress ?? 0);
+      if (!Number.isNaN(cur) && !Number.isNaN(prev)) return Math.round((cur - prev) * 100) / 100;
+      return null;
+    } catch { return null; }
+  };
 
-              // If object with totals
-              const total = Number(raw?.total ?? raw?.required ?? raw?.cantidad ?? 0);
-              const received = Number(raw?.received ?? raw?.recibido ?? raw?.have ?? 0);
-              const missing = Math.max(0, total - received);
-              return [{ name: raw?.name || raw?.nombre || 'Materiales', required: total, received, missing }];
-            };
+  // --------------------------------------------
+  // MATERIALES - AHORA USARÁ RECEPCIÓN
+  // --------------------------------------------
+  const buildMaterials = () => {
+    // 1️⃣ Si existen materiales de recepción, usar esos
+    if (Array.isArray(receptionMaterials) && receptionMaterials.length > 0) {
+      return receptionMaterials.map(m => {
+        const required = Number(m.requerido ?? m.cantidad ?? m.required ?? 0);
+        const received = Number(m.recibido ?? m.entregado ?? m.received ?? 0);
 
-            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-            const margin = 40;
-            const title = `Reporte - Orden ${selectedOrder?.ordenTrabajo || selectedOrder?.id || ''}`;
-            doc.setFontSize(14);
-            doc.text(title, margin, 50);
-            doc.setFontSize(10);
-            const now = new Date();
-            doc.text(`Generado: ${now.toLocaleString()}`, margin, 68);
+        return {
+          name: m.material || m.nombre || "Material",
+          required,
+          received,
+          missing: Math.max(0, required - received)
+        };
+      });
+    }
 
-            // main key/value table
-            const rows = [];
-            rows.push(['Orden Trabajo', String(selectedOrder?.ordenTrabajo || selectedOrder?.id || '')]);
-            rows.push(['Cliente', String(selectedOrder?.clientName || selectedOrder?.clientLabel || (selectedOrder?.cliente && (selectedOrder.cliente.nombre || selectedOrder.cliente)) || '')]);
-              rows.push(['Progreso', formatProgress(selectedOrder?.progress ?? selectedOrder?.progreso ?? selectedOrder?.estadoProgreso ?? 0)]);
-              rows.push(['Prioridad', String(resolvePriority() || selectedOrder?.raw?.prioridad || selectedOrder?.raw?.estado || selectedOrder?.estado || '')]);
-              const rawDate = selectedOrder?.fechaLimite || selectedOrder?.estimatedCompletion || selectedOrder?.proyectoFecha || selectedOrder?.raw?.fechaLimite || selectedOrder?.raw?.fecha || selectedOrder?.raw?.estimatedCompletion || selectedOrder?.raw?.fechaEstimada || '';
-              const fechaVal = (() => {
-                try { const f = formatDate(rawDate); return f && f.length ? f : '-'; } catch (e) { return '-'; }
-              })();
-              rows.push(['Fecha límite', String(fechaVal)]);
-            const techs = (() => {
-              const fromSelected = (selectedOrder?.assignedTechnicians || selectedOrder?.tecnicoAsignado || selectedOrder?.tecnicos || []);
-              let techArray = Array.isArray(fromSelected) ? fromSelected : (fromSelected ? [fromSelected] : []);
-              if (!techArray.length && selectedOrder?.raw) {
-                const rawTech = selectedOrder.raw.tecnicoAsignado || selectedOrder.raw.tecnicos || selectedOrder.raw.assignedTechnicians || null;
-                if (rawTech) techArray = Array.isArray(rawTech) ? rawTech : [rawTech];
-              }
-              return techArray.map(t => (t?.name || t?.nombre || (typeof t === 'string' ? t : ''))).filter(Boolean).join(', ');
-            })();
-            rows.push(['Técnicos', techs || '']);
+    // 2️⃣ Fallback a selectedOrder.materials (si no hubiera recepción)
+    const raw = selectedOrder?.materials || [];
+    return raw.map(it => ({
+      name: it.name || it.nombre || "Material",
+      required: Number(it.required ?? it.cantidad ?? 0),
+      received: Number(it.received ?? it.recibido ?? 0),
+      missing: Math.max(0, (it.required ?? 0) - (it.received ?? 0))
+    }));
+  };
 
-            // Determine whether safety checklist was completed either on server or locally persisted
-            let safetyCompleted = false;
-            try {
-              const selectedKey = selectedOrder ? (selectedOrder?.id || selectedOrder?.ordenTrabajo || selectedOrder?.folio || '') : '';
-              const rawSaved = (selectedKey && localStorage.getItem(`wb_safety_check_${selectedKey}`)) ? JSON.parse(localStorage.getItem(`wb_safety_check_${selectedKey}`)) : null;
-              const localCompleted = !!(rawSaved && rawSaved.completed);
-              safetyCompleted = !!selectedOrder?.safetyChecklistCompleted || localCompleted;
-            } catch (e) {
-              safetyCompleted = !!selectedOrder?.safetyChecklistCompleted;
-            }
+  // --------------------------------------------
+  // PDF
+  // --------------------------------------------
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 40;
 
-            if (safetyCompleted) {
-              rows.push(['Verificación de Seguridad', 'Completada y revisada']);
-            }
-            // Determine current flow/column and readiness for shipment
-            const mapToColumnLabel = (val) => {
-              if (!val) return '';
-              const v = String(val).toLowerCase().trim();
-              if (['material-reception','recepcion material','recepción material','recepción_material','recepción','pendiente','pendiente por revisar','new','nuevo'].includes(v)) return 'Recepción Material';
-              if (['safety-checklist','lista seguridad','seguridad','safety','checklist seguridad'].includes(v)) return 'Lista Seguridad';
-              if (['manufacturing','fabricación','fabricacion','en progreso','progreso','producción','produccion','en pausa','pausa','pausado'].includes(v)) return 'Fabricación';
-              if (['quality-control','control calidad','calidad','qc','quality','revisión'].includes(v)) return 'Control Calidad';
-              if (['ready-shipment','listo envío','listo envio','envío','envio','enviado','completada','completado','listo'].includes(v)) return 'Listo Envío';
-              if (['material-reception','safety-checklist','manufacturing','quality-control','ready-shipment'].includes(v)) return v;
-              return String(val);
-            };
+  // ENCABEZADO
+  doc.setFillColor(10, 74, 138);
+  doc.rect(0, 0, 595.28, 40, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("REPORTE DE ORDEN", 595.28 / 2, 25, { align: "center" });
 
-            const currentFlow = mapToColumnLabel(selectedOrder?.status || selectedOrder?.raw?.status || selectedOrder?.estado || selectedOrder?.raw?.estado || '');
-            const isReadyForShipment = (() => {
-              const status = (selectedOrder?.status || selectedOrder?.raw?.status || selectedOrder?.estado || selectedOrder?.raw?.estado || '').toString().toLowerCase();
-              const progressVal = Number(selectedOrder?.progress ?? selectedOrder?.progreso ?? selectedOrder?.estadoProgreso ?? 0) || 0;
-              const completedFlag = !!(selectedOrder?.completed || selectedOrder?.raw?.completed);
-              return (['ready-shipment','listo envío','listo envio','enviado','completado','completada','listo'].some(s => status.includes(s)) || progressVal >= 100 || completedFlag) ? 'Sí' : 'No';
-            })();
+  doc.setTextColor("#333");
 
-            rows.push(['Flujo actual', currentFlow || '']);
-            rows.push(['Listo Envío', isReadyForShipment]);
+  // TÍTULO
+  const title = `Orden: ${selectedOrder?.ordenTrabajo || selectedOrder?.id || ""}`;
+  doc.setFontSize(14);
+  doc.text(title, margin, 70);
 
-            doc.autoTable({
-              startY: 90,
-              head: [['Proyecto', 'Datos']],
-              body: rows,
-              theme: 'grid',
-              styles: { fontSize: 10 }
-            });
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleString()}`, margin, 88);
 
-            // Materials table
-            const mats = buildMaterials();
-            if (mats.length) {
-              const startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 200;
-              const matRows = mats.map(m => [m.name || '', String(m.required || 0), String(m.received || 0), String(m.missing || 0)]);
-              doc.autoTable({
-                startY,
-                head: [['Material', 'Req.', 'Recibidos', 'Faltantes']],
-                body: matRows,
-                theme: 'grid',
-                styles: { fontSize: 10 }
-              });
-            }
+  // --------------------------------------------
+  // TABLA INFO
+  // --------------------------------------------
+  const rows = [];
+  rows.push(["Orden Trabajo", String(selectedOrder?.ordenTrabajo || selectedOrder?.id || "")]);
+  rows.push(["Cliente", String(selectedOrder?.clientName || selectedOrder?.cliente?.nombre || "")]);
 
-            // Approved materials: try local shapes first, fall back to requisiService
-            try {
-              const approvedCandidates = [];
-              if (Array.isArray(selectedOrder?.materials)) approvedCandidates.push(...selectedOrder.materials);
-              if (Array.isArray(selectedOrder?.raw?.materiales)) approvedCandidates.push(...selectedOrder.raw.materiales);
-              if (Array.isArray(selectedOrder?.raw?.materials)) approvedCandidates.push(...selectedOrder.raw.materials);
+  const progress = Number(selectedOrder?.progress ?? selectedOrder?.progreso ?? 0);
+  const delta = computeDailyProgressDelta();
 
-              let approvedList = extractApprovedFromArray(approvedCandidates);
+  rows.push(["Progreso", `${progress}%`]);
+  if (delta !== null) rows.push(["Avance del día", `${delta >= 0 ? "+" : ""}${delta}%`]);
 
-              // fallback: query requisitions by several possible order-identifiers
-              if (!approvedList.length) {
-                const candidates = [];
-                if (selectedOrder?.ordenTrabajo) candidates.push({ q: { numeroOrdenTrabajo: selectedOrder.ordenTrabajo } });
-                if (selectedOrder?.id) candidates.push({ q: { id: selectedOrder.id } });
-                if (selectedOrder?.folio) candidates.push({ q: { folio: selectedOrder.folio } });
-                if (selectedOrder?.raw?.id) candidates.push({ q: { id: selectedOrder.raw.id } });
-                if (selectedOrder?.raw?.numeroOrdenTrabajo) candidates.push({ q: { numeroOrdenTrabajo: selectedOrder.raw.numeroOrdenTrabajo } });
+  rows.push(["Prioridad", selectedOrder?.prioridad || ""]);
+  rows.push(["Fecha Límite", selectedOrder?.fechaLimite || "-"]);
 
-                for (const c of candidates) {
-                  try {
-                    const resp = await requisiService.getRequisitions(c.q);
-                    if (resp?.success && Array.isArray(resp.data) && resp.data.length) {
-                      // Collect all materials (don't require estado 'aprob')
-                      const mats = [];
-                      resp.data.forEach(req => {
-                        const list = Array.isArray(req.materiales) ? req.materiales : (Array.isArray(req.items) ? req.items : []);
-                        list.forEach(it => mats.push(it));
-                      });
+  const techs =
+    (Array.isArray(selectedOrder?.tecnicos)
+      ? selectedOrder.tecnicos
+      : selectedOrder?.tecnicoAsignado
+      ? [selectedOrder.tecnicoAsignado]
+      : []
+    )
+      .map(t => t?.nombre || t?.name || "")
+      .join(", ");
 
-                      console.debug('[WorkflowControls] requisitions materials count', mats.length);
-                      if (mats.length) {
-                        // If items look like articulos (codigo/descripcion), map to article-like rows for PDF
-                        const first = mats[0];
-                        if (first && (first.codigo || first.descripcion || first.costoUnitario || first.cantidadConUnidad)) {
-                          approvedList = mats.map(a => ({ codigo: a.codigo, descripcion: a.descripcion || a.nombre || a.producto, cantidadConUnidad: a.cantidadConUnidad ?? a.cantidad ?? a.qty, costoUnitario: a.costoUnitario ?? a.precio ?? a.price, subtotal: a.subtotal ?? a.total ?? 0 }));
-                          break;
-                        }
+  rows.push(["Técnicos", techs]);
+  rows.push(["Flujo Actual", selectedOrder?.estado || selectedOrder?.status || ""]);
 
-                        const fromReq = extractApprovedFromArray(mats);
-                        if (fromReq.length) { approvedList = fromReq; break; }
-                      }
-                    }
-                  } catch (e) {
-                    // ignore and continue with other candidates
-                  }
-                }
-              }
+  if (selectedOrder?.safetyChecklistCompleted) {
+    rows.push(["Check Seguridad", "Completado"]);
+  }
 
-              // if still empty, try gastos (ordenes de compra) via hook
-              if (!approvedList.length) {
-                try {
-                  console.debug('[WorkflowControls] generateReport: trying getGastos fallback for selectedOrder', { ordenTrabajo: selectedOrder?.ordenTrabajo, id: selectedOrder?.id, folio: selectedOrder?.folio });
-                  const gresp = await getGastos();
-                  console.debug('[WorkflowControls] getGastos returned', Array.isArray(gresp) ? gresp.length : (gresp?.items?.length || gresp?.data?.length || 0));
-                  const list = Array.isArray(gresp) ? gresp : (gresp?.items || gresp?.data || []);
-                  if (Array.isArray(list) && list.length) {
-                    const candidates = [];
-                    if (selectedOrder?.ordenTrabajo) candidates.push(String(selectedOrder.ordenTrabajo));
-                    if (selectedOrder?.id) candidates.push(String(selectedOrder.id));
-                    if (selectedOrder?.folio) candidates.push(String(selectedOrder.folio));
-                    if (selectedOrder?.raw?.id) candidates.push(String(selectedOrder.raw.id));
+  doc.autoTable({
+    startY: 110,
+    head: [["Campo", "Valor"]],
+    body: rows,
+    theme: "grid",
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [10, 74, 138], textColor: 255 }
+  });
 
-                    for (const po of list) {
-                      try {
-                        const poKeys = [po?.numeroOrdenTrabajo, po?.orderNumber, po?.numero, po?.folio, po?.id, po?.ordenTrabajo, po?.numeroOrdenCompra].filter(Boolean).map(String);
-                        const nor = normalizeKey(selectedOrder?.ordenTrabajo || selectedOrder?.id || selectedOrder?.folio || selectedOrder?.raw?.id || '');
-                        const nd = onlyDigits(selectedOrder?.ordenTrabajo || selectedOrder?.id || selectedOrder?.folio || selectedOrder?.raw?.id || '');
-                        const matched = poKeys.some(k => {
-                          const nk = normalizeKey(k);
-                          const kd = onlyDigits(k);
-                          if (nk && nor && (nk.includes(nor) || nor.includes(nk))) return true;
-                          if (kd && nd && kd === nd) return true;
-                          if (String(selectedOrder?.ordenTrabajo || '').toLowerCase().includes(String(k).toLowerCase()) || String(k).toLowerCase().includes(String(selectedOrder?.ordenTrabajo || '').toLowerCase())) return true;
-                          return false;
-                        });
-                        if (matched) {
-                          // prefer articulos if present
-                          const articles = Array.isArray(po.articulos) ? po.articulos : (Array.isArray(po.materiales) ? po.materiales : (Array.isArray(po.items) ? po.items : []));
-                          if (articles.length) {
-                            approvedList = articles.map(a => ({ codigo: a.codigo, descripcion: a.descripcion || a.nombre || a.producto, cantidadConUnidad: a.cantidadConUnidad ?? a.cantidad ?? a.qty, costoUnitario: a.costoUnitario ?? a.precio ?? a.price, subtotal: a.subtotal ?? a.total ?? 0 }));
-                            console.debug('[WorkflowControls] matched PO, articles count', approvedList.length);
-                            break;
-                          }
-                        }
-                      } catch (e) { console.warn('[WorkflowControls] error checking PO', e?.message || e); }
-                    }
-                  }
-                } catch (e) {
-                  console.warn('[WorkflowControls] getGastos failed', e?.message || e);
-                }
-              }
+  // --------------------------------------------
+  // TABLA MATERIALES (RECEPCIÓN REAL)
+  // --------------------------------------------
+  let cursorY = doc.lastAutoTable.finalY + 20;
+  const materials = buildMaterials();
 
-              if (approvedList && approvedList.length) {
-                const startY2 = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 250;
-                const formatCurrency = (v) => {
-                  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(v || 0)); } catch (e) { return String(v); }
-                };
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Materiales Recepcionados", margin, cursorY);
 
-                // If articles shape (codigo) use the requested columns, otherwise use generic approved shape
-                let rowsApproved = [];
-                if (approvedList[0] && approvedList[0].codigo) {
-                  rowsApproved = approvedList.map(a => [String(a.codigo || ''), String(a.descripcion || ''), String(a.cantidadConUnidad ?? a.cantidad ?? a.qty ?? ''), String(formatCurrency(a.costoUnitario)), String(formatCurrency(a.subtotal))]);
-                  doc.autoTable({
-                    startY: startY2 + 8,
-                    head: [['Código', 'Descripción', 'Cantidad', 'Costo Unitario', 'Subtotal']],
-                    body: rowsApproved,
-                    theme: 'grid',
-                    styles: { fontSize: 10 }
-                  });
-                } else {
-                  rowsApproved = approvedList.map(a => [a.name || '', String(a.required || 0), String(a.received || 0), String(Math.max(0, (a.required || 0) - (a.received || 0)))]);
-                  doc.autoTable({
-                    startY: startY2 + 8,
-                    head: [['Material Aprobado', 'Req.', 'Recibidos', 'Faltantes']],
-                    body: rowsApproved,
-                    theme: 'grid',
-                    styles: { fontSize: 10 }
-                  });
-                }
-              }
-            } catch (e) {
-              // ignore approved-materials errors for PDF generation
-            }
+  doc.autoTable({
+    startY: cursorY + 10,
+    head: [["Material", "Requerido", "Recibido", "Faltante"]],
+    body: materials.map(m => [m.name, m.required, m.received, m.missing]),
+    theme: "grid",
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [10, 74, 138], textColor: 255 }
+  });
 
-            const selectedKey = selectedOrder ? (selectedOrder?.id || selectedOrder?.ordenTrabajo || selectedOrder?.folio || '') : '';
-            const localMissing = Array.isArray(localMissingByOrder?.[selectedKey]) ? localMissingByOrder[selectedKey] : [];
-            const recorded = Array.isArray(selectedMissingPPE) ? selectedMissingPPE : (selectedMissingPPE ? [selectedMissingPPE] : []);
-            const missingList = Array.from(new Set([...(recorded || []), ...(localMissing || [])]));
-            if (missingList.length) {
-              const startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 250;
-              doc.setFontSize(12);
-              const rowsMissing = missingList.map(m => [String(m || '')]);
-              doc.autoTable({
-                startY: startY + 8,
-                head: [['Faltantes Lista de seguridad']],
-                body: rowsMissing,
-                theme: 'grid',
-                styles: { fontSize: 10 }
-              });
-            }
+  // --------------------------------------------
+  // GUARDAR PDF
+  // --------------------------------------------
+  doc.save(`Reporte_Orden_${selectedOrder?.ordenTrabajo || selectedOrder?.id || ""}.pdf`);
+};
 
-            // Footer note and save
-            const fileName = `Reporte_Orden_${String(selectedOrder?.ordenTrabajo || selectedOrder?.id || '').replace(/\s+/g,'_')}_${now.toISOString().slice(0,10)}.pdf`;
-            doc.save(fileName);
-          };
+
 
           return (
             <div className="bg-card border rounded-lg p-4">
@@ -537,14 +408,14 @@ import useGastos from '../../../hooks/useGastos';
                       </span>
                     </div>
 
-                    <div className="truncate">
+                    <div className="col-span-2">
                       <strong className="block">Cliente</strong>
-                      <span className="block mt-1">{selectedOrder?.clientName || selectedOrder?.clientLabel || (selectedOrder?.cliente && (selectedOrder.cliente.nombre || selectedOrder.cliente)) || ''}</span>
+                      <span className="block mt-1 break-words">{selectedOrder?.clientName || selectedOrder?.clientLabel || (selectedOrder?.cliente && (selectedOrder.cliente.nombre || selectedOrder.cliente)) || ''}</span>
                     </div>
 
-                    <div className="truncate">
+                    <div className="col-span-2">
                       <strong className="block">Proyecto</strong>
-                      <span className="block mt-1">
+                      <span className="block mt-1 break-words">
                         {(
                           selectedOrder?.projectRef ||
                           selectedOrder?.proyectoNombre ||

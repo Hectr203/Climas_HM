@@ -193,6 +193,29 @@ import useOperacAlt from '../../../hooks/useOperacAlt';
             });
           }, [normalizedOrders]);
 
+          // Limpiar localStorage cuando el servidor tiene valores más recientes
+          useEffect(() => {
+            setLocalProgress((prev) => {
+              try {
+                const next = { ...prev };
+                let hasChanges = false;
+                normalizedOrders.forEach((o) => {
+                  const k = getOrderKey(o);
+                  if (!k) return;
+                  // Si el servidor tiene un progreso definido, eliminar el valor local
+                  const serverProgress = o?.estadoProgreso ?? o?.progress;
+                  if (serverProgress !== undefined && serverProgress !== null && next[k] !== undefined) {
+                    delete next[k];
+                    hasChanges = true;
+                  }
+                });
+                return hasChanges ? next : prev;
+              } catch (e) {
+                return prev || {};
+              }
+            });
+          }, [normalizedOrders]);
+
           const handleMoveOrder = (order, newStatus) => {
             const orderKey = getOrderKey(order);
             if (!orderKey) return; // don't proceed without a stable key
@@ -204,8 +227,11 @@ import useOperacAlt from '../../../hooks/useOperacAlt';
             // The user requested that only the explicit 'Listo' button marks 100% and completed.
             if (newProgress !== null && newStatus !== 'ready-shipment') {
               payload.estadoProgreso = newProgress;
-              // optimistic UI update for non-final transitions
-              setLocalProgress(prev => ({ ...prev, [orderKey]: newProgress }));
+              // Solo actualizar localStorage si el servidor NO tiene ya un valor
+              const serverProgress = order?.estadoProgreso ?? order?.progress;
+              if (serverProgress === undefined || serverProgress === null) {
+                setLocalProgress(prev => ({ ...prev, [orderKey]: newProgress }));
+              }
             }
             if (newProgress === 100 && newStatus !== 'ready-shipment') payload.completed = true;
             // persist local status override so UI keeps the card in the new column across reloads
@@ -284,6 +310,7 @@ import useOperacAlt from '../../../hooks/useOperacAlt';
                             const reactKey = `${stableKey}-${__idx}`;
                             const isHidden = stableKey && (localHidden[stableKey] || order?.hidden);
                             if (isHidden) return null;
+                            // Siempre priorizar valores del servidor sobre localStorage
                             const parentProgress = (order?.estadoProgreso !== undefined && order?.estadoProgreso !== null)
                               ? Number(order.estadoProgreso)
                               : (order?.progress !== undefined && order?.progress !== null) ? Number(order.progress) : null;
@@ -293,12 +320,24 @@ import useOperacAlt from '../../../hooks/useOperacAlt';
                               : null;
 
                             let rawProgress = 0;
-                            if (parentProgress !== null && !Number.isNaN(parentProgress)) rawProgress = Math.round(parentProgress);
-                            else if (localProg !== null && !Number.isNaN(localProg)) rawProgress = Math.round(localProg);
-                            else rawProgress = Math.round(Number(order?.progreso ?? 0) || 0);
+                            // SIEMPRE preferir parentProgress (servidor) sobre localStorage
+                            if (parentProgress !== null && !Number.isNaN(parentProgress)) {
+                              rawProgress = Math.round(parentProgress);
+                              // Limpiar localStorage si hay un valor del servidor más reciente
+                              if (stableKey && localProg !== null && localProg !== parentProgress) {
+                                setLocalProgress(prev => {
+                                  const next = { ...prev };
+                                  delete next[stableKey];
+                                  return next;
+                                });
+                              }
+                            } else if (localProg !== null && !Number.isNaN(localProg)) {
+                              rawProgress = Math.round(localProg);
+                            } else {
+                              rawProgress = Math.round(Number(order?.progreso ?? 0) || 0);
+                            }
 
-                            // If the parent explicitly set a progress value (even <100), prefer that
-                            // over any localCompleted flag so reverting away from completed will show the restored progress.
+                            // Siempre preferir el progreso del servidor sobre flags locales
                             let computedProgress = rawProgress;
                             if (parentProgress !== null && !Number.isNaN(parentProgress)) {
                               computedProgress = Math.min(100, Math.max(0, Math.round(parentProgress)));

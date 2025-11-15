@@ -127,16 +127,10 @@ const ItemDetailsModal = ({ isOpen, onClose, item }) => {
                   <span>Stock e Inventario</span>
                 </h3>
                 
-                <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4">
                   <div className="bg-background rounded-lg p-2 sm:p-3 text-center">
                     <div className="text-xl sm:text-2xl font-bold text-foreground">{item.currentStock}</div>
                     <div className="text-xs text-muted-foreground">Stock Actual</div>
-                    <div className="text-xs text-muted-foreground">{item.unit}</div>
-                  </div>
-                  
-                  <div className="bg-background rounded-lg p-2 sm:p-3 text-center">
-                    <div className="text-xl sm:text-2xl font-bold text-muted-foreground">{item.reservedStock}</div>
-                    <div className="text-xs text-muted-foreground">Stock Reservado</div>
                     <div className="text-xs text-muted-foreground">{item.unit}</div>
                   </div>
                   
@@ -149,19 +143,6 @@ const ItemDetailsModal = ({ isOpen, onClose, item }) => {
                   <div className="bg-background rounded-lg p-2 sm:p-3 text-center">
                     <div className="text-base sm:text-lg font-bold text-primary break-all">{formatCurrency(item.unitCost)}</div>
                     <div className="text-xs text-muted-foreground">Costo Unitario</div>
-                  </div>
-                </div>
-
-                {/* Stock Disponible */}
-                <div className="mt-4 bg-background rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">Stock Disponible:</span>
-                    <span className="text-lg font-bold text-success">
-                      {(item.currentStock - item.reservedStock)} {item.unit}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    (Stock actual - Stock reservado)
                   </div>
                 </div>
 

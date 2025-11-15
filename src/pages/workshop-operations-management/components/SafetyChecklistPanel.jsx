@@ -156,10 +156,16 @@ import React, { useState, useEffect } from 'react';
 
           // If a selected order is provided by the parent (board selection), initialize the panel with it
           useEffect(() => {
-            if (propSelectedOrder) {
+            if (!propSelectedOrder) return;
+            
+            // Only select if it's actually a different order
+            const incomingId = propSelectedOrder?.id || propSelectedOrder?.ordenTrabajo || propSelectedOrder?.folio || '';
+            const currentId = selectedOrder?.id || selectedOrder?.ordenTrabajo || selectedOrder?.folio || '';
+            
+            if (incomingId && incomingId !== currentId) {
               handleOrderSelect(propSelectedOrder);
             }
-          }, [propSelectedOrder]);
+          }, [propSelectedOrder?.id, propSelectedOrder?.ordenTrabajo, propSelectedOrder?.folio]);
 
           const handleChecklistChange = (itemKey, checked) => {
             setChecklist(prev => ({
@@ -209,11 +215,16 @@ import React, { useState, useEffect } from 'react';
           };
 
           // Notify parent about local missing labels for the currently selected order
+          // Use a ref to track the last notified value to prevent infinite loops
+          const lastNotifiedRef = React.useRef({});
+          
           useEffect(() => {
             try {
               if (!onLocalMissingChange) return;
               if (!selectedOrder) return;
               const orderKey = selectedOrder?.id || selectedOrder?.ordenTrabajo || selectedOrder?.folio || '';
+              if (!orderKey) return;
+              
               const localMissingLabels = Object.keys(missingPPE || {}).filter(k => !!missingPPE[k]).map(k => {
                 if (k.startsWith('custom-')) return checklist?.[k + '-label'] || 'Otro';
                 const parts = k.split('-');
@@ -221,11 +232,19 @@ import React, { useState, useEffect } from 'react';
                 const idx = Number(parts[1]);
                 return sec?.items?.[idx] || 'Otro';
               });
-              onLocalMissingChange(orderKey, Array.from(new Set(localMissingLabels)));
+              
+              const uniqueLabels = Array.from(new Set(localMissingLabels));
+              const labelsKey = JSON.stringify(uniqueLabels);
+              
+              // Only notify if the value actually changed
+              if (lastNotifiedRef.current[orderKey] !== labelsKey) {
+                lastNotifiedRef.current[orderKey] = labelsKey;
+                onLocalMissingChange(orderKey, uniqueLabels);
+              }
             } catch (e) {
               // ignore
             }
-          }, [missingPPE, selectedOrder, checklist, onLocalMissingChange]);
+          }, [missingPPE, selectedOrder, checklist]);
 
           const getCompletionPercentage = () => {
             // Only consider required items in the progress calculation.
@@ -280,14 +299,24 @@ import React, { useState, useEffect } from 'react';
           useEffect(() => {
             if (!selectedOrder) return;
             const orderKey = selectedOrder?.id || selectedOrder?.ordenTrabajo || selectedOrder?.folio || '';
+            if (!orderKey) return;
+            
+            const completed = isChecklistComplete();
             const toSave = {
               checklist: checklist || {},
               missingPPE: missingPPE || {},
-              completed: isChecklistComplete(),
+              completed: completed,
               updatedAt: new Date().toISOString()
             };
             saveLocalState(orderKey, toSave);
-            setPersistedState(toSave);
+            
+            // Only update persistedState if completed status actually changed
+            setPersistedState(prev => {
+              if (prev?.completed !== completed) {
+                return toSave;
+              }
+              return prev;
+            });
           }, [checklist, missingPPE, selectedOrder]);
 
           const handleSubmitChecklist = () => {

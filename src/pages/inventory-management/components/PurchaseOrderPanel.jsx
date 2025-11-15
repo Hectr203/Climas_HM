@@ -45,7 +45,7 @@ const onDownloadOrder = (order) => {
   };
 
   // ENCABEZADO
-  doc.setFillColor(10, 74, 138);
+  doc.setFillColor(10, 74, 139);
   doc.rect(0, 0, 210, 25, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);

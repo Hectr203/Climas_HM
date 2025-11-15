@@ -60,7 +60,7 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
         p.Id ??
         p._id ??
         p.proyectoId ??
-        p.codigo ?? // a veces usan el código como id
+        p.codigo ??
         p.code;
 
       const nombre =
@@ -157,7 +157,53 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
 
     try {
       const created = await createGasto(payload);
-      if (typeof onSubmit === 'function') onSubmit(created);
+
+      // 🔄 Normalizar respuesta para que la tabla pueda usarla directo
+      let newExpense = created;
+
+      // Si el backend envía { data: {...} } o algo similar
+      if (created && typeof created === 'object') {
+        if (created.data && !Array.isArray(created.data)) {
+          newExpense = created.data;
+        } else if (created.item) {
+          newExpense = created.item;
+        }
+      }
+
+      // Fallback: usamos el payload + algún id
+      if (!newExpense || typeof newExpense !== 'object') {
+        newExpense = {
+          ...payload,
+          id: created?.id ?? created?._id ?? Date.now(),
+        };
+      } else {
+        // aseguramos campos mínimos que usa ExpenseTable
+        newExpense = {
+          ...newExpense,
+          fecha: newExpense.fecha ?? payload.fecha,
+          categoria: newExpense.categoria ?? payload.categoria,
+          descripcion: newExpense.descripcion ?? payload.descripcion,
+          monto: newExpense.monto ?? payload.monto,
+          estado: newExpense.estado ?? newExpense.status ?? 'Pendiente',
+          idProyecto: newExpense.idProyecto ?? payload.idProyecto,
+          codigoProyecto: newExpense.codigoProyecto ?? payload.codigoProyecto,
+        };
+      }
+
+      // ✅ Disparar evento global para que ExpenseTable lo agregue sin refrescar
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('gasto:created', {
+            detail: newExpense,
+          })
+        );
+      }
+
+      // 👇 notificar al padre (por si el contenedor también necesita reaccionar)
+      if (typeof onSubmit === 'function') {
+        onSubmit(newExpense);
+      }
+
       handleClose();
     } catch (err) {
       console.error('Error al crear gasto:', err);
@@ -211,7 +257,7 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
           </div>
         </div>
 
-        {/* Formulario (respetando tu layout original) */}
+        {/* Formulario */}
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Información del Gasto */}
@@ -223,37 +269,62 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
             </div>
 
             <div>
-              <Input type="date" label="Fecha" value={formData.date}
+              <Input
+                type="date"
+                label="Fecha"
+                value={formData.date}
                 onChange={(e) => handleInputChange('date', e.target.value)}
-                error={errors?.date} required disabled={isBusy} />
+                error={errors?.date}
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Input type="time" label="Hora" value={formData.time}
+              <Input
+                type="time"
+                label="Hora"
+                value={formData.time}
                 onChange={(e) => handleInputChange('time', e.target.value)}
-                required disabled={isBusy} />
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Select label="Categoría" value={formData.category}
+              <Select
+                label="Categoría"
+                value={formData.category}
                 onChange={(value) => handleInputChange('category', value)}
                 error={errors?.category}
                 options={categories.map((c) => ({ value: c, label: c }))}
-                placeholder="Selecciona una categoría" required disabled={isBusy} />
+                placeholder="Selecciona una categoría"
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Select label="Prioridad" value={formData.priority}
+              <Select
+                label="Prioridad"
+                value={formData.priority}
                 onChange={(value) => handleInputChange('priority', value)}
                 options={priorities.map((p) => ({ value: p, label: p }))}
-                required disabled={isBusy} />
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div className="md:col-span-2">
-              <Input label="Descripción" placeholder="Ej. Compra de materiales para instalación HVAC"
+              <Input
+                label="Descripción"
+                placeholder="Ej. Compra de materiales para instalación HVAC"
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                error={errors?.description} required disabled={isBusy} />
+                error={errors?.description}
+                required
+                disabled={isBusy}
+              />
             </div>
 
             {/* Información Financiera */}
@@ -265,31 +336,52 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
             </div>
 
             <div>
-              <Input type="text" inputMode="decimal" label="Monto" placeholder="Ej. 2500.00"
-                value={formData.amount} onChange={handleAmountChange}
-                error={errors?.amount} required disabled={isBusy} />
+              <Input
+                type="text"
+                inputMode="decimal"
+                label="Monto"
+                placeholder="Ej. 2500.00"
+                value={formData.amount}
+                onChange={handleAmountChange}
+                error={errors?.amount}
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Select label="Moneda" value={formData.currency}
+              <Select
+                label="Moneda"
+                value={formData.currency}
                 onChange={(value) => handleInputChange('currency', value)}
                 options={currencies.map((c) => ({ value: c, label: c }))}
-                required disabled={isBusy} />
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Select label="Método de Pago" value={formData.paymentMethod}
+              <Select
+                label="Método de Pago"
+                value={formData.paymentMethod}
                 onChange={(value) => handleInputChange('paymentMethod', value)}
                 options={paymentMethods.map((m) => ({ value: m, label: m }))}
-                required disabled={isBusy} />
+                required
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Select label="Presupuesto Departamental" value={formData.departmentBudget}
+              <Select
+                label="Presupuesto Departamental"
+                value={formData.departmentBudget}
                 onChange={(value) => handleInputChange('departmentBudget', value)}
                 error={errors?.departmentBudget}
                 options={departmentBudgets.map((d) => ({ value: d, label: d }))}
-                placeholder="Selecciona un departamento" required disabled={isBusy} />
+                placeholder="Selecciona un departamento"
+                required
+                disabled={isBusy}
+              />
             </div>
 
             {/* Información del Proyecto */}
@@ -325,17 +417,25 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
             </div>
 
             <div>
-              <Input label="Proveedor/Vendor" placeholder="Ej. Materiales Industriales SA"
+              <Input
+                label="Proveedor/Vendor"
+                placeholder="Ej. Materiales Industriales SA"
                 value={formData.vendor}
                 onChange={(e) => handleInputChange('vendor', e.target.value)}
-                disabled={isBusy} />
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Input label="Solicitado por" placeholder="Ej. Carlos Mendoza"
+              <Input
+                label="Solicitado por"
+                placeholder="Ej. Carlos Mendoza"
                 value={formData.requestedBy}
                 onChange={(e) => handleInputChange('requestedBy', e.target.value)}
-                error={errors?.requestedBy} required disabled={isBusy} />
+                error={errors?.requestedBy}
+                required
+                disabled={isBusy}
+              />
             </div>
 
             {/* Información Adicional */}
@@ -347,17 +447,23 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
             </div>
 
             <div>
-              <Input label="Autorizado por" placeholder="Ej. Ana García"
+              <Input
+                label="Autorizado por"
+                placeholder="Ej. Ana García"
                 value={formData.authorizedBy}
                 onChange={(e) => handleInputChange('authorizedBy', e.target.value)}
-                disabled={isBusy} />
+                disabled={isBusy}
+              />
             </div>
 
             <div>
-              <Input type="date" label="Fecha Límite de Pago"
+              <Input
+                type="date"
+                label="Fecha Límite de Pago"
                 value={formData.dueDate}
                 onChange={(e) => handleInputChange('dueDate', e.target.value)}
-                disabled={isBusy} />
+                disabled={isBusy}
+              />
             </div>
 
             <div className="md:col-span-2">

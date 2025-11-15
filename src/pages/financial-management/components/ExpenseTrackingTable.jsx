@@ -74,6 +74,18 @@ const getExpenseStatusColor = (statusValue) => {
 const normId = (v) => (v == null ? '' : String(v).trim());
 const normCode = (v) => (v == null ? '' : String(v).trim().toUpperCase());
 
+// 🔑 Helper para identificar un gasto por su id
+const getDocKey = (d) =>
+  String(
+    d?.id ??
+      d?._id ??
+      d?.gastoId ??
+      d?.gastoID ??
+      d?.Id ??
+      d?.ID ??
+      ''
+  );
+
 /* ====== Map de documento → fila (join con proyectos) ====== */
 const mapGastoDocWithProjects = (doc, projectById, projectByCode) => {
   const id = doc.id ?? doc._id ?? doc.gastoId ?? `${Math.random()}`;
@@ -172,25 +184,12 @@ const ExpenseTable = ({ filters: externalFilters }) => {
 
   useEffect(() => { getProyectos().catch(() => {}); }, [getProyectos]);
 
-  const { projectById, projectByCode } = useMemo(() => {
-    const byId = {};
-    const byCode = {};
-    (proyectos || []).forEach((p) => {
-      const id = normId(p.id ?? p._id ?? p.proyectoId ?? p.codigo ?? p.code);
-      const nombre = p.nombreProyecto ?? p.nombre ?? p.name ?? p.titulo ?? p.descripcion ?? '';
-      const codigo = p.codigo ?? p.code ?? p.clave ?? p.projectCode ?? '';
-      if (id) byId[id] = { nombre, codigo };
-      const ncode = normCode(codigo);
-      if (ncode) byCode[ncode] = { nombre, codigo };
-    });
-    return { projectById: byId, projectByCode: byCode };
-  }, [proyectos]);
-
-  // Carga de gastos
+  // Carga inicial de gastos
   useEffect(() => {
     let alive = true;
     (async () => {
-      setLoading(true); setErrorMsg('');
+      setLoading(true);
+      setErrorMsg('');
       try {
         const res = await finanzasService.getGastos();
         const list = Array.isArray(res)
@@ -211,6 +210,49 @@ const ExpenseTable = ({ filters: externalFilters }) => {
     })();
     return () => { alive = false; };
   }, []);
+
+  // 👂 Escuchar gastos nuevos creados desde el modal (sin refrescar la página)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handler = (ev) => {
+      let doc = ev?.detail;
+      if (!doc) return;
+
+      // Por si el modal manda { data: gasto }
+      if (doc.data && typeof doc.data === 'object' && !Array.isArray(doc.data)) {
+        doc = doc.data;
+      }
+
+      setRemoteRows((prev) => {
+        const keyNew = getDocKey(doc);
+        // si no hay id, lo metemos igual al inicio
+        if (!keyNew) return [doc, ...prev];
+
+        const exists = prev.some((d) => getDocKey(d) === keyNew);
+        if (exists) return prev;
+
+        return [doc, ...prev];
+      });
+    };
+
+    window.addEventListener('gasto:created', handler);
+    return () => window.removeEventListener('gasto:created', handler);
+  }, []);
+
+  const { projectById, projectByCode } = useMemo(() => {
+    const byId = {};
+    const byCode = {};
+    (proyectos || []).forEach((p) => {
+      const id = normId(p.id ?? p._id ?? p.proyectoId ?? p.codigo ?? p.code);
+      const nombre = p.nombreProyecto ?? p.nombre ?? p.name ?? p.titulo ?? p.descripcion ?? '';
+      const codigo = p.codigo ?? p.code ?? p.clave ?? p.projectCode ?? '';
+      if (id) byId[id] = { nombre, codigo };
+      const ncode = normCode(codigo);
+      if (ncode) byCode[ncode] = { nombre, codigo };
+    });
+    return { projectById: byId, projectByCode: byCode };
+  }, [proyectos]);
 
   const rows = useMemo(
     () =>
@@ -243,7 +285,7 @@ const ExpenseTable = ({ filters: externalFilters }) => {
     let rangeStart = null, rangeEnd = null;
     const now = new Date();
     switch (f.dateRange) {
-      case 'all': // ⬅️ sin filtro por fecha
+      case 'all':
         rangeStart = null; rangeEnd = null; break;
       case 'today':
         rangeStart = startOfToday(); rangeEnd = endOfToday(); break;
@@ -269,15 +311,13 @@ const ExpenseTable = ({ filters: externalFilters }) => {
         rangeEnd   = f.endDate   ? new Date(`${f.endDate}T23:59:59.999`) : null;
         break;
       default:
-        // por compatibilidad: si llega algo raro, no filtramos
         rangeStart = null; rangeEnd = null; break;
     }
 
     return list.filter((r) => {
-      // rango de fecha (solo cuando NO es 'all')
       if (f.dateRange !== 'all' && (rangeStart || rangeEnd)) {
         const d = parseISODate(r.date);
-        if (!d) return false; // si prefieres no descartar invalid date: devuelve true
+        if (!d) return false;
         if (rangeStart && d < rangeStart) return false;
         if (rangeEnd   && d > rangeEnd) return false;
       }
@@ -407,15 +447,20 @@ const ExpenseTable = ({ filters: externalFilters }) => {
     setShowAuthModal(true);
   };
 
+  // 🔴 AQUÍ EL CAMBIO IMPORTANTE PARA QUE SE ACTUALICE A "AUTORIZADO"
   const handleAuthorizePayment = async ({
-    expenseId,
+    id,
     authorizationLevel,
     approverComments,
     paymentMethod,
     scheduledDate,
     priority,
     requiresAdditionalApproval,
+    // ... lo que más te mande el modal, lo ignoramos si no se usa
   }) => {
+    if (!id) return;
+    const expenseId = id;
+
     const payload = {
       estado: 'Autorizado',
       status: 'authorized',
@@ -431,16 +476,25 @@ const ExpenseTable = ({ filters: externalFilters }) => {
       },
     };
 
-    // Optimistic update
+    // Optimistic update: cambiar estado en la tabla al instante
     setRemoteRows((prev) =>
       prev.map((d) => {
         const _id = d.id ?? d._id ?? d.gastoId;
         if (String(_id) !== String(expenseId)) return d;
-        return { ...d, ...payload, autorizacion: { ...(d.autorizacion || {}), ...payload.autorizacion } };
+        return {
+          ...d,
+          ...payload,
+          autorizacion: { ...(d.autorizacion || {}), ...payload.autorizacion },
+        };
       })
     );
 
-    try { await finanzasService.updateGasto(expenseId, payload); } catch (e) { console.error(e); }
+    try {
+      await finanzasService.updateGasto(expenseId, payload);
+    } catch (e) {
+      console.error(e);
+      // si quieres, puedes revertir el cambio acá guardando un snapshot antes
+    }
   };
 
   const handleDeleteExpense = async (expenseId) => {

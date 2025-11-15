@@ -32,7 +32,7 @@ const WorkOrderModal = ({ isOpen, onClose, workOrder, mode = "edit", onSaveSucce
     medicalRequirements: false,
     client: { id: "", nombre: "", contacto: "", email: "", telefono: "" },
     type: "",
-    projectName: "", 
+    proyectoNombre: "", 
   });
 
   const [assignClient, setAssignClient] = useState(false);
@@ -73,65 +73,102 @@ const WorkOrderModal = ({ isOpen, onClose, workOrder, mode = "edit", onSaveSucce
   //Cuando se edita o visualiza una orden existente
   useEffect(() => {
   const loadWorkOrderData = async () => {
-    if (workOrder) {
-      setFormData({
-        orderNumber: workOrder.ordenTrabajo || "",
-        assignedTechnician: {
-          id: workOrder.tecnicoAsignado?.id || "",
-          nombre: workOrder.tecnicoAsignado?.nombre || "",
-        },
-        priority: workOrder.prioridad || "Media",
-        status: workOrder.estado || "Pendiente",
-        dueDate: workOrder.fechaLimite || "",
-        workDescription: workOrder.descripcion || "",
-        additionalNotes: workOrder.notasAdicionales || "",
-        requiredPPE: [
-          ...(workOrder.cascoSeguridad ? ["Casco de Seguridad"] : []),
-          ...(workOrder.gafasProteccion ? ["Gafas de Protección"] : []),
-          ...(workOrder.guantesTrabajo ? ["Guantes de Trabajo"] : []),
-          ...(workOrder.calzadoSeguridad ? ["Calzado de Seguridad"] : []),
-          ...(workOrder.arnesSeguridad ? ["Arnés de Seguridad"] : []),
-          ...(workOrder.respiradorN95 ? ["Respirador N95"] : []),
-          ...(workOrder.chalecoReflectivo ? ["Chaleco Reflectivo"] : []),
-        ],
-        medicalRequirements: workOrder.requiereEstudiosMedicosActualizados || false,
-        client: {
-          id: workOrder.cliente?.id || "",
-          nombre:
-            workOrder.cliente?.nombre ||
-            workOrder.cliente?.empresa ||
-            workOrder.cliente?.companyName ||
-            "",
-          contacto: workOrder.cliente?.contacto || "",
-          email: workOrder.cliente?.email || "",
-          telefono: workOrder.cliente?.telefono || "",
-        },
-        type: workOrder.tipo || "",
-        projectName: workOrder.proyecto?.id || workOrder.proyecto?._id || "",
-      });
+    if (!workOrder) return;
 
-      setAssignClient(!!workOrder.cliente?.id);
+    // Carga inicial del formulario
+    setFormData({
+      orderNumber: workOrder.ordenTrabajo || "",
+      assignedTechnician: {
+        id: workOrder.tecnicoAsignado?.id || "",
+        nombre: workOrder.tecnicoAsignado?.nombre || "",
+      },
+      priority: workOrder.prioridad || "Media",
+      status: workOrder.estado || "Pendiente",
+      dueDate: workOrder.fechaLimite || "",
+      workDescription: workOrder.descripcion || "",
+      additionalNotes: workOrder.notasAdicionales || "",
+      requiredPPE: [
+        ...(workOrder.cascoSeguridad ? ["Casco de Seguridad"] : []),
+        ...(workOrder.gafasProteccion ? ["Gafas de Protección"] : []),
+        ...(workOrder.guantesTrabajo ? ["Guantes de Trabajo"] : []),
+        ...(workOrder.calzadoSeguridad ? ["Calzado de Seguridad"] : []),
+        ...(workOrder.arnesSeguridad ? ["Arnés de Seguridad"] : []),
+        ...(workOrder.respiradorN95 ? ["Respirador N95"] : []),
+        ...(workOrder.chalecoReflectivo ? ["Chaleco Reflectivo"] : []),
+      ],
+      medicalRequirements: workOrder.requiereEstudiosMedicosActualizados || false,
+      client: {
+        id: workOrder.cliente?.id || "",
+        nombre:
+          workOrder.cliente?.nombre ||
+          workOrder.cliente?.empresa ||
+          workOrder.cliente?.companyName ||
+          "",
+        contacto: workOrder.cliente?.contacto || "",
+        email: workOrder.cliente?.email || "",
+        telefono: workOrder.cliente?.telefono || "",
+      },
+      type: workOrder.tipo || "",
+      // lo rellenamos abajo cuando tengamos proyectos
+      proyectoNombre: "",
+    });
 
-      //Carga los proyectos del cliente al editar
-      if (workOrder.cliente?.id) {
-        try {
-          const allProjects = await getProyectos({ force: true });
-          const filtered = allProjects.filter(
-            (p) =>
-              p.cliente?.id === workOrder.cliente.id ||
-              p.cliente?._id === workOrder.cliente.id
-          );
-          setClientProjects(filtered);
-        } catch (error) {
-          console.error("Error al cargar proyectos del cliente:", error);
-          setClientProjects([]);
+    setAssignClient(!!workOrder.cliente?.id);
+
+    if (workOrder.cliente?.id) {
+      try {
+        const allProjects = await getProyectos({ force: true });
+        const filtered = allProjects.filter(
+          (p) =>
+            p.cliente?.id === workOrder.cliente.id ||
+            p.cliente?._id === workOrder.cliente.id
+        );
+        setClientProjects(filtered);
+
+        // helper para normalizar texto
+        const normalize = (s) =>
+          typeof s === "string" ? s.trim().toLowerCase() : "";
+
+        let selectedProjectId = "";
+
+        // 1) si en el futuro guardas también proyecto.id en la orden:
+        if (workOrder.proyecto?.id || workOrder.proyecto?._id) {
+          selectedProjectId = workOrder.proyecto.id || workOrder.proyecto._id;
         }
+
+        // 2) si solo tienes el nombre del proyecto, lo buscamos por nombre
+        if (!selectedProjectId && workOrder.proyectoNombre) {
+          const match = filtered.find((p) => {
+            const nombreProyecto =
+              p.nombre ||
+              p.nombreProyecto || // <- por si lo llamas así en tus docs
+              "";
+            return (
+              normalize(nombreProyecto) ===
+              normalize(workOrder.proyectoNombre)
+            );
+          });
+
+          if (match) {
+            selectedProjectId = match.id || match._id;
+          }
+        }
+
+        if (selectedProjectId) {
+          setFormData((prev) => ({
+            ...prev,
+            proyectoNombre: selectedProjectId,
+          }));
+        }
+      } catch (error) {
+        console.error("Error al cargar proyectos del cliente:", error);
+        setClientProjects([]);
       }
     }
   };
 
   loadWorkOrderData();
-}, [workOrder, isOpen]);
+}, [workOrder, isOpen, getProyectos]);
 
 
 // Agrega esto después
@@ -152,6 +189,7 @@ useEffect(() => {
           email: selected.email || "",
           telefono: selected.telefono || "",
         },
+        proyectoNombre: prev.proyectoNombre,
       }));
       setAssignClient(true);
     }
@@ -203,61 +241,98 @@ useEffect(() => {
   };
 
   const handleSave = async () => {
-    const payload = {
-      ordenTrabajo: formData.orderNumber,
-      prioridad: formData.priority,
-      estado: formData.status,
-      fechaLimite: formData.dueDate,
-      descripcion: formData.workDescription,
-      notasAdicionales: formData.additionalNotes,
-      cascoSeguridad: formData.requiredPPE.includes("Casco de Seguridad"),
-      gafasProteccion: formData.requiredPPE.includes("Gafas de Protección"),
-      guantesTrabajo: formData.requiredPPE.includes("Guantes de Trabajo"),
-      calzadoSeguridad: formData.requiredPPE.includes("Calzado de Seguridad"),
-      arnesSeguridad: formData.requiredPPE.includes("Arnés de Seguridad"),
-      respiradorN95: formData.requiredPPE.includes("Respirador N95"),
-      chalecoReflectivo: formData.requiredPPE.includes("Chaleco Reflectivo"),
-      requiereEstudiosMedicosActualizados: formData.medicalRequirements,
-      tipo: formData.type,
-    };
-
-    if (assignClient && formData.client.id) {
-      payload.cliente = {
-        id: formData.client.id,
-        nombre: formData.client.nombre,
-      };
-    }
-
-    if (formData.projectName) {
-  payload.proyectoNombre =
-    clientProjects.find(
-      (p) => p.id === formData.projectName || p._id === formData.projectName
-    )?.nombre || formData.projectName;
-}
-
-
-
-    if (formData.assignedTechnician.id) {
-      payload.tecnicoAsignado = {
-        id: formData.assignedTechnician.id,
-        nombre: formData.assignedTechnician.nombre,
-      };
-    }
-
-    try {
-      let savedOrder;
-      if (workOrder?.id) {
-        savedOrder = await updateWorkOrder(workOrder.id, payload);
-      } else {
-        savedOrder = await createWorkOrder(payload);
-      }
-
-      onClose();
-      onSaveSuccess?.(savedOrder || { ...payload, id: workOrder?.id || Date.now() });
-    } catch (error) {
-      console.error("Error al guardar:", error);
-    }
+  const payload = {
+    ordenTrabajo: formData.orderNumber,
+    prioridad: formData.priority,
+    estado: formData.status,
+    fechaLimite: formData.dueDate,
+    descripcion: formData.workDescription,
+    notasAdicionales: formData.additionalNotes,
+    cascoSeguridad: formData.requiredPPE.includes("Casco de Seguridad"),
+    gafasProteccion: formData.requiredPPE.includes("Gafas de Protección"),
+    guantesTrabajo: formData.requiredPPE.includes("Guantes de Trabajo"),
+    calzadoSeguridad: formData.requiredPPE.includes("Calzado de Seguridad"),
+    arnesSeguridad: formData.requiredPPE.includes("Arnés de Seguridad"),
+    respiradorN95: formData.requiredPPE.includes("Respirador N95"),
+    chalecoReflectivo: formData.requiredPPE.includes("Chaleco Reflectivo"),
+    requiereEstudiosMedicosActualizados: formData.medicalRequirements,
+    tipo: formData.type,
   };
+
+  if (assignClient && formData.client.id) {
+    payload.cliente = {
+      id: formData.client.id,
+      nombre: formData.client.nombre,
+    };
+  }
+
+  // ------- NUEVA LÓGICA PARA PROYECTO -------
+  let proyectoNombreFinal = "";
+  let proyectoIdFinal = "";
+
+  if (formData.proyectoNombre) {
+    // Usuario seleccionó un proyecto en el Select
+    const selectedProject = clientProjects.find(
+      (p) => p.id === formData.proyectoNombre || p._id === formData.proyectoNombre
+    );
+
+    if (selectedProject) {
+      proyectoNombreFinal =
+        selectedProject.nombre ||
+        selectedProject.nombreProyecto ||
+        "";
+      proyectoIdFinal = selectedProject.id || selectedProject._id;
+    }
+  } else if (workOrder?.proyecto?.id || workOrder?.proyectoNombre) {
+    // No tocó el Select, pero la orden ya tenía proyecto guardado
+    proyectoNombreFinal =
+      workOrder.proyectoNombre ||
+      workOrder.proyecto?.nombre ||
+      "";
+    proyectoIdFinal =
+      workOrder.proyecto?.id ||
+      workOrder.proyecto?._id ||
+      "";
+  }
+
+  if (proyectoNombreFinal) {
+    payload.proyecto = {
+      id: proyectoIdFinal || undefined,
+      nombre: proyectoNombreFinal,
+    };
+    payload.proyectoNombre = proyectoNombreFinal;
+  }
+  // ------------------------------------------
+
+  if (formData.assignedTechnician.id) {
+    payload.tecnicoAsignado = {
+      id: formData.assignedTechnician.id,
+      nombre: formData.assignedTechnician.nombre,
+    };
+  }
+
+  try {
+    let savedOrder;
+    if (workOrder?.id) {
+      savedOrder = await updateWorkOrder(workOrder.id, payload);
+    } else {
+      savedOrder = await createWorkOrder(payload);
+    }
+
+    onClose();
+    onSaveSuccess?.({
+    ...workOrder,
+    ...payload,
+    cliente: payload.cliente || workOrder?.cliente || null,
+    proyecto: payload.proyecto || workOrder?.proyecto || null,
+    proyectoNombre: payload.proyectoNombre || workOrder?.proyectoNombre || ""
+});
+
+  } catch (error) {
+    console.error("Error al guardar:", error);
+  }
+};
+
 
   if (!isOpen) return null;
 
@@ -541,13 +616,13 @@ Email: ${formData.client.email || "No especificado"}
     <div className="mt-4">
       <Select
   label="Nombre del Proyecto"
-  value={formData.projectName || ""}
-  onChange={(value) => handleInputChange("projectName", value)}
+  value={formData.proyectoNombre || ""}
+  onChange={(value) => handleInputChange("proyectoNombre", value)}
   options={
     clientProjects.length > 0
       ? clientProjects.map((p) => ({
           value: p.id || p._id,
-          label: p.nombre || "Sin nombre",
+          label: p.nombre || p.nombreProyecto || "Sin nombre",
         }))
       : []
   }
@@ -560,6 +635,7 @@ Email: ${formData.client.email || "No especificado"}
   }
   disabled={isViewMode || !formData.client.id}
 />
+
 
     </div>
   </div>

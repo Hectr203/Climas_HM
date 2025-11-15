@@ -3,8 +3,15 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import { useNotifications } from 'context/NotificationContext';
 
 const PaymentAuthorizationModal = ({ isOpen, onClose, expense, onAuthorize, onDelete }) => {
+  const {
+    showHttpError,
+    showOperationSuccess,
+    showConfirm,
+  } = useNotifications();
+
   const [authData, setAuthData] = useState({
     authorizationLevel: '',
     approverComments: '',
@@ -47,39 +54,56 @@ const PaymentAuthorizationModal = ({ isOpen, onClose, expense, onAuthorize, onDe
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
+    if (!expense) return;
+
     setIsSubmitting(true);
 
     try {
       await onAuthorize?.({
-  id: expense?.id,
-  status: "approved", // <--- usamos inglés, como tu API
-  ...authData,
-  amount: parseFloat(expense?.amount?.replace(/[^0-9.-]+/g, "")) || 0
-});
+        id: expense?.id,
+        status: 'approved', // inglés, como tu API
+        ...authData,
+        amount: parseFloat(expense?.amount?.replace(/[^0-9.-]+/g, '')) || 0
+      });
 
+      // Notificación de éxito
+      showOperationSuccess('update', 'Pago');
 
-onClose?.();
+      onClose?.();
     } catch (error) {
       console.error('Error authorizing payment:', error);
+      // Notificación de error HTTP
+      showHttpError(error, 'Error al autorizar el pago');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!expense?.id) return;
-    const ok = window.confirm('¿Eliminar este pago? Esta acción no se puede deshacer.');
-    if (!ok) return;
 
-    setIsDeleting(true);
-    try {
-      await onDelete?.(expense.id);
-      onClose?.();
-    } catch (err) {
-      console.error('Error eliminando pago:', err);
-    } finally {
-      setIsDeleting(false);
-    }
+    // Usamos tu notificación de confirmación en lugar de window.confirm
+    showConfirm(
+      `¿Deseas eliminar este pago "${expense?.description || ''}"?`,
+      {
+        onConfirm: async () => {
+          setIsDeleting(true);
+          try {
+            await onDelete?.(expense.id);
+            showOperationSuccess('delete', 'Pago');
+            onClose?.();
+          } catch (err) {
+            console.error('Error eliminando pago:', err);
+            showHttpError(err, 'Error al eliminar el pago');
+          } finally {
+            setIsDeleting(false);
+          }
+        },
+        onCancel: () => {
+          // Si quieres hacer algo extra al cancelar, lo agregas aquí
+        }
+      }
+    );
   };
 
   const formatCurrency = (amount) => {
@@ -148,6 +172,7 @@ onClose?.();
               </div>
             </div>
           </div>
+
           {/* Payment Details */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
@@ -251,9 +276,3 @@ onClose?.();
 };
 
 export default PaymentAuthorizationModal;
-
-
-
-
-
-

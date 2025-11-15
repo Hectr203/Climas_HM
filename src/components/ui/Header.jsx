@@ -12,7 +12,8 @@ const Header = ({ onMenuToggle, isMenuOpen = false }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const navigationItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard' },
+    // TODO: Habilitar cuando se implemente el dashboard
+    // { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard' },
     { label: 'Projects', path: '/proyectos', icon: 'FolderOpen' },
     { label: 'Work Orders', path: '/operaciones', icon: 'ClipboardList' },
     { label: 'Clients', path: '/clientes', icon: 'Users' },

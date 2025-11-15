@@ -1,9 +1,10 @@
 import React from "react";
-import { BrowserRouter, Routes as RouterRoutes, Route } from "react-router-dom";
+import { BrowserRouter, Routes as RouterRoutes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "components/ScrollToTop";
 import ErrorBoundary from "components/ErrorBoundary";
 import ProtectedRoute from "components/ProtectedRoute";
 import { ButtonHandlersProvider } from "./components/GlobalButtonHandlers";
+import { getDefaultPath } from "./utils/auth";
 import NotFound from "pages/NotFound";
 import ProjectManagement from './pages/project-management';
 import ProjectDetailGallery from './pages/project-detail-gallery';
@@ -27,6 +28,13 @@ import ProjectAbonosManagement from './pages/project-abonos-management';
 import UserManagement from './pages/user-management';
 
 const Routes = () => {
+  // Componente para redirigir dashboard al inicio del rol
+  const DashboardRedirect = () => {
+    const userRole = localStorage.getItem('userRole');
+    const defaultPath = getDefaultPath(userRole);
+    return <Navigate to={defaultPath} replace />;
+  };
+
   return (
     <ErrorBoundary>
       <ButtonHandlersProvider>
@@ -37,14 +45,10 @@ const Routes = () => {
 
           {/* Redirigir la raíz a login si no está autenticado */}
           <Route path="/" element={<LoginPage />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute requiredPath="/dashboard">
-                  <MainDashboard />
-                </ProtectedRoute>
-              } 
-            />
+          
+          {/* Redirigir dashboard al inicio del rol actual */}
+          <Route path="/dashboard" element={<DashboardRedirect />} />
+          
             <Route 
               path="/proyectos" 
               element={

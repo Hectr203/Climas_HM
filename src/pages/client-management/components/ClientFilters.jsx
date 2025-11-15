@@ -8,7 +8,8 @@ const ClientFilters = ({
   filters, 
   onFiltersChange, 
   onClearFilters, 
-  onExport 
+  onExport,
+  estados = []
 }) => {
   const industryOptions = [
     { value: '', label: 'Todas las industrias' },
@@ -39,14 +40,10 @@ const ClientFilters = ({
 
   const locationOptions = [
     { value: '', label: 'Todas las ubicaciones' },
-    { value: 'Ciudad de México', label: 'Ciudad de México' },
-    { value: 'Guadalajara', label: 'Guadalajara' },
-    { value: 'Monterrey', label: 'Monterrey' },
-    { value: 'Puebla', label: 'Puebla' },
-    { value: 'Tijuana', label: 'Tijuana' },
-    { value: 'León', label: 'León' },
-    { value: 'Juárez', label: 'Juárez' },
-    { value: 'Torreón', label: 'Torreón' }
+    ...(Array.isArray(estados) ? estados.map(estado => ({
+      value: estado?.name || estado?.nombre || estado,
+      label: estado?.name || estado?.nombre || estado
+    })) : [])
   ];
 
   const handleFilterChange = (field, value) => {
@@ -121,6 +118,8 @@ const ClientFilters = ({
           options={locationOptions}
           value={filters?.location}
           onChange={(value) => handleFilterChange('location', value)}
+          searchable={true}
+          placeholder="Seleccionar estado..."
         />
 
         <Input
@@ -131,7 +130,7 @@ const ClientFilters = ({
           onChange={(e) => handleFilterChange('rfc', e?.target?.value)}
         />
 
-        <Input
+        {/* <Input
           type="number"
           label="Proyectos Mínimos"
           placeholder="Número mínimo"
@@ -145,7 +144,7 @@ const ClientFilters = ({
           placeholder="Valor mínimo"
           value={filters?.minValue}
           onChange={(e) => handleFilterChange('minValue', e?.target?.value)}
-        />
+        /> */}
       </div>
       {hasActiveFilters && (
         <div className="mt-4 pt-4 border-t border-border">
