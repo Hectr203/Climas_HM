@@ -56,13 +56,19 @@ export const ROLE_PERMISSIONS = {
     ],
     defaultPath: '/cotizaciones'
   },
-  // Ventas - Oportunidades y Cotizaciones
+  // Ventas - Oportunidades, Cotizaciones, Clientes y Proyectos
   [AUTH_ROLES?.VENTAS]: {
     allowedPaths: [
       '/oportunidades',
       '/cotizaciones',
       '/constructor-cotizaciones',
-      '/monitoreo-ventas'
+      '/monitoreo-ventas',
+      '/clientes',
+      '/proyectos',
+      '/visor-galeria',
+      '/galeria-proyecto',
+      '/documentacion-proyectos',
+      '/flujo-proyecto'
     ],
     defaultPath: '/oportunidades'
   },
@@ -158,7 +164,7 @@ export const getAllowedNavigationItems = (userRole) => {
       path: '/oportunidades',
       icon: 'Target',
       tooltip: 'Gestión de oportunidades de venta',
-      badge: 8,
+      // badge: 8,
       roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.VENTAS]
     },
     {
@@ -174,8 +180,8 @@ export const getAllowedNavigationItems = (userRole) => {
       path: '/proyectos',
       icon: 'FolderOpen',
       tooltip: 'Gestión del ciclo de vida de proyectos',
-      badge: 5,
-      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.PROYECTOS]
+      // badge: 5,
+      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.PROYECTOS, AUTH_ROLES?.VENTAS]
     },
     {
       label: 'Abonos',
@@ -189,7 +195,7 @@ export const getAllowedNavigationItems = (userRole) => {
       path: '/operaciones',
       icon: 'ClipboardList',
       tooltip: 'Procesamiento y seguimiento de órdenes de trabajo',
-      badge: 12,
+      // badge: 12,
       roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.TALLER]
     },
     {
@@ -231,21 +237,21 @@ export const getAllowedNavigationItems = (userRole) => {
       label: 'Negocio',
       icon: 'Building2',
       tooltip: 'Gestión de clientes y finanzas',
-      badge: 3,
+      // badge: 3,
       children: [
         {
           label: 'Clientes',
           path: '/clientes',
           icon: 'Users',
           tooltip: 'Gestión de relaciones con clientes',
-          roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION]
+          roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.VENTAS]
         },
         {
           label: 'Finanzas',
           path: '/finanzas',
           icon: 'DollarSign',
           tooltip: 'Supervisión y reportes financieros',
-          badge: 3,
+          // badge: 3,
           roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION]
         }
       ]

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useClient from '../../hooks/useClient';
 import useCommunication from '../../hooks/useCommunication';
+import { useEstados } from '../../hooks/useEstado';
 import Header from '../../components/ui/Header';
 import Sidebar from '../../components/ui/Sidebar';
 import Breadcrumb from '../../components/ui/Breadcrumb';
@@ -25,6 +26,7 @@ const ClientManagement = () => {
   const [clientCommunications, setClientCommunications] = useState([]);
   
   const { clients, getClients, createClient, editClient, loading, error } = useClient();
+  const { estados } = useEstados();
   const { 
     createCommunication, 
     getComunicacionesByCliente, 
@@ -402,6 +404,8 @@ const ClientManagement = () => {
     // Espera a que el estado se actualice antes de cerrar el modal
     if (response && response.success) {
       setEditModalState({ open: false, client: null });
+      // Recargar la lista de clientes para asegurar que esté actualizada
+      await getClients(true);
     }
   };
 
@@ -419,8 +423,12 @@ const ClientManagement = () => {
   };
 
   const handleSubmitNewClient = async (clientData) => {
-    await createClient(clientData);
-    setShowNewClientModal(false);
+    const result = await createClient(clientData);
+    if (result && result.success) {
+      setShowNewClientModal(false);
+      // Recargar la lista de clientes para asegurar que esté actualizada
+      await getClients(true);
+    }
   };
 
   const handleSubmitCommunication = async (commData) => {
@@ -558,8 +566,7 @@ const ClientManagement = () => {
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                {/* Total Clientes */}
+              {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                 <div className="bg-card border border-border rounded-lg p-6 card-shadow">
                   <div className="flex items-center justify-between">
                     <div>
@@ -576,7 +583,6 @@ const ClientManagement = () => {
                   </div>
                 </div>
 
-                {/* Clientes Activos */}
                 <div className="bg-card border border-border rounded-lg p-6 card-shadow">
                   <div className="flex items-center justify-between">
                     <div>
@@ -630,7 +636,7 @@ const ClientManagement = () => {
                     <span className="text-sm text-success">+15% este mes</span>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Filters */}
               <ClientFilters
@@ -638,6 +644,7 @@ const ClientManagement = () => {
                 onFiltersChange={handleFiltersChange}
                 onClearFilters={handleClearFilters}
                 onExport={handleExportClients}
+                estados={estados}
               />
 
               {/* Client List */}

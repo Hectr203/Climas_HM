@@ -122,9 +122,9 @@ const ClientTable = ({ clients, onViewDetails, onEditClient, onViewProjects, onV
             <SortableHeader field="industria">Industria</SortableHeader>
             <SortableHeader field="ubicacionEmpre">Ubicación</SortableHeader>
             <SortableHeader field="estado">Estado</SortableHeader>
-            <SortableHeader field="relacion">Relación</SortableHeader>
+            {/* <SortableHeader field="relacion">Relación</SortableHeader>
             <SortableHeader field="totalProjects">Proyectos</SortableHeader>
-            <SortableHeader field="totalValue">Valor Total</SortableHeader>
+            <SortableHeader field="totalValue">Valor Total</SortableHeader> */}
             <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Acciones
             </th>
@@ -165,7 +165,7 @@ const ClientTable = ({ clients, onViewDetails, onEditClient, onViewProjects, onV
                   {capitalize(client?.estado || '')}
                 </span>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              {/* <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`text-sm font-medium ${getHealthColor(client?.relacion)}`}>
                   {capitalize(client?.relacion || '')}
                 </span>
@@ -178,21 +178,21 @@ const ClientTable = ({ clients, onViewDetails, onEditClient, onViewProjects, onV
                 <div className="text-sm font-semibold text-success">
                   ${Number(client?.totalValue || 0).toLocaleString('es-MX')}
                 </div>
-              </td>
+              </td> */}
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex items-center justify-end space-x-2">
-                  <Button variant="ghost" size="sm" onClick={() => onViewProjects(client)} title="Ver proyectos">
+                  {/* <Button variant="ghost" size="sm" onClick={() => onViewProjects(client)} title="Ver proyectos">
                     <Icon name="FolderOpen" size={16} />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => onViewContracts(client)} title="Ver contratos">
                     <Icon name="FileText" size={16} />
-                  </Button>
+                  </Button> */}
                   <Button variant="ghost" size="sm" onClick={() => onEditClient(client)} title="Editar cliente">
                     <Icon name="Edit" size={16} />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => onViewDetails(client)} title="Ver detalles">
+                  {/* <Button variant="ghost" size="sm" onClick={() => onViewDetails(client)} title="Ver detalles">
                     <Icon name="Eye" size={16} />
-                  </Button>
+                  </Button> */}
                 </div>
               </td>
             </tr>
