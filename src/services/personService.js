@@ -33,10 +33,21 @@ const personService = {
       throw error;
     }
   },
-  async updatePersonByEmpleadoId(empleadoId, payload) {
+  async getPersonById(id) {
+    try {
+      const response = await httpService.get(
+        `/empleados/${id}`
+      );
+      return response;
+    } catch (error) {
+      console.error("Error al obtener empleado por ID:", error);
+      throw error;
+    }
+  },
+  async updatePersonById(id, payload) {
     try {
       const response = await httpService.put(
-        `/empleados/byEmpleadoId/${empleadoId}`,
+        `/empleados/actualizar/${id}`,
         payload
       );
       return response;
