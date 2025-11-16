@@ -307,9 +307,10 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Estado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {/* COLUMNA OCULTA: Estudios Médicos - Para mostrarla, descomenta la línea siguiente */}
+              {/* <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Estudios Médicos
-              </th>
+              </th> */}
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Equipo de Protección Personal (EPP)
               </th>
@@ -341,7 +342,8 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                 <td className="px-6 py-4 whitespace-nowrap text-sm">{emp.departamento || '-'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">{emp.puesto || '-'}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(emp.estado)}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                {/* COLUMNA OCULTA: Estudios Médicos - Para mostrarla, descomenta el bloque siguiente */}
+                {/* <td className="px-6 py-4 whitespace-nowrap">
                   {(() => {
                     // Usar estadoEstudiosMedicos si existe directamente en el objeto
                     if (emp.estadoEstudiosMedicos) {
@@ -367,7 +369,7 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                     // Si no hay datos, mostrar "Pendiente"
                     return getComplianceBadge('Pendiente');
                   })()}
-                </td>
+                </td> */}
                 <td className="px-6 py-4 whitespace-nowrap">
                   {(() => {
                     // Usar estadoEquipoEPP si existe en el JSON
@@ -493,7 +495,8 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                 <span className="text-muted-foreground">Puesto:</span>
                 <span>{emp.puesto || '-'}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              {/* VISTA MÓVIL - COLUMNA OCULTA: Estudios Médicos - Para mostrarla, descomenta el bloque siguiente */}
+              {/* <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Estudios Médicos:</span>
                 {(() => {
                   // Usar estadoEstudiosMedicos si existe directamente en el objeto
@@ -520,7 +523,7 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                   // Si no hay datos, mostrar "Pendiente"
                   return getComplianceBadge('Pendiente');
                 })()}
-              </div>
+              </div> */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">EPP:</span>
                 {(() => {
