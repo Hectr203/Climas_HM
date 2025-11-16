@@ -16,6 +16,7 @@ import {
 
 const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
   const [localError, setLocalError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { createPerson } = usePerson();
   const { showSuccess, showWarning, showError } = useNotifications();
 
@@ -80,8 +81,11 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
 
   const handleApiError = (error) => {
     const status = error?.status || error?.response?.status;
-      // El mensaje puede estar en diferentes lugares según la estructura de la respuesta
+    // El mensaje puede estar en diferentes lugares según la estructura de la respuesta
     const message = error?.data?.error || error?.data?.message || error?.userMessage || error?.message || 'Ha ocurrido un error inesperado';
+
+    // Limpiar el estado de guardado
+    setIsSaving(false);
 
     // Manejar errores 400 (Bad Request)
     if (status === 400) {
@@ -238,10 +242,17 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
   };
 
   const handleSave = async () => {
+    // No permitir guardar si ya se está guardando
+    if (isSaving) {
+      return;
+    }
+
     setLocalError(null);
+    setIsSaving(true);
     
     // Validar campos requeridos antes de guardar
     if (!validateRequiredFields()) {
+      setIsSaving(false);
       return;
     }
 
@@ -284,6 +295,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
       };
 
       const result = await createPerson(payload);
+      setIsSaving(false);
       showSuccess('Personal registrado exitosamente.');
 
       if (onSave) onSave(result);
@@ -291,6 +303,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
     } catch (error) {
       console.error("Error al guardar:", error);
       handleApiError(error);
+      // El estado de isSaving se limpia en handleApiError
     }
   };
 
@@ -326,12 +339,19 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
             {tabs.map((tab, idx) => (
               <button
                 key={tab.id}
-                onClick={() => setStep(idx)}
+                onClick={() => {
+                  if (!isSaving) {
+                    setStep(idx);
+                    // Limpiar error al cambiar de pestaña
+                    if (localError) setLocalError(null);
+                  }
+                }}
+                disabled={isSaving}
                 className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-smooth ${
                   step === idx
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
+                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <Icon name={tab.icon} size={16} />
                 <span>{tab.label}</span>
@@ -563,20 +583,26 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
           {step > 0 && (
             <Button
               variant="secondary"
-              onClick={() => setStep((prev) => prev - 1)}
+              onClick={() => {
+                setStep((prev) => prev - 1);
+                if (localError) setLocalError(null);
+              }}
               iconName="ArrowLeft"
               iconPosition="left"
-              disabled={localError?.status === 409 && localError?.field === 'email'}
+              disabled={isSaving}
             >
               Anterior
             </Button>
           )}
           {step < steps.length - 1 ? (
             <Button
-              onClick={() => setStep((prev) => prev + 1)}
+              onClick={() => {
+                setStep((prev) => prev + 1);
+                if (localError) setLocalError(null);
+              }}
               iconName="ArrowRight"
               iconPosition="right"
-              disabled={localError?.status === 409 && localError?.field === 'email'}
+              disabled={isSaving}
             >
               Siguiente
             </Button>
@@ -585,9 +611,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
               onClick={handleSave}
               iconName="Save"
               iconPosition="left"
-              disabled={localError?.status === 409 && localError?.field === 'email'}
+              disabled={isSaving}
             >
-              Crear Empleado
+              {isSaving ? 'Guardando...' : 'Crear Empleado'}
             </Button>
           )}
         </div>
