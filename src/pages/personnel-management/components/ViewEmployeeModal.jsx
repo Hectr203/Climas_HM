@@ -8,7 +8,7 @@ import {
   departmentOptions, 
   positionOptions, 
   statusOptions, 
-  medicalStatusOptions, 
+  // medicalStatusOptions, // Oculto temporalmente - descomenta si reactivas la sección Archivos
   relationshipOptions 
 } from './personnelConstants';
 
@@ -46,11 +46,13 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
   if (!isOpen || !employeeId || loading || !employee) return null;
 
   // Extraer datos de arrays anidados según la estructura de la API
+  // Datos de Estudios Médicos - OCULTOS TEMPORALMENTE
+  // Descomenta si reactivas la sección Archivos
   const medicalData = Array.isArray(employee.examenesMedicos) && employee.examenesMedicos[0]
     ? employee.examenesMedicos[0]
     : {};
   
-  const medicalStudies = {
+  const _medicalStudies = {
     lastExam: medicalData.ultimoExamenMedico || '',
     nextExam: medicalData.proximoExamenMedico || '',
     status: medicalData.estadoEstudiosMedicos || 'Pendiente',
@@ -85,10 +87,10 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
 
   const tabs = [
     { id: 'general', label: 'Información General', icon: 'User' },
-    { id: 'medical', label: 'Archivos', icon: 'FileText' },
+    { id: 'medical', label: 'Archivos', icon: 'FileText', hidden: true }, // Oculto temporalmente
     { id: 'ppe', label: 'EPP', icon: 'Shield' },
     { id: 'emergency', label: 'Contacto de Emergencia', icon: 'Phone' }
-  ];
+  ].filter(tab => !tab.hidden); // Filtrar pestañas ocultas
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-1050 flex items-center justify-center p-4">
@@ -183,26 +185,29 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
             </div>
           )}
 
-          {/* Estudios Médicos */}
-          {step === 1 && (
+          {/* Estudios Médicos - OCULTO TEMPORALMENTE */}
+          {/* La sección de Archivos está oculta hasta que se complete la implementación */}
+          {/* Para reactivar, descomenta el bloque siguiente y ajusta los índices de las secciones EPP y Contacto de Emergencia */}
+          {/* También necesitarás descomentar la importación de medicalStatusOptions y cambiar _medicalStudies a medicalStudies */}
+          {/* {step === 1 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
                   label="Último Examen Médico"
                   type="date"
-                  value={medicalStudies.lastExam ?? ''}
+                  value={_medicalStudies.lastExam ?? ''}
                   disabled
                 />
                 <Input
                   label="Próximo Examen Médico"
                   type="date"
-                  value={medicalStudies.nextExam ?? ''}
+                  value={_medicalStudies.nextExam ?? ''}
                   disabled
                 />
                 <Select
                   label="Estado de Estudios Médicos"
                   options={medicalStatusOptions}
-                  value={medicalStudies.status ?? 'Pendiente'}
+                  value={_medicalStudies.status ?? 'Pendiente'}
                   disabled
                 />
               </div>
@@ -221,10 +226,10 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* EPP */}
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -296,7 +301,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
           )}
 
           {/* Contacto de Emergencia */}
-          {step === 3 && (
+          {step === 2 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
