@@ -10,7 +10,6 @@ import {
   departmentOptions, 
   positionOptions, 
   statusOptions, 
-  medicalStatusOptions, 
   relationshipOptions 
 } from './personnelConstants';
 
@@ -53,7 +52,8 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
   });
 
   const [step, setStep] = useState(0);
-  const steps = ['general', 'medical', 'ppe', 'emergency'];
+  // Mapeo de steps: 0=general, 1=ppe, 2=emergency (medical está oculto)
+  const steps = ['general', 'ppe', 'emergency'];
 
   // Cargar datos del empleado usando el hook
   useEffect(() => {
@@ -418,10 +418,10 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
 
   const tabs = [
     { id: 'general', label: 'Información General', icon: 'User' },
-    { id: 'medical', label: 'Archivos', icon: 'FileText' },
+    { id: 'medical', label: 'Archivos', icon: 'FileText', hidden: true }, // Oculto temporalmente
     { id: 'ppe', label: 'EPP', icon: 'Shield' },
     { id: 'emergency', label: 'Contacto de Emergencia', icon: 'Phone' }
-  ];
+  ].filter(tab => !tab.hidden); // Filtrar pestañas ocultas
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-1050 flex items-center justify-center p-4">
@@ -548,51 +548,11 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
             </div>
           )}
 
-          {/* Estudios Médicos */}
-          {step === 1 && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input
-                  label="Último Examen Médico"
-                  type="date"
-                  value={formData.medicalStudies.lastExam}
-                  onChange={(e) => handleInputChange('medicalStudies.lastExam', e.target.value)}
-                />
-                <Input
-                  label="Próximo Examen Médico"
-                  type="date"
-                  value={formData.medicalStudies.nextExam}
-                  onChange={(e) => handleInputChange('medicalStudies.nextExam', e.target.value)}
-                />
-                <Select
-                  label="Estado de Estudios Médicos"
-                  options={medicalStatusOptions}
-                  value={formData.medicalStudies.status}
-                  onChange={(value) => handleInputChange('medicalStudies.status', value)}
-                />
-              </div>
-              <div className="border border-border rounded-lg p-4">
-                <h4 className="text-sm font-medium text-foreground mb-3">Documentos Médicos</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Icon name="FileText" size={16} />
-                      <span className="text-sm text-foreground">Examen médico general</span>
-                    </div>
-                    <Button variant="ghost" size="sm" iconName="Download" iconSize={14}>
-                      Descargar
-                    </Button>
-                  </div>
-                  <Button variant="outline" size="sm" iconName="Upload" iconPosition="left" iconSize={14}>
-                    Subir Documento
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Estudios Médicos - OCULTO TEMPORALMENTE */}
+          {/* La sección de Archivos está oculta hasta que se complete la implementación */}
 
           {/* EPP */}
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -640,7 +600,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
           )}
 
           {/* Contacto de Emergencia */}
-          {step === 3 && (
+          {step === 2 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
