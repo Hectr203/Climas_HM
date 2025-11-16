@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import usePerson from '../../../hooks/usePerson';
 import { 
   departmentOptions, 
   positionOptions, 
@@ -11,24 +12,76 @@ import {
   relationshipOptions 
 } from './personnelConstants';
 
-const ViewEmployeeModal = ({ isOpen, onClose, employee }) => {
+const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
   const [step, setStep] = useState(0);
-  const steps = ['general', 'medical', 'ppe', 'emergency'];
+  const [employee, setEmployee] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const { getPersonById } = usePerson();
 
-  if (!isOpen || !employee) return null;
+  // Cargar datos del empleado cuando se abre el modal
+  useEffect(() => {
+    if (isOpen && employeeId) {
+      setLoading(true);
+      setEmployee(null);
+      const loadEmployee = async () => {
+        try {
+          const data = await getPersonById(employeeId);
+          if (data) {
+            setEmployee(data);
+          }
+        } catch (error) {
+          console.error("Error al cargar empleado:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadEmployee();
+    } else {
+      setEmployee(null);
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, employeeId]);
 
-  // Extraer datos de arrays anidados
-  const medicalStudies = Array.isArray(employee.examenesMedicos)
-    ? employee.examenesMedicos[0] || { lastExam: '', nextExam: '', status: 'Pendiente', documents: [] }
-    : employee.medicalStudies || { lastExam: '', nextExam: '', status: 'Pendiente', documents: [] };
+  if (!isOpen || !employeeId || loading || !employee) return null;
 
-  const ppe = Array.isArray(employee.equipos)
-    ? employee.equipos[0] || { helmet: false, vest: false, boots: false, gloves: false, glasses: false, mask: false }
-    : employee.ppe || { helmet: false, vest: false, boots: false, gloves: false, glasses: false, mask: false };
+  // Extraer datos de arrays anidados según la estructura de la API
+  const medicalData = Array.isArray(employee.examenesMedicos) && employee.examenesMedicos[0]
+    ? employee.examenesMedicos[0]
+    : {};
+  
+  const medicalStudies = {
+    lastExam: medicalData.ultimoExamenMedico || '',
+    nextExam: medicalData.proximoExamenMedico || '',
+    status: medicalData.estadoEstudiosMedicos || 'Pendiente',
+    documents: medicalData.urlDocumentoMedico ? [medicalData.urlDocumentoMedico] : []
+  };
 
-  const emergencyContact = Array.isArray(employee.contactoEmergencia)
-    ? employee.contactoEmergencia[0] || { name: '', phone: '', relationship: '' }
-    : employee.emergencyContact || { name: '', phone: '', relationship: '' };
+  const equiposData = Array.isArray(employee.equipos) && employee.equipos[0]
+    ? employee.equipos[0]
+    : {};
+  
+  const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
+  const equipoAdicional = equiposData.equipoAdicional || {};
+  
+  const ppe = {
+    helmet: equipoProteccionPersonal.cascoSeguridad || false,
+    vest: equipoProteccionPersonal.chalecoReflectivo || false,
+    boots: equipoProteccionPersonal.botasSeguridad || false,
+    gloves: equipoAdicional.guantesTrabajo || false,
+    glasses: equipoAdicional.gafasSeguridad || false,
+    mask: equipoAdicional.mascarilla || false
+  };
+
+  const contactoData = Array.isArray(employee.contactoEmergencia) && employee.contactoEmergencia[0]
+    ? employee.contactoEmergencia[0]
+    : {};
+  
+  const emergencyContact = {
+    name: contactoData.nombreContacto || '',
+    phone: contactoData.telefonoContacto || '',
+    relationship: contactoData.relacion || ''
+  };
 
   const tabs = [
     { id: 'general', label: 'Información General', icon: 'User' },

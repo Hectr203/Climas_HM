@@ -1,7 +1,7 @@
 // Constantes compartidas para los modales de personal
 
 export const departmentOptions = [
-    { value: 'Administración', label: 'Administración' },
+    { value: 'Administracion', label: 'Administración' },
     { value: 'Proyectos', label: 'Proyectos' },
     { value: 'Taller', label: 'Taller' },
     { value: 'Ventas', label: 'Ventas' },

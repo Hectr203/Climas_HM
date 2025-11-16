@@ -26,7 +26,7 @@ const PersonnelManagement = () => {
     hireDateFrom: '',
     hireDateTo: ''
   });
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [modalMode, setModalMode] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialStep, setInitialStep] = useState(0); // 0: general, 1: medical, 2: ppe, 3: emergency
@@ -56,7 +56,8 @@ const PersonnelManagement = () => {
       // Filtro de departamento
       const matchDept =
         !filters.department ||
-        (employee?.departamento?.toLowerCase() === filters.department.toLowerCase());
+        filters.department.trim() === '' ||
+        (employee?.departamento?.toLowerCase().trim() === filters.department.toLowerCase().trim());
 
       // Filtro de estado
       const matchStatus =
@@ -69,34 +70,30 @@ const PersonnelManagement = () => {
         (employee?.puesto?.toLowerCase() === filters.position.toLowerCase());
 
       // Filtro de cumplimiento médico
-      const medicalStudies = Array.isArray(employee.examenesMedicos) && employee.examenesMedicos[0]
-        ? employee.examenesMedicos[0]
-        : employee.medicalStudies || {};
+      // Usar estadoEstudiosMedicos si existe, de lo contrario calcularlo
+      let medicalStatus = 'Pendiente';
       
-      // Determinar el estado de cumplimiento médico
-      let medicalStatus = medicalStudies.status || 'Pendiente';
-      
-      // Si no hay status explícito, intentar determinarlo por fecha
-      if (!medicalStudies.status && medicalStudies.nextExam) {
-        try {
-          const nextExamDate = new Date(medicalStudies.nextExam);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          if (nextExamDate < today) {
-            medicalStatus = 'Vencido';
-          } else if (medicalStudies.lastExam) {
-            medicalStatus = 'Completo';
+      // Primero verificar si existe directamente en el objeto
+      if (employee.estadoEstudiosMedicos) {
+        medicalStatus = employee.estadoEstudiosMedicos;
+      } else {
+        // Si no existe, buscar en examenesMedicos[0]
+        const medicalData = Array.isArray(employee.examenesMedicos) && employee.examenesMedicos[0]
+          ? employee.examenesMedicos[0]
+          : {};
+        
+        if (medicalData.estadoEstudiosMedicos) {
+          medicalStatus = medicalData.estadoEstudiosMedicos;
+        } else {
+          // Si tiene datos pero no tiene estadoEstudiosMedicos, marcar como "Actualizar datos"
+          if (medicalData.ultimoExamenMedico !== undefined || 
+              medicalData.proximoExamenMedico !== undefined ||
+              medicalData.urlDocumentoMedico !== undefined) {
+            medicalStatus = 'Actualizar datos';
           } else {
             medicalStatus = 'Pendiente';
           }
-        } catch (e) {
-          // Si hay error al parsear la fecha, usar el estado por defecto
-          medicalStatus = employee?.estado === 'Activo' ? 'Completo' : 'Pendiente';
         }
-      } else if (!medicalStudies.status) {
-        // Si no hay información, usar estado del empleado como referencia
-        medicalStatus = employee?.estado === 'Activo' ? 'Completo' : 'Pendiente';
       }
       
       const matchMedical =
@@ -104,27 +101,33 @@ const PersonnelManagement = () => {
         (medicalStatus?.toLowerCase() === filters.medicalCompliance.toLowerCase());
 
       // Filtro de cumplimiento EPP
-      const ppe = Array.isArray(employee.equipos) && employee.equipos[0]
-        ? employee.equipos[0]
-        : employee.ppe || {};
-      
-      // Calcular el estado de cumplimiento de EPP
-      const hasRequiredPPE = ppe.helmet && ppe.vest && ppe.boots && ppe.gloves && ppe.glasses && ppe.mask;
+      // Usar estadoEquipoEPP si existe, de lo contrario calcularlo
       let ppeComplianceStatus = 'Pendiente';
       
-      if (hasRequiredPPE) {
-        ppeComplianceStatus = 'Completo';
-      } else if (ppe.helmet || ppe.vest || ppe.boots || ppe.gloves || ppe.glasses || ppe.mask) {
-        // Tiene al menos un elemento pero no todos
-        ppeComplianceStatus = 'Pendiente';
+      if (employee.estadoEquipoEPP) {
+        // Si existe el campo estadoEquipoEPP, usarlo directamente
+        ppeComplianceStatus = employee.estadoEquipoEPP;
       } else {
-        // No tiene ningún elemento
-        ppeComplianceStatus = 'Pendiente';
+        // Si no existe, intentar calcularlo desde los datos de equipos
+        const equiposData = Array.isArray(employee.equipos) && employee.equipos[0]
+          ? employee.equipos[0]
+          : {};
+        
+        const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
+        const equipoAdicional = equiposData.equipoAdicional || {};
+        
+        // Si tiene datos pero no tiene estadoEquipoEPP, marcar como "Actualizar datos"
+        if (equipoProteccionPersonal.cascoSeguridad !== undefined || 
+            equipoProteccionPersonal.chalecoReflectivo !== undefined ||
+            equipoProteccionPersonal.botasSeguridad !== undefined ||
+            equipoAdicional.guantesTrabajo !== undefined ||
+            equipoAdicional.gafasSeguridad !== undefined ||
+            equipoAdicional.mascarilla !== undefined) {
+          ppeComplianceStatus = 'Actualizar datos';
+        } else {
+          ppeComplianceStatus = 'Pendiente';
+        }
       }
-      
-      // Nota: Para determinar "Vencido" en EPP, necesitarías fechas de vencimiento
-      // que no están en la estructura actual. Si las agregas en el futuro, puedes
-      // verificar aquí comparando fechas de vencimiento con la fecha actual.
       
       const matchPPE =
         !filters.ppeCompliance ||
@@ -171,7 +174,8 @@ const PersonnelManagement = () => {
 
   // ✅ Acciones UI
   const handleViewProfile = (employee) => {
-    setSelectedEmployee(employee);
+    const employeeId = employee?.id || employee?._id || null;
+    setSelectedEmployeeId(employeeId);
     setModalMode('view');
     setInitialStep(0);
     setOpenedFromEPP(false);
@@ -179,7 +183,8 @@ const PersonnelManagement = () => {
   };
 
   const handleEditPersonnel = (employee) => {
-    setSelectedEmployee(employee);
+    const employeeId = employee?.id || employee?._id || null;
+    setSelectedEmployeeId(employeeId);
     setModalMode('edit');
     setInitialStep(0);
     setOpenedFromEPP(false);
@@ -187,7 +192,7 @@ const PersonnelManagement = () => {
   };
 
   const handleCreatePersonnel = () => {
-    setSelectedEmployee(null);
+    setSelectedEmployeeId(null);
     setModalMode('create');
     setInitialStep(0);
     setOpenedFromEPP(false);
@@ -195,7 +200,8 @@ const PersonnelManagement = () => {
   };
 
   const handleAssignPPE = (employee) => {
-    setSelectedEmployee(employee);
+    const employeeId = employee?.id || employee?._id || null;
+    setSelectedEmployeeId(employeeId);
     setModalMode('edit');
     setInitialStep(2); // Abrir directamente en el paso de EPP
     setOpenedFromEPP(true);
@@ -213,7 +219,7 @@ const PersonnelManagement = () => {
     await getPersons(); // 🔄 Refresca la lista actualizada desde el backend
 
     setIsModalOpen(false); // Cierra el modal
-    setSelectedEmployee(null);
+    setSelectedEmployeeId(null);
     setModalMode(null);
 
   } catch (err) {
@@ -422,8 +428,8 @@ const PersonnelManagement = () => {
             </div>
 
             <div className="flex items-center space-x-3">
-              <div className="flex items-center bg-card border border-border rounded-lg p-1">
-                <Button
+              {/* <div className="flex items-center bg-card border border-border rounded-lg p-1"> */}
+                {/* <Button
                   variant={activeView === 'personnel' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setActiveView('personnel')}
@@ -432,7 +438,7 @@ const PersonnelManagement = () => {
                   iconSize={16}
                 >
                   Personal
-                </Button>
+                </Button> */}
                 {/* TODO: Habilitar cuando se implemente cumplimiento */}
                 {/* <Button
                   variant={activeView === 'compliance' ? 'default' : 'ghost'}
@@ -444,7 +450,7 @@ const PersonnelManagement = () => {
                 >
                   Cumplimiento
                 </Button> */}
-              </div>
+                {/* </div> */}
 
               <Button
                 onClick={handleCreatePersonnel}
@@ -474,7 +480,17 @@ const PersonnelManagement = () => {
                 onViewProfile={handleViewProfile}
                 onEditPersonnel={handleEditPersonnel}
                 onAssignPPE={handleAssignPPE}
-                hasActiveFilters={Object.values(filters).some(value => value !== '')}
+                hasActiveFilters={(() => {
+                  // Función robusta para detectar filtros activos
+                  // Considera strings vacíos, null, undefined y solo espacios en blanco como inactivos
+                  return Object.values(filters).some((value) => {
+                    if (value === null || value === undefined) return false;
+                    const strValue = String(value).trim();
+                    return strValue !== '';
+                  });
+                })()}
+                filters={filters}
+                onClearFilters={handleClearFilters}
               />
 
             </div>
@@ -491,7 +507,7 @@ const PersonnelManagement = () => {
             isOpen={isModalOpen && modalMode === 'create'}
             onClose={() => {
               setIsModalOpen(false);
-              setSelectedEmployee(null);
+              setSelectedEmployeeId(null);
               setModalMode(null);
               setInitialStep(0);
               setOpenedFromEPP(false);
@@ -503,12 +519,12 @@ const PersonnelManagement = () => {
             isOpen={isModalOpen && modalMode === 'edit' && !openedFromEPP}
             onClose={() => {
               setIsModalOpen(false);
-              setSelectedEmployee(null);
+              setSelectedEmployeeId(null);
               setModalMode(null);
               setInitialStep(0);
               setOpenedFromEPP(false);
             }}
-            employee={selectedEmployee}
+            employeeId={selectedEmployeeId}
             onSave={handleSavePersonnel}
           />
           
@@ -516,12 +532,12 @@ const PersonnelManagement = () => {
             isOpen={isModalOpen && modalMode === 'edit' && openedFromEPP}
             onClose={() => {
               setIsModalOpen(false);
-              setSelectedEmployee(null);
+              setSelectedEmployeeId(null);
               setModalMode(null);
               setInitialStep(0);
               setOpenedFromEPP(false);
             }}
-            employee={selectedEmployee}
+            employeeId={selectedEmployeeId}
             onSave={handleSavePersonnel}
           />
           
@@ -529,12 +545,12 @@ const PersonnelManagement = () => {
             isOpen={isModalOpen && modalMode === 'view'}
             onClose={() => {
               setIsModalOpen(false);
-              setSelectedEmployee(null);
+              setSelectedEmployeeId(null);
               setModalMode(null);
               setInitialStep(0);
               setOpenedFromEPP(false);
             }}
-            employee={selectedEmployee}
+            employeeId={selectedEmployeeId}
           />
         </div>
       </div>

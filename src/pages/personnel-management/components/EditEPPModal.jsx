@@ -5,9 +5,10 @@ import Button from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import usePerson from '../../../hooks/usePerson';
 
-const EditEPPModal = ({ isOpen, onClose, employee, onSave }) => {
+const EditEPPModal = ({ isOpen, onClose, employeeId, onSave }) => {
   const [localError, setLocalError] = useState(null);
-  const { updatePersonByEmpleadoId } = usePerson();
+  const [_loading, setLoading] = useState(false);
+  const { updatePersonById, getPersonById } = usePerson();
   const { showSuccess } = useNotifications();
 
   const [formData, setFormData] = useState({
@@ -22,19 +23,60 @@ const EditEPPModal = ({ isOpen, onClose, employee, onSave }) => {
     }
   });
 
-  // Cargar datos del empleado
+  // Cargar datos del empleado usando el hook
   useEffect(() => {
-    if (employee) {
-      const ppe = Array.isArray(employee.equipos)
-        ? employee.equipos[0] || { helmet: false, vest: false, boots: false, gloves: false, glasses: false, mask: false }
-        : employee.ppe || { helmet: false, vest: false, boots: false, gloves: false, glasses: false, mask: false };
+    if (isOpen && employeeId) {
+      setLoading(true);
+      const loadEmployee = async () => {
+        try {
+          const employee = await getPersonById(employeeId);
+          if (employee) {
+            // Extraer datos de equipos según la estructura de la API
+            const equiposData = Array.isArray(employee.equipos) && employee.equipos[0]
+              ? employee.equipos[0]
+              : {};
+            
+            const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
+            const equipoAdicional = equiposData.equipoAdicional || {};
+            
+            const ppe = {
+              helmet: equipoProteccionPersonal.cascoSeguridad || false,
+              vest: equipoProteccionPersonal.chalecoReflectivo || false,
+              boots: equipoProteccionPersonal.botasSeguridad || false,
+              gloves: equipoAdicional.guantesTrabajo || false,
+              glasses: equipoAdicional.gafasSeguridad || false,
+              mask: equipoAdicional.mascarilla || false
+            };
 
+            setFormData({
+              employeeId: employee.empleadoId || '',
+              ppe
+            });
+          }
+        } catch (error) {
+          console.error("Error al cargar empleado:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadEmployee();
+    } else {
+      // Resetear formulario cuando se cierra
       setFormData({
-        employeeId: employee.empleadoId || '',
-        ppe
+        employeeId: '',
+        ppe: {
+          helmet: false,
+          vest: false,
+          boots: false,
+          gloves: false,
+          glasses: false,
+          mask: false
+        }
       });
+      setLoading(false);
     }
-  }, [employee, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, employeeId]);
 
   const handlePPEChange = (item, checked) => {
     setFormData(prev => ({
@@ -49,12 +91,24 @@ const EditEPPModal = ({ isOpen, onClose, employee, onSave }) => {
   const handleSave = async () => {
     setLocalError(null);
     try {
+      // Estructurar datos según el formato de la API
       const payload = {
-        equipos: [formData.ppe]
+        equipos: [{
+          equipoProteccionPersonal: {
+            cascoSeguridad: formData.ppe.helmet || false,
+            chalecoReflectivo: formData.ppe.vest || false,
+            botasSeguridad: formData.ppe.boots || false
+          },
+          equipoAdicional: {
+            guantesTrabajo: formData.ppe.gloves || false,
+            gafasSeguridad: formData.ppe.glasses || false,
+            mascarilla: formData.ppe.mask || false
+          }
+        }]
       };
 
-      const result = await updatePersonByEmpleadoId(formData.employeeId, payload);
-      showSuccess('EPP actualizado correctamente ✅');
+      const result = await updatePersonById(employeeId, payload);
+      showSuccess('El equipo de protección personal ha sido actualizado correctamente.');
 
       if (onSave) onSave(result);
       onClose();
@@ -66,7 +120,7 @@ const EditEPPModal = ({ isOpen, onClose, employee, onSave }) => {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !employeeId) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-1050 flex items-center justify-center p-4">

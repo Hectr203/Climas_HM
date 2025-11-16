@@ -17,7 +17,7 @@ import {
 const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
   const [localError, setLocalError] = useState(null);
   const { createPerson } = usePerson();
-  const { showSuccess } = useNotifications();
+  const { showSuccess, showWarning } = useNotifications();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -78,9 +78,55 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
     }));
   };
 
+  const validateRequiredFields = () => {
+    const requiredFields = [
+      { field: formData.name, label: 'Nombre Completo' },
+      { field: formData.employeeId, label: 'ID de Empleado' },
+      { field: formData.email, label: 'Correo Electrónico' },
+      { field: formData.phone, label: 'Teléfono' },
+      { field: formData.hireDate, label: 'Fecha de Ingreso' }
+    ];
+
+    const emptyFields = requiredFields.filter(item => !item.field || item.field.trim() === '');
+    
+    // Mostrar una alerta individual por cada campo faltante
+    if (emptyFields.length > 0) {
+      emptyFields.forEach((item, index) => {
+        setTimeout(() => {
+          showWarning(
+            <span>El campo <strong>"{item.label}"</strong> es requerido.</span>,
+            { duration: 5000 }
+          );
+        }, index * 300); // Delay de 300ms entre cada notificación
+      });
+      return false;
+    }
+
+    // Validar que el teléfono tenga exactamente 10 dígitos
+    if (formData.phone && formData.phone.length !== 10) {
+      showWarning('El número de teléfono debe tener exactamente 10 dígitos.', { duration: 5000 });
+      return false;
+    }
+
+    // Validar formato de email básico
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      showWarning('Por favor, ingrese un correo electrónico válido.', { duration: 5000 });
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSave = async () => {
     setLocalError(null);
+    
+    // Validar campos requeridos antes de guardar
+    if (!validateRequiredFields()) {
+      return;
+    }
+
     try {
+      // Estructurar datos según el formato de la API
       const payload = {
         nombreCompleto: formData.name,
         empleadoId: formData.employeeId,
@@ -90,15 +136,35 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
         puesto: formData.position,
         fechaIngreso: formData.hireDate,
         estado: formData.status,
-        examenesMedicos: [formData.medicalStudies],
-        equipos: [formData.ppe],
-        contactoEmergencia: [formData.emergencyContact],
-        certifications: formData.certifications ?? [],
-        activo: true
+        activo: true,
+        examenesMedicos: [{
+          ultimoExamenMedico: formData.medicalStudies.lastExam || null,
+          proximoExamenMedico: formData.medicalStudies.nextExam || null,
+          estadoEstudiosMedicos: formData.medicalStudies.status || null,
+          urlDocumentoMedico: formData.medicalStudies.documents?.[0] || null
+        }],
+        equipos: [{
+          equipoProteccionPersonal: {
+            cascoSeguridad: formData.ppe.helmet || false,
+            chalecoReflectivo: formData.ppe.vest || false,
+            botasSeguridad: formData.ppe.boots || false
+          },
+          equipoAdicional: {
+            guantesTrabajo: formData.ppe.gloves || false,
+            gafasSeguridad: formData.ppe.glasses || false,
+            mascarilla: formData.ppe.mask || false
+          }
+        }],
+        contactoEmergencia: [{
+          nombreContacto: formData.emergencyContact.name || null,
+          telefonoContacto: formData.emergencyContact.phone || '',
+          relacion: formData.emergencyContact.relationship || null
+        }],
+        documentosGenerales: formData.certifications ?? []
       };
 
       const result = await createPerson(payload);
-      showSuccess('Empleado registrado correctamente ✅');
+      showSuccess('Personal registrado exitosamente.');
 
       if (onSave) onSave(result);
       onClose();
@@ -198,8 +264,8 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
                     }
                   }}
                   onBlur={(e) => {
-                    if (e.target.value.length !== 10) {
-                      alert('El número de teléfono debe tener exactamente 10 dígitos.');
+                    if (e.target.value && e.target.value.length !== 10) {
+                      showWarning('El número de teléfono debe tener exactamente 10 dígitos.', { duration: 5000 });
                     }
                   }}
                   inputMode="numeric"

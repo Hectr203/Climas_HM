@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNotifications } from "../context/NotificationContext";
 import personService from "../services/personService";
 
@@ -66,26 +66,45 @@ const usePerson = () => {
     }
   };
 
-  // 🔹 NUEVA FUNCIÓN PARA ACTUALIZAR EMPLEADO EXISTENTE
-  const updatePersonByEmpleadoId = async (empleadoId, payload) => {
+  // 🔹 FUNCIÓN PARA OBTENER EMPLEADO POR ID LÓGICO
+  const getPersonById = useCallback(async (id) => {
+    if (!id) return null;
     setLoading(true);
     setError(null);
     try {
-      const response = await personService.updatePersonByEmpleadoId(
-        empleadoId,
-        payload
-      );
+      const response = await personService.getPersonById(id);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error en usePerson.getPersonById:", err);
+      setError(err);
+      showHttpError("Error al obtener empleado");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [showHttpError]);
+
+  // 🔹 FUNCIÓN PARA ACTUALIZAR EMPLEADO EXISTENTE POR ID LÓGICO
+  const updatePersonById = async (id, payload) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await personService.updatePersonById(id, payload);
       if (response.success) {
         setPersons((prev) =>
-          prev.map((p) =>
-            p.empleadoId === empleadoId ? { ...p, ...response.data } : p
-          )
+          prev.map((p) => {
+            const pId = p.id || p._id;
+            return pId === id ? { ...p, ...response.data } : p;
+          })
         );
         showOperationSuccess("Empleado actualizado exitosamente");
         return response.data;
       }
     } catch (err) {
-      console.error("Error en usePerson.updatePersonByEmpleadoId:", err);
+      console.error("Error en usePerson.updatePersonById:", err);
       setError(err);
       showHttpError("Error al actualizar empleado");
       throw err;
@@ -101,8 +120,9 @@ const usePerson = () => {
     error,
     getPersons,
     getPersonsByDepartment,
+    getPersonById,
     createPerson,
-    updatePersonByEmpleadoId,
+    updatePersonById,
   };
 };
 
