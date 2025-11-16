@@ -18,7 +18,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
   const [localError, setLocalError] = useState(null);
   const [_loading, setLoading] = useState(false);
   const { updatePersonById, getPersonById } = usePerson();
-  const { showSuccess, showWarning } = useNotifications();
+  const { showSuccess, showWarning, showError } = useNotifications();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -186,6 +186,96 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
     }));
   };
 
+  const handleApiError = (error) => {
+    const status = error?.status || error?.response?.status;
+    // El mensaje puede estar en diferentes lugares según la estructura de la respuesta
+    const message = error?.data?.error || error?.data?.message || error?.userMessage || error?.message || 'Ha ocurrido un error inesperado';
+
+    // Manejar errores 400 (Bad Request)
+    if (status === 400) {
+      // Parámetro 'id' faltante
+      if (message.includes("parámetro 'id'") || message.includes("parámetro 'empleadoId'")) {
+        showError("Error: Falta el identificador del empleado. Por favor, recargue la página e intente nuevamente.", { duration: 7000 });
+        return;
+      }
+      // Email inválido
+      if (message.includes("email") && (message.includes("no es válido") || message.includes("inválido"))) {
+        showError("El correo electrónico ingresado no es válido.", { duration: 6000 });
+        setLocalError({ status: 400, field: 'email' });
+        return;
+      }
+      // Teléfono inválido
+      if (message.includes("telefono") || message.includes("teléfono")) {
+        if (message.includes("10 dígitos")) {
+          showError("El número de teléfono debe tener exactamente 10 dígitos.", { duration: 6000 });
+          return;
+        }
+        showError(message, { duration: 6000 });
+        return;
+      }
+      // Fecha inválida
+      if (message.includes("fechaIngreso") || message.includes("fecha")) {
+        showError("La fecha de ingreso debe ser una fecha válida.", { duration: 6000 });
+        return;
+      }
+      // Cuerpo de solicitud inválido
+      if (message.includes("cuerpo de la solicitud") || message.includes("inválido")) {
+        showError("Los datos enviados no son válidos. Por favor, verifique todos los campos.", { duration: 7000 });
+        return;
+      }
+      // Error genérico 400
+      showError(message, { duration: 7000 });
+      return;
+    }
+
+    // Manejar errores 409 (Conflict) - Duplicados
+    if (status === 409) {
+      // Email duplicado
+      if (message.includes("correo") || message.includes("email")) {
+        showError("Ya existe un empleado con el mismo correo electrónico.", { duration: 7000 });
+        setLocalError({ status: 409, field: 'email' });
+        return;
+      }
+      // Teléfono duplicado
+      if (message.includes("teléfono") || message.includes("telefono")) {
+        showError("Ya existe un empleado con el mismo número de teléfono.", { duration: 7000 });
+        setLocalError({ status: 409, field: 'phone' });
+        return;
+      }
+      // EmpleadoId duplicado
+      if (message.includes("empleadoId") || message.includes("empleado")) {
+        showError("Ya existe un empleado con el mismo ID de empleado.", { duration: 7000 });
+        setLocalError({ status: 409, field: 'employeeId' });
+        return;
+      }
+      // Error genérico 409
+      showError(message || "Ya existe un empleado con los mismos datos.", { duration: 7000 });
+      setLocalError({ status: 409 });
+      return;
+    }
+
+    // Manejar errores 500 (Internal Server Error)
+    if (status === 500) {
+      // Empleado no encontrado
+      if (message.includes("No se encontró") || message.includes("no encontrado")) {
+        showError("No se encontró el empleado especificado. Es posible que haya sido eliminado.", { duration: 7000 });
+        return;
+      }
+      // Error genérico del servidor
+      showError(message || "Error del servidor. Por favor, intente nuevamente más tarde.", { duration: 8000 });
+      return;
+    }
+
+    // Error de red u otros
+    if (!status) {
+      showError("Error de conexión. Por favor, verifique su conexión a internet e intente nuevamente.", { duration: 7000 });
+      return;
+    }
+
+    // Error genérico no clasificado
+    showError(message, { duration: 7000 });
+  };
+
   const validateRequiredFields = () => {
     const requiredFields = [
       { field: formData.name, label: 'Nombre Completo' },
@@ -220,6 +310,36 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       showWarning('Por favor, ingrese un correo electrónico válido.', { duration: 5000 });
       return false;
+    }
+
+    // Validar contacto de emergencia: si alguno tiene datos, todos deben estar completos
+    const hasEmergencyName = formData.emergencyContact.name && formData.emergencyContact.name.trim() !== '';
+    const hasEmergencyPhone = formData.emergencyContact.phone && formData.emergencyContact.phone.trim() !== '';
+    const hasEmergencyRelationship = formData.emergencyContact.relationship && formData.emergencyContact.relationship.trim() !== '';
+
+    if (hasEmergencyName || hasEmergencyPhone || hasEmergencyRelationship) {
+      const missingFields = [];
+      if (!hasEmergencyName) missingFields.push('Nombre del Contacto');
+      if (!hasEmergencyPhone) missingFields.push('Teléfono de Contacto');
+      if (!hasEmergencyRelationship) missingFields.push('Relación');
+
+      if (missingFields.length > 0) {
+        missingFields.forEach((field, index) => {
+          setTimeout(() => {
+            showWarning(
+              <span>El campo <strong>"{field}"</strong> es requerido para el contacto de emergencia.</span>,
+              { duration: 5000 }
+            );
+          }, index * 300);
+        });
+        return false;
+      }
+
+      // Validar que el teléfono de emergencia tenga exactamente 10 dígitos
+      if (formData.emergencyContact.phone && formData.emergencyContact.phone.length !== 10) {
+        showWarning('El número telefónico del contacto de emergencia está incompleto. Debe tener exactamente 10 dígitos.', { duration: 5000 });
+        return false;
+      }
     }
 
     return true;
@@ -277,9 +397,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
       onClose();
     } catch (error) {
       console.error("Error al guardar:", error);
-      if (error?.status === 409 && error?.data?.error?.includes('correo')) {
-        setLocalError(error);
-      }
+      handleApiError(error);
     }
   };
 
@@ -357,7 +475,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
                   }}
                   required
                 />
-                {(localError?.status === 409 && localError?.data?.error?.includes('correo')) && (
+                {(localError?.status === 409 && localError?.field === 'email') && (
                   <span className="block text-xs text-red-600 mt-1">Este correo ya está registrado</span>
                 )}
                 <Input
@@ -510,12 +628,29 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
                   value={formData.emergencyContact.name}
                   onChange={(e) => handleInputChange('emergencyContact.name', e.target.value)}
                 />
-                <Input
-                  label="Teléfono de Contacto"
-                  type="tel"
-                  value={formData.emergencyContact.phone}
-                  onChange={(e) => handleInputChange('emergencyContact.phone', e.target.value)}
-                />
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-foreground">Teléfono de Contacto</label>
+                    <span className="text-xs text-muted-foreground">
+                      {formData.emergencyContact.phone?.length || 0}/10
+                    </span>
+                  </div>
+                  <Input
+                    type="tel"
+                    value={formData.emergencyContact.phone}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Solo permitir números y máximo 10 dígitos
+                      if (/^\d{0,10}$/.test(value)) {
+                        handleInputChange('emergencyContact.phone', value);
+                      }
+                    }}
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="\d{10}"
+                    placeholder="Ingresa 10 dígitos"
+                  />
+                </div>
                 <Select
                   label="Relación"
                   options={relationshipOptions}
@@ -538,7 +673,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
               onClick={() => setStep((prev) => prev - 1)}
               iconName="ArrowLeft"
               iconPosition="left"
-              disabled={localError?.status === 409 && localError?.data?.error?.includes('correo')}
+              disabled={localError?.status === 409 && localError?.field === 'email'}
             >
               Anterior
             </Button>
@@ -548,7 +683,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
               onClick={() => setStep((prev) => prev + 1)}
               iconName="ArrowRight"
               iconPosition="right"
-              disabled={localError?.status === 409 && localError?.data?.error?.includes('correo')}
+              disabled={localError?.status === 409 && localError?.field === 'email'}
             >
               Siguiente
             </Button>
@@ -557,7 +692,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
               onClick={handleSave}
               iconName="Save"
               iconPosition="left"
-              disabled={localError?.status === 409 && localError?.data?.error?.includes('correo')}
+              disabled={localError?.status === 409 && localError?.field === 'email'}
             >
               Guardar Cambios
             </Button>
