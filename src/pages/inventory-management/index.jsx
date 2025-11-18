@@ -45,6 +45,16 @@ const formatDate = (dateString) => {
   }
 };
 
+// Devuelve clases de Tailwind según la prioridad (personalizado por el usuario)
+const getPriorityClasses = (prioridad) => {
+  const p = (prioridad || '').toLowerCase();
+  if (p.includes('media')) return 'bg-blue-50 text-blue-600';
+  if (p.includes('crit') || p.includes('crít')) return 'bg-red-50 text-red-600';
+  if (p.includes('alta')) return 'bg-green-50 text-green-600';
+  if (p.includes('baja')) return 'bg-yellow-50 text-yellow-600';
+  return 'bg-gray-100 text-gray-700';
+};
+
 const InventoryManagement = () => {
   const { showSuccess, showError, showConfirm } = useNotifications();
   const { articulos, getArticulos, loading: inventoryLoading, error: inventoryError } = useInventory();
@@ -366,7 +376,7 @@ const handleViewRequisition = (req) => {
     orderNumber: req.numeroOrdenTrabajo,
     projectName: req.nombreProyecto,
     requestedBy: req.solicitadoPor,
-    requestDate: req.fechaSolicitud,  // Asumiendo que viene en formato compatible (ej. YYYY-MM-DD o DD/MM/YYYY)
+    requestDate: formatDate(req.fechaSolicitud),  // Normaliza a YYYY-MM-DD
     status: req.estado || "Pendiente",
     priority: req.prioridad || "Normal",
     description: req.descripcionSolicitud,
@@ -406,7 +416,7 @@ const handleEditRequisition = (req) => {
     orderNumber: req.numeroOrdenTrabajo,
     projectName: req.nombreProyecto,
     requestedBy: req.solicitadoPor,
-    requestDate: req.fechaSolicitud,  // Asumiendo que viene en formato compatible
+    requestDate: formatDate(req.fechaSolicitud),  // Normaliza a YYYY-MM-DD
     status: req.estado || 'Pendiente',
     priority: req.prioridad || 'Normal',
     description: req.descripcionSolicitud,
@@ -1022,8 +1032,8 @@ ${order.notas || 'Sin notas adicionales'}
                   </span>
                 </div>
 
-                {/* Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground mb-3">
+                {/* Grid compacto: reemplaza fecha por prioridad con color */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm text-muted-foreground mb-3">
 
                   <div>
                     <span className="font-medium">Proyecto:</span>
@@ -1036,17 +1046,12 @@ ${order.notas || 'Sin notas adicionales'}
                   </div>
 
                   <div>
-                    <span className="font-medium">Fecha:</span>
-                    <div className="text-foreground">
-                      {req.fechaSolicitud
-                        ? new Date(req.fechaSolicitud).toLocaleDateString('es-MX')
-                        : 'No especificada'}
-                    </div>
-                  </div>
-
-                  <div>
                     <span className="font-medium">Prioridad:</span>
-                    <div className="text-foreground">{req.prioridad || 'Normal'}</div>
+                    <div className="text-foreground">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityClasses(req.prioridad)}`}>
+                        {req.prioridad || 'Normal'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1058,14 +1063,15 @@ ${order.notas || 'Sin notas adicionales'}
                   </div>
                 )}
 
-                {/* Materiales */}
-                {req.materiales?.length > 0 && (
+                {/* Materiales: incluir inventario + manuales */}
+                {((req.materiales || []).concat(req.materialesManuales || [])).length > 0 && (
                   <div className="mb-3">
                     <span className="font-medium">Materiales solicitados:</span>
                     <ul className="mt-2 space-y-1 text-sm">
-                      {req.materiales.map((item, index) => (
+                      {((req.materiales || []).concat(req.materialesManuales || [])).map((item, index) => (
                         <li key={index} className="text-foreground">
                           {item.cantidad || item.quantity} {item.unidad || item.unit || 'unidades'} - {item.nombreMaterial || item.name}
+                          {item?.idArticulo || item?.id ? null : <span className="ml-2 text-xs text-muted-foreground">(Manual)</span>}
                         </li>
                       ))}
                     </ul>
@@ -1079,7 +1085,7 @@ ${order.notas || 'Sin notas adicionales'}
                   <Button
   variant="outline"
   onClick={() => {
-    handleViewRequisition(req);  // 👈 usamos la función correcta
+    handleViewRequisition(req); 
   }}
 >
   Ver

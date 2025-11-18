@@ -6,6 +6,43 @@ import useInventario from '../../../hooks/useInventario';
 import RequisitionModal from "../components/RequisitionModal";
 import { useNotifications } from '../../../context/NotificationContext';
 
+const toISODate = (dateInput) => {
+  if (!dateInput) return new Date().toISOString().split('T')[0];
+  // Si viene como timestamp numérico
+  if (!isNaN(dateInput) && String(dateInput).length >= 10) {
+    const d = new Date(Number(dateInput));
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  }
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) return dateInput;
+  // DD/MM/YYYY -> convert
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) {
+    const [d, m, y] = dateInput.split('/');
+    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  // Try Date parse
+  try {
+    const d = new Date(dateInput);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  } catch (e) {}
+  return new Date().toISOString().split('T')[0];
+};
+
+// Formatea para mostrar en UI: devuelve string local (es-MX) o '—'
+const formatDisplayDate = (dateInput) => {
+  if (!dateInput) return '—';
+  // Normalizar a Date
+  let d;
+  if (!isNaN(dateInput) && String(dateInput).length >= 10) d = new Date(Number(dateInput));
+  else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) {
+    const [day, month, year] = dateInput.split('/');
+    d = new Date(`${year}-${month}-${day}`);
+  } else d = new Date(dateInput);
+
+  if (isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleDateString('es-MX');
+};
+
 const InventoryPanel = ({
   onCreatePurchaseOrder,
   onRequestMaterial,
@@ -110,9 +147,7 @@ const InventoryPanel = ({
     orderNumber: req.numeroOrdenTrabajo || "",
     projectName: req.nombreProyecto || "",
     requestedBy: req.solicitadoPor || "",
-    requestDate: req.fechaSolicitud
-      ? req.fechaSolicitud.split("/").reverse().join("-")
-      : new Date().toISOString().split("T")[0],
+    requestDate: toISODate(req.fechaSolicitud),
     status: req.estado || "Pendiente",
     priority: req.prioridad || "Media",
     description: req.descripcionSolicitud || "",
@@ -369,7 +404,7 @@ const InventoryPanel = ({
                         <div className="flex items-center justify-between">
                           <div className="text-xs text-muted-foreground">
                             <Icon name="User" size={12} className="inline mr-1" />
-                            {request.solicitadoPor} • {request.fechaSolicitud}
+                              {request.solicitadoPor} • {formatDisplayDate(request.fechaSolicitud)}
                           </div>
 
                           <div className="flex flex-col items-center gap-2 mt-2">
