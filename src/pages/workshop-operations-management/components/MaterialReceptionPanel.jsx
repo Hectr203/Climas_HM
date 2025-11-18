@@ -106,8 +106,11 @@ const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selected
     return materials.map(m => ({ codigo: m?.codigo || m?.id || null, descripcion: m?.descripcion || m?.nombre || m?.name || null, cantidad: m?.cantidad ?? m?.required ?? m?.qty ?? null }));
   };
 
-
-
+useEffect(() => {
+  if (selectedOrder && materialsReception.length > 0) {
+    onMaterialReception(materialsReception);
+  }
+}, [materialsReception, selectedOrder]);
   // On workOrders change, preload any persisted taller materials so previews are instant
   useEffect(() => {
     if (!Array.isArray(workOrders) || workOrders.length === 0) return;
