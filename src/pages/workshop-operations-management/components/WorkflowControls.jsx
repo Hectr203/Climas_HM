@@ -6,9 +6,7 @@ import 'jspdf-autotable';
 import requisiService from '../../../services/requisiService';
 import useGastos from '../../../hooks/useGastos';
 
-      const [receivedMaterials, setReceivedMaterials] = useState([]);  
-
-  const WorkflowControls = ({ selectedOrder, currentShift, totalOrders, workOrdersIds = [], workOrders = [], onForceRemove, onRevertStatus, localMissingByOrder = {} }) => {
+const WorkflowControls = ({ selectedOrder, currentShift, totalOrders, workOrdersIds = [], workOrders = [], onForceRemove, onRevertStatus, localMissingByOrder = {} }) => {
           const isWorkingHours = currentShift === 'morning';
     const { getGastos } = useGastos();
           const selectedMissingPPE = Array.isArray(selectedOrder?.safetyChecklistMissing)
@@ -543,11 +541,5 @@ const generateReport = async () => {
               )}
             </div>
           );
-        };
-
-        <MaterialReceptionPanel
-   workOrders={workOrders}
-   selectedOrder={selectedOrder}
-   onMaterialReception={setReceivedMaterials}
-/> 
+        }; 
         export default WorkflowControls;
