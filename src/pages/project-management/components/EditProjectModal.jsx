@@ -45,9 +45,11 @@ const uiEstadoCache = {
 
 /* ===================== CATÁLOGOS ===================== */
 const departmentOptions = [
+  { value: 'Ventas', label: 'Ventas' },
   { value: 'Ingeniería', label: 'Ingeniería' },
+  { value: 'Instalación', label: 'Instalación' },
   { value: 'Mantenimiento', label: 'Mantenimiento' },
-  { value: 'Operaciones', label: 'Operaciones' },
+  { value: 'Administración', label: 'Administración' },
 ];
 const priorityOptions = [
   { value: 'Baja', label: 'Baja' },
@@ -102,6 +104,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   /* ============= ESTADOS/MUNICIPIOS (UBICACIÓN) ============= */
   const { estados, loading: loadingEstados, error: errorEstados } = useEstados();
   const [selectedEstadoCode, setSelectedEstadoCode] = useState('');
+  const [municipioOriginal, setMunicipioOriginal] = useState(null); // Guardar municipio original antes de limpiarlo
   const {
     municipios,
     loading: loadingMunicipios,
@@ -183,6 +186,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     // 1) objeto { estado, municipio, direccion }
     // 2) string simple
     // 3) string JSON
+    // 4) array [{ estado, municipio, direccion }]
     let rawUbicacion = doc.ubicacion;
     if (typeof rawUbicacion === 'string') {
       const trimmed = rawUbicacion.trim();
@@ -204,7 +208,12 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       direccion: '',
     };
 
-    if (rawUbicacion && typeof rawUbicacion === 'object') {
+    // Si rawUbicacion es un array, tomar el primer elemento
+    if (Array.isArray(rawUbicacion) && rawUbicacion.length > 0) {
+      rawUbicacion = rawUbicacion[0];
+    }
+
+    if (rawUbicacion && typeof rawUbicacion === 'object' && !Array.isArray(rawUbicacion)) {
       ubicacion = {
         estado:
           rawUbicacion.estado ||
@@ -270,10 +279,181 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   const [formData, setFormData] = useState(normalized);
   useEffect(() => {
     if (isOpen) {
+      const estadoCode = normalized?.ubicacion?.estado || '';
+      const municipioValue = normalized?.ubicacion?.municipio || '';
+      
+      // Guardar el municipio original antes de actualizar formData
+      if (municipioValue && municipioValue !== formData?.ubicacion?.municipio) {
+        setMunicipioOriginal(municipioValue);
+      }
+      
+      // Actualizar formData con los datos normalizados
       setFormData(normalized);
-      setSelectedEstadoCode(normalized?.ubicacion?.estado || '');
+      
+      // Establecer selectedEstadoCode para cargar los municipios del estado
+      // Esto debe hacerse después de actualizar formData
+      if (estadoCode) {
+        setSelectedEstadoCode(estadoCode);
+      }
+    } else {
+      // Reset cuando se cierra el modal
+      setSelectedEstadoCode('');
+      setMunicipioOriginal(null);
     }
   }, [normalized, isOpen]);
+
+  // Sincronizar selectedEstadoCode con formData.ubicacion.estado cuando cambia
+  useEffect(() => {
+    if (isOpen && formData?.ubicacion?.estado) {
+      const estadoCode = formData.ubicacion.estado;
+      if (selectedEstadoCode !== estadoCode) {
+        setSelectedEstadoCode(estadoCode);
+      }
+    } else if (isOpen && !formData?.ubicacion?.estado && selectedEstadoCode) {
+      // Si no hay estado en formData pero selectedEstadoCode tiene valor, limpiarlo
+      setSelectedEstadoCode('');
+    }
+  }, [isOpen, formData?.ubicacion?.estado, selectedEstadoCode]);
+
+  // Paso 1: Resolver código de estado cuando viene como nombre y los estados están cargados
+  // Esto debe hacerse ANTES de cargar los municipios
+  useEffect(() => {
+    if (!isOpen || !estados || loadingEstados || !formData?.ubicacion?.estado || !Array.isArray(estados)) {
+      return;
+    }
+    
+    const estadoActual = formData.ubicacion.estado;
+    
+    // Verificar si el estado actual ya es un código válido (existe en estados)
+    const esCodigoValido = estados.some((e) => e.code === estadoActual);
+    
+    if (!esCodigoValido) {
+      // Buscar por nombre (case-insensitive)
+      const estadoEncontrado = estados.find((e) => {
+        const nombreEstado = e.name || '';
+        return nombreEstado.toLowerCase() === estadoActual.toLowerCase() ||
+               nombreEstado === estadoActual;
+      });
+      
+      if (estadoEncontrado) {
+        const codigoEncontrado = estadoEncontrado.code;
+        
+        // Guardar el municipio original antes de limpiarlo
+        const municipioActual = formData.ubicacion.municipio || '';
+        
+        if (municipioActual && !municipioOriginal) {
+          setMunicipioOriginal(municipioActual);
+        }
+        
+        // Actualizar formData y selectedEstadoCode con el código encontrado
+        // Esto desencadenará la carga de municipios
+        setFormData((prev) => ({
+          ...prev,
+          ubicacion: {
+            ...prev.ubicacion,
+            estado: codigoEncontrado,
+            // Limpiar municipio hasta que se carguen los municipios del estado
+            municipio: '',
+          },
+        }));
+        setSelectedEstadoCode(codigoEncontrado);
+      }
+    } else {
+      // Si el estado ya es un código válido, asegurarse de que selectedEstadoCode esté establecido
+      // para cargar los municipios
+      if (selectedEstadoCode !== estadoActual) {
+        setSelectedEstadoCode(estadoActual);
+      }
+    }
+  }, [isOpen, estados, loadingEstados, formData?.ubicacion?.estado, selectedEstadoCode, municipioOriginal]);
+
+  // Paso 2: Resolver código de municipio SOLO cuando los municipios están completamente cargados
+  // Esto se ejecuta DESPUÉS de que el estado está establecido y los municipios se han cargado
+  useEffect(() => {
+    // Esperar a que:
+    // 1. El modal esté abierto
+    // 2. Los municipios estén cargados (no loading)
+    // 3. El estado esté establecido y sea válido
+    if (!isOpen || loadingMunicipios || !formData?.ubicacion?.estado) {
+      return;
+    }
+    
+    // Si aún no hay municipios cargados, esperar
+    if (!municipios || !municipios.municipios) {
+      return;
+    }
+    
+    // Usar municipioOriginal si existe (cuando se limpió durante la resolución del estado)
+    // o el municipio actual de formData
+    const municipioParaResolver = municipioOriginal || formData?.ubicacion?.municipio || '';
+    
+    // Si no hay municipio para resolver, no hacer nada
+    if (!municipioParaResolver) {
+      return;
+    }
+    
+    const municipiosObj = municipios.municipios || {};
+    
+    // Verificar si el municipio actual ya es un código válido (existe como key en municipios)
+    const esCodigoValido = municipioParaResolver && municipiosObj[municipioParaResolver];
+    
+    if (!esCodigoValido) {
+      // Buscar por nombre o alias
+      const municipioEncontrado = Object.entries(municipiosObj).find(([code, name]) => {
+        // Comparación exacta del nombre
+        if (name === municipioParaResolver) return true;
+        // Comparación case-insensitive
+        if (name.toLowerCase() === municipioParaResolver.toLowerCase()) return true;
+        // Buscar en aliases si existen
+        const aliases = municipios.aliases || {};
+        const aliasEncontrado = Object.entries(aliases).find(([alias, codigoReferenciado]) => {
+          if (codigoReferenciado === code) {
+            // El alias apunta a este código, comparar con el alias o su valor decodificado
+            return alias === municipioParaResolver || 
+                   alias.toLowerCase() === municipioParaResolver.toLowerCase();
+          }
+          return false;
+        });
+        return !!aliasEncontrado;
+      });
+      
+      if (municipioEncontrado) {
+        const [codigoEncontrado] = municipioEncontrado;
+        
+        // Actualizar formData con el código encontrado y limpiar municipioOriginal
+        setFormData((prev) => ({
+          ...prev,
+          ubicacion: {
+            ...prev.ubicacion,
+            municipio: codigoEncontrado,
+          },
+        }));
+        setMunicipioOriginal(null);
+      } else {
+        // Si no se encuentra el municipio, limpiarlo y limpiar municipioOriginal
+        setFormData((prev) => ({
+          ...prev,
+          ubicacion: {
+            ...prev.ubicacion,
+            municipio: '',
+          },
+        }));
+        setMunicipioOriginal(null);
+      }
+    } else {
+      // Si ya es un código válido, asegurarse de que esté en formData y limpiar municipioOriginal
+      if (formData?.ubicacion?.municipio !== municipioParaResolver) {
+        setFormData((prev) => ({
+          ...prev,
+          ubicacion: {
+            ...prev.ubicacion,
+            municipio: municipioParaResolver,
+          },
+        }));
+      }
+      setMunicipioOriginal(null);
+    }
+  }, [isOpen, municipios, loadingMunicipios, formData?.ubicacion?.estado, formData?.ubicacion?.municipio, municipioOriginal]);
 
   /* ============= FX / TIPO DE CAMBIO USD↔MXN ============= */
   const fetchUsdMxnRate = useCallback(async () => {
@@ -726,10 +906,10 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
                       : [
                           { value: '', label: 'Selecciona un municipio' },
                           ...(municipios
-                            ? Object.values(municipios.municipios || {}).map(
-                                (m) => ({
-                                  value: m,
-                                  label: m,
+                            ? Object.entries(municipios.municipios || {}).map(
+                                ([code, name]) => ({
+                                  value: code,
+                                  label: name,
                                 })
                               )
                             : []),

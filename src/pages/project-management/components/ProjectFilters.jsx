@@ -121,7 +121,6 @@ const ProjectFilters = ({
     status: '',
     department: '',
     dateRange: '',
-    clientType: '',
     priority: '',
     minBudget: '',
     maxBudget: '',
@@ -159,14 +158,6 @@ const ProjectFilters = ({
     { value: 'year', label: 'Este Año' },
   ];
 
-  const clientTypeOptions = [
-    { value: '', label: 'Todos los Clientes' },
-    { value: 'residential', label: 'Residencial' },
-    { value: 'commercial', label: 'Comercial' },
-    { value: 'industrial', label: 'Industrial' },
-    { value: 'government', label: 'Gubernamental' },
-  ];
-
   const priorityOptions = [
     { value: '', label: 'Todas las Prioridades' },
     { value: 'low', label: 'Baja' },
@@ -187,7 +178,6 @@ const ProjectFilters = ({
       status: '',
       department: '',
       dateRange: '',
-      clientType: '',
       priority: '',
       minBudget: '',
       maxBudget: '',
@@ -252,7 +242,7 @@ const ProjectFilters = ({
         <div className="relative">
           <Input
             type="search"
-            placeholder="Buscar por nombre de proyecto, cliente, código..."
+            placeholder="Buscar por nombre de proyecto, código..."
             value={filters.search}
             onChange={(e) => handleFilterChange('search', e.target.value)}
             className="pl-10"
@@ -287,14 +277,6 @@ const ProjectFilters = ({
           options={dateRangeOptions}
           value={filters.dateRange}
           onChange={(value) => handleFilterChange('dateRange', value)}
-          className="w-full"
-        />
-
-        <Select
-          label="Tipo de Cliente"
-          options={clientTypeOptions}
-          value={filters.clientType}
-          onChange={(value) => handleFilterChange('clientType', value)}
           className="w-full"
         />
 
@@ -389,10 +371,6 @@ const ProjectFilters = ({
               displayValue =
                 dateRangeOptions.find((opt) => opt.value === value)?.label ||
                 value;
-            if (key === 'clientType')
-              displayValue =
-                clientTypeOptions.find((opt) => opt.value === value)?.label ||
-                value;
             if (key === 'priority')
               displayValue =
                 priorityOptions.find((opt) => opt.value === value)?.label ||
@@ -442,25 +420,46 @@ export const applyProjectFilters = (projects, filters) => {
     );
   }
 
-  // Status (incluye equivalentes cuando eliges "En Pausa")
+  // Status (incluye equivalentes para "En Pausa" y "En Revisión")
   if (filters?.status) {
+    // Función auxiliar para normalizar texto (quita tildes)
+    const norm = (s) => (s ?? '').toString().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
     filtered = filtered.filter((project) => {
-      const raw = (project?.status || '').toLowerCase().trim();
+      const rawStatus = project?.status || '';
+      const raw = norm(rawStatus); // Normalizar quita tildes
+      const rawLower = rawStatus.toLowerCase().trim();
       const target = filters.status.toLowerCase().trim();
+      const targetNorm = norm(filters.status);
 
       // Coincidencia directa
-      if (raw === target) return true;
+      if (raw === targetNorm || rawLower === target) return true;
 
       // Caso especial "En Pausa"
       // target === 'on-hold'
       // Queremos incluir estados equivalentes que el backend mete en "pausa"
-      if (target === 'on-hold') {
+      if (target === 'on-hold' || targetNorm === 'on-hold') {
         if (
-          raw.includes('pausa') ||     // "en pausa", "pausado", "pausada"
+          raw.includes('pausa') ||     // "en pausa", "pausado", "pausada" (sin tilde)
           raw.includes('paus')  ||
           raw.includes('hold')  ||     // "on-hold"
           raw.includes('suspend') ||   // "suspendido", "suspendida"
           raw.includes('detenid')      // "detenido", "detenida"
+        ) {
+          return true;
+        }
+      }
+
+      // Caso especial "En Revisión"
+      // target === 'review'
+      // Queremos incluir estados equivalentes como "en revisión" (con tilde)
+      if (target === 'review' || targetNorm === 'review') {
+        if (
+          raw.includes('revision') ||  // "en revision", "revisión" (sin tilde después de norm)
+          raw.includes('review')       // "review"
         ) {
           return true;
         }
@@ -476,13 +475,6 @@ export const applyProjectFilters = (projects, filters) => {
       (project) =>
         project?.department?.toLowerCase() ===
         filters.department.toLowerCase()
-    );
-  }
-
-  // Client type
-  if (filters?.clientType) {
-    filtered = filtered.filter(
-      (project) => project?.client?.type === filters.clientType
     );
   }
 

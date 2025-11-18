@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
-import Image from '../../../components/AppImage';
 import proyectoService from 'services/proyectoService';
 import clientService from 'services/clientService';
 import { useNotifications } from 'context/NotificationContext';
@@ -140,13 +139,99 @@ const resolveProjectStatus = (project) => {
 /*Convierte objeto ubicación en string legible */
 const formatLocation = (loc) => {
   if (!loc) return '—';
-  if (typeof loc === 'string') return loc;
-  if (typeof loc === 'object') {
-    const { direccion, municipio, estado, address, city, state } = loc || {};
-    const parts = [direccion ?? address, municipio ?? city, estado ?? state].filter(Boolean);
-    return parts.length ? parts.join(', ') : JSON.stringify(loc);
+  
+  // Si es string, intentar parsear si es JSON
+  if (typeof loc === 'string') {
+    const trimmed = loc.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          loc = parsed;
+        } else {
+          return trimmed; // Si no se puede parsear, retornar el string original
+        }
+      } catch {
+        return trimmed; // Si falla el parse, retornar el string original
+      }
+    } else {
+      return trimmed; // String simple, retornar tal cual
+    }
   }
+  
+  // Si es un array, tomar el primer elemento
+  if (Array.isArray(loc) && loc.length > 0) {
+    loc = loc[0];
+  }
+  
+  // Si ahora es objeto (y no array), extraer los campos en el orden: Dirección, Municipio, Estado
+  if (typeof loc === 'object' && !Array.isArray(loc)) {
+    // Extraer dirección (varias variaciones posibles)
+    const direccion = 
+      loc.direccion || 
+      loc.dirección || 
+      loc.direccionCompleta || 
+      loc.address || 
+      '';
+    
+    // Extraer municipio
+    const municipio = 
+      loc.municipio || 
+      loc.municipioNombre || 
+      loc.city || 
+      '';
+    
+    // Extraer estado
+    const estado = 
+      loc.estado || 
+      loc.estadoCode || 
+      loc.state || 
+      '';
+    
+    // Construir array en el orden: Dirección, Municipio, Estado
+    const parts = [direccion, municipio, estado].filter(Boolean);
+    
+    // Si hay al menos un campo, retornar formateado
+    if (parts.length > 0) {
+      return parts.join(', ');
+    }
+    
+    // Si no hay campos válidos, retornar vacío en lugar de JSON.stringify
+    return '—';
+  }
+  
   return String(loc);
+};
+
+/* Componente para mostrar descripción truncada con "Ver más..." */
+const DescriptionWithExpand = ({ description, projectId, isExpanded, onToggle }) => {
+  const MAX_LENGTH = 50;
+  
+  if (!description || description === '—') {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+  
+  const isLong = description.length > MAX_LENGTH;
+  const displayText = isLong && !isExpanded 
+    ? description.substring(0, MAX_LENGTH) + '...'
+    : description;
+  
+  return (
+    <div className="text-sm text-muted-foreground whitespace-pre-line">
+      {displayText}
+      {isLong && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(projectId);
+          }}
+          className="ml-2 text-primary hover:underline focus:outline-none"
+        >
+          {isExpanded ? 'Ver menos...' : 'Ver más...'}
+        </button>
+      )}
+    </div>
+  );
 };
 
 /* Normalizador Proyecto */
@@ -292,6 +377,7 @@ const ProjectTable = ({
   const [sortConfig, setSortConfig] = useState({ key: 'startDate', direction: 'desc' });
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [expandedRows, setExpandedRows] = useState([]);
+  const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
   // 🔵 Estado de borrador de abonos (COMENTADO)
   // const [newAbonoDraft, setNewAbonoDraft] = useState({});
   const [clientCache, setClientCache] = useState({});
@@ -495,6 +581,18 @@ const ProjectTable = ({
   const toggleRowExpansion = (id) =>
     setExpandedRows((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
+  const toggleDescriptionExpansion = (projectId) => {
+    setExpandedDescriptions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(projectId)) {
+        newSet.delete(projectId);
+      } else {
+        newSet.add(projectId);
+      }
+      return newSet;
+    });
+  };
+
   const usingLocalShadow = Array.isArray(localDocs);
 
   //Eliminar (optimista, sin refresh) —>>> MENSAJE EDITADO
@@ -518,6 +616,11 @@ const ProjectTable = ({
         }
         setSelectedProjects((prev) => prev.filter((x) => x !== project.id));
         setExpandedRows((prev) => prev.filter((x) => x !== project.id));
+        setExpandedDescriptions((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(project.id);
+          return newSet;
+        });
 
         setTimeout(() => {
           const newTotal = (usingLocalShadow ? (prevLocal ? doRemove(prevLocal, project.id) : []) : (prevRemote ? doRemove(prevRemote, project.id) : [])).length;
@@ -559,6 +662,11 @@ const ProjectTable = ({
         }
         setSelectedProjects([]);
         setExpandedRows((prev) => prev.filter((x) => !toDelete.includes(x)));
+        setExpandedDescriptions((prev) => {
+          const newSet = new Set(prev);
+          toDelete.forEach((id) => newSet.delete(id));
+          return newSet;
+        });
 
         setTimeout(() => {
           const newTotal = (usingLocalShadow ? (prevLocal ? doRemoveBulk(prevLocal, toDelete) : []) : (prevRemote ? doRemoveBulk(prevRemote, toDelete) : [])).length;
@@ -755,8 +863,10 @@ const ProjectTable = ({
 
                     <td className="p-4">
                       <div className="flex items-center space-x-3">
-                        <Image src={project?.image} alt={project?.name} className="w-10 h-10 rounded-lg object-cover" />
-                        <div>
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Icon name="Folder" size={20} className="text-primary" />
+                        </div>
+                        <div className="min-w-0">
                           <div className="font-medium text-foreground">{project?.name}</div>
                           <div className="text-sm text-muted-foreground">{project?.type}</div>
                         </div>
@@ -873,9 +983,12 @@ const ProjectTable = ({
 
                           <div>
                             <h4 className="font-medium text-foreground mb-2">Descripción</h4>
-                            <p className="text-sm text-muted-foreground whitespace-pre-line">
-                              {project?.description || '—'}
-                            </p>
+                            <DescriptionWithExpand
+                              description={project?.description || '—'}
+                              projectId={project?.id}
+                              isExpanded={expandedDescriptions.has(project?.id)}
+                              onToggle={toggleDescriptionExpansion}
+                            />
                           </div>
                           {/*
                           <div>
@@ -1079,10 +1192,12 @@ const ProjectTable = ({
                     type="checkbox"
                     checked={selectedProjects?.includes(p?.id)}
                     onChange={() => handleSelectProject(p?.id)}
-                    className="rounded border-border"
+                    className="rounded border-border flex-shrink-0"
                   />
-                  <Image src={p?.image} alt={p?.name} className="w-12 h-12 rounded-lg object-cover" />
-                  <div>
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Icon name="Folder" size={24} className="text-primary" />
+                  </div>
+                  <div className="min-w-0">
                     <div className="font-medium text-foreground">{p?.name}</div>
                     <div className="text-sm text-muted-foreground">{p?.code}</div>
                   </div>
