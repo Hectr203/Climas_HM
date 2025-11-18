@@ -6,9 +6,7 @@ import 'jspdf-autotable';
 import requisiService from '../../../services/requisiService';
 import useGastos from '../../../hooks/useGastos';
 
-        
-
-  const WorkflowControls = ({ selectedOrder, currentShift, totalOrders, workOrdersIds = [], workOrders = [], onForceRemove, onRevertStatus, localMissingByOrder = {} }) => {
+const WorkflowControls = ({ selectedOrder, currentShift, totalOrders, workOrdersIds = [], workOrders = [], onForceRemove, onRevertStatus, localMissingByOrder = {} }) => {
           const isWorkingHours = currentShift === 'morning';
     const { getGastos } = useGastos();
           const selectedMissingPPE = Array.isArray(selectedOrder?.safetyChecklistMissing)
@@ -129,22 +127,7 @@ const generateReport = async () => {
   if (!selectedOrder) return;
 
   // --------------------------------------------
-  // CARGAR MATERIALES DESDE MATERIAL RECEPTION PANEL
-  // --------------------------------------------
-  let receptionMaterials = [];
-
-  try {
-    const resp = await inventoryService.getReceptionMaterials(selectedOrder?.ordenTrabajo);
-    if (resp?.success && Array.isArray(resp.data)) {
-      receptionMaterials = resp.data;
-      console.log("Materiales recepción cargados:", receptionMaterials);
-    }
-  } catch (err) {
-    console.error("Error cargando materiales recepción", err);
-  }
-
-  // --------------------------------------------
-  // PROGRESO (DELTA) - SIN CAMBIOS
+  // PROGRESO (DELTA)
   // --------------------------------------------
   const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const onlyDigits = (v) => (String(v || '').match(/\d+/g) || []).join('');
@@ -187,25 +170,9 @@ const generateReport = async () => {
   };
 
   // --------------------------------------------
-  // MATERIALES - AHORA USARÁ RECEPCIÓN
+  // MATERIALES - Fallback para cuando no hay recepcionMateriales
   // --------------------------------------------
   const buildMaterials = () => {
-    // 1️⃣ Si existen materiales de recepción, usar esos
-    if (Array.isArray(receptionMaterials) && receptionMaterials.length > 0) {
-      return receptionMaterials.map(m => {
-        const required = Number(m.requerido ?? m.cantidad ?? m.required ?? 0);
-        const received = Number(m.recibido ?? m.entregado ?? m.received ?? 0);
-
-        return {
-          name: m.material || m.nombre || "Material",
-          required,
-          received,
-          missing: Math.max(0, required - received)
-        };
-      });
-    }
-
-    // 2️⃣ Fallback a selectedOrder.materials (si no hubiera recepción)
     const raw = selectedOrder?.materials || [];
     return raw.map(it => ({
       name: it.name || it.nombre || "Material",
@@ -247,13 +214,14 @@ const generateReport = async () => {
   rows.push(["Cliente", String(selectedOrder?.clientName || selectedOrder?.cliente?.nombre || "")]);
 
   const progress = Number(selectedOrder?.progress ?? selectedOrder?.progreso ?? 0);
-  const delta = computeDailyProgressDelta();
 
   rows.push(["Progreso", `${progress}%`]);
-  if (delta !== null) rows.push(["Avance del día", `${delta >= 0 ? "+" : ""}${delta}%`]);
 
   rows.push(["Prioridad", selectedOrder?.prioridad || ""]);
-  rows.push(["Fecha Límite", selectedOrder?.fechaLimite || "-"]);
+  
+  // Use same date logic as control panel
+  const rawDate = selectedOrder?.fechaLimite || selectedOrder?.estimatedCompletion || selectedOrder?.proyectoFecha || selectedOrder?.raw?.fechaLimite || selectedOrder?.raw?.fecha || selectedOrder?.raw?.estimatedCompletion || selectedOrder?.raw?.fechaEstimada || '';
+  rows.push(["Fecha Límite", rawDate || "-"]);
 
   const techs =
     (Array.isArray(selectedOrder?.tecnicos)
@@ -266,7 +234,18 @@ const generateReport = async () => {
       .join(", ");
 
   rows.push(["Técnicos", techs]);
-  rows.push(["Flujo Actual", selectedOrder?.estado || selectedOrder?.status || ""]);
+  
+  // Map status to readable column title from workshop board
+  const statusId = selectedOrder?.status || selectedOrder?.raw?.status || selectedOrder?.estado || selectedOrder?.raw?.estado || "";
+  const statusMap = {
+    'material-reception': 'Recepción Material',
+    'safety-checklist': 'Lista Seguridad',
+    'manufacturing': 'Fabricación',
+    'quality-control': 'Control Calidad',
+    'ready-shipment': 'Listo Envío'
+  };
+  const flujoActual = statusMap[statusId] || statusId || "";
+  rows.push(["Flujo Actual", flujoActual]);
 
   if (selectedOrder?.safetyChecklistCompleted) {
     rows.push(["Check Seguridad", "Completado"]);
@@ -285,7 +264,23 @@ const generateReport = async () => {
   // TABLA MATERIALES (RECEPCIÓN REAL)
   // --------------------------------------------
   let cursorY = doc.lastAutoTable.finalY + 20;
-  const materials = buildMaterials();
+  
+  // Materials table - usar recepcionMateriales si está disponible
+  const reception = selectedOrder?.recepcionMateriales || selectedOrder?.raw?.recepcionMateriales;
+  let materialsForPDF = [];
+  
+  if (reception && Array.isArray(reception.materials) && reception.materials.length > 0) {
+    // Usar materiales detallados de recepcionMateriales
+    materialsForPDF = reception.materials.map(m => ({
+      name: m.descripcion || m.nombre || 'Material',
+      required: Number(m.required || 0),
+      received: Number(m.received || 0),
+      missing: Number(m.missing || 0)
+    }));
+  } else {
+    // Fallback a buildMaterials
+    materialsForPDF = buildMaterials();
+  }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
@@ -294,7 +289,7 @@ const generateReport = async () => {
   doc.autoTable({
     startY: cursorY + 10,
     head: [["Material", "Requerido", "Recibido", "Faltante"]],
-    body: materials.map(m => [m.name, m.required, m.received, m.missing]),
+    body: materialsForPDF.map(m => [m.name || '', String(m.required || 0), String(m.received || 0), String(m.missing || 0)]),
     theme: "grid",
     styles: { fontSize: 9 },
     headStyles: { fillColor: [10, 74, 138], textColor: 255 }
@@ -549,6 +544,5 @@ const generateReport = async () => {
               )}
             </div>
           );
-        };
-
+        }; 
         export default WorkflowControls;

@@ -3,6 +3,7 @@ import Select from '../../../components/ui/Select';
 import Input from '../../../components/ui/Input';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
+import { departmentOptions as importedDepartmentOptions } from './personnelConstants';
 
 const FilterToolbar = ({ 
   filters, 
@@ -12,13 +13,10 @@ const FilterToolbar = ({
   totalCount,
   filteredCount 
 }) => {
+  // Agregar opción "Todos los Departamentos" al inicio de las opciones importadas
   const departmentOptions = [
     { value: '', label: 'Todos los Departamentos' },
-    { value: 'Administración', label: 'Administración' },
-    { value: 'Proyectos', label: 'Proyectos' },
-    { value: 'Taller', label: 'Taller' },
-    { value: 'Ventas', label: 'Ventas' },
-    { value: 'Mantenimiento', label: 'Mantenimiento' }
+    ...importedDepartmentOptions
   ];
 
   const statusOptions = [
@@ -32,7 +30,6 @@ const FilterToolbar = ({
     { value: '', label: 'Todos los Estados' },
     { value: 'Completo', label: 'Completo' },
     { value: 'Pendiente', label: 'Pendiente' },
-    { value: 'Vencido', label: 'Vencido' }
   ];
 
   const positionOptions = [

@@ -170,8 +170,14 @@ const WorkOrderModal = ({ isOpen, onClose, workOrder, mode = "edit", onSaveSucce
   loadWorkOrderData();
 }, [workOrder, isOpen, getProyectos]);
 
+const handleSaveSuccess = (updatedOrder) => {
+  setWorkOrders(prev =>
+    prev.map(o => o.id === updatedOrder.id ? updatedOrder : o)
+  );
 
-// Agrega esto después
+  setSelectedOrder(updatedOrder);
+};
+
 useEffect(() => {
   if (workOrder?.cliente?.id && clients.length > 0) {
     const selected = clients.find(
@@ -259,51 +265,45 @@ useEffect(() => {
     tipo: formData.type,
   };
 
-  if (assignClient && formData.client.id) {
+  // ------- CLIENTE -------
+  if (assignClient && formData.client?.id) {
     payload.cliente = {
       id: formData.client.id,
       nombre: formData.client.nombre,
     };
   }
 
-  // ------- NUEVA LÓGICA PARA PROYECTO -------
-  let proyectoNombreFinal = "";
-  let proyectoIdFinal = "";
+  // ------- PROYECTO -------
+  let proyectoSeleccionado = null;
 
   if (formData.proyectoNombre) {
-    // Usuario seleccionó un proyecto en el Select
-    const selectedProject = clientProjects.find(
-      (p) => p.id === formData.proyectoNombre || p._id === formData.proyectoNombre
+    // Usuario seleccionó uno nuevo
+    proyectoSeleccionado = clientProjects.find(
+      (p) =>
+        p.id === formData.proyectoNombre ||
+        p._id === formData.proyectoNombre
     );
-
-    if (selectedProject) {
-      proyectoNombreFinal =
-        selectedProject.nombre ||
-        selectedProject.nombreProyecto ||
-        "";
-      proyectoIdFinal = selectedProject.id || selectedProject._id;
-    }
-  } else if (workOrder?.proyecto?.id || workOrder?.proyectoNombre) {
-    // No tocó el Select, pero la orden ya tenía proyecto guardado
-    proyectoNombreFinal =
-      workOrder.proyectoNombre ||
-      workOrder.proyecto?.nombre ||
-      "";
-    proyectoIdFinal =
-      workOrder.proyecto?.id ||
-      workOrder.proyecto?._id ||
-      "";
+  } else if (workOrder?.proyecto) {
+    // No lo cambió pero ya existía uno guardado
+    proyectoSeleccionado = workOrder.proyecto;
   }
 
-  if (proyectoNombreFinal) {
+  if (proyectoSeleccionado) {
     payload.proyecto = {
-      id: proyectoIdFinal || undefined,
-      nombre: proyectoNombreFinal,
+      id: proyectoSeleccionado.id || proyectoSeleccionado._id,
+      nombre:
+        proyectoSeleccionado.nombre ||
+        proyectoSeleccionado.nombreProyecto ||
+        "",
     };
-    payload.proyectoNombre = proyectoNombreFinal;
-  }
-  // ------------------------------------------
 
+    payload.proyectoNombre =
+      proyectoSeleccionado.nombre ||
+      proyectoSeleccionado.nombreProyecto ||
+      "";
+  }
+
+  // ------- TÉCNICO -------
   if (formData.assignedTechnician.id) {
     payload.tecnicoAsignado = {
       id: formData.assignedTechnician.id,
@@ -313,27 +313,20 @@ useEffect(() => {
 
   try {
     let savedOrder;
+
     if (workOrder?.id) {
       savedOrder = await updateWorkOrder(workOrder.id, payload);
     } else {
       savedOrder = await createWorkOrder(payload);
     }
 
+    onSaveSuccess?.(savedOrder);
     onClose();
-    onSaveSuccess?.({
-    ...workOrder,
-    ...payload,
-    cliente: payload.cliente || workOrder?.cliente || null,
-    proyecto: payload.proyecto || workOrder?.proyecto || null,
-    proyectoNombre: payload.proyectoNombre || workOrder?.proyectoNombre || ""
-});
 
   } catch (error) {
     console.error("Error al guardar:", error);
   }
 };
-
-
   if (!isOpen) return null;
 
   return (

@@ -6,7 +6,10 @@ import Button from '../../components/ui/Button';
 import PersonnelTable from './components/PersonnelTable';
 import FilterToolbar from './components/FilterToolbar';
 import ComplianceDashboard from './components/ComplianceDashboard';
-import PersonnelModal from './components/PersonnelModal';
+import AddEmployeeModal from './components/AddEmployeeModal';
+import EditEmployeeModal from './components/EditEmployeeModal';
+import EditEPPModal from './components/EditEPPModal';
+import ViewEmployeeModal from './components/ViewEmployeeModal';
 import usePerson from '../../hooks/usePerson'; 
 
 const PersonnelManagement = () => {
@@ -23,7 +26,7 @@ const PersonnelManagement = () => {
     hireDateFrom: '',
     hireDateTo: ''
   });
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [modalMode, setModalMode] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialStep, setInitialStep] = useState(0); // 0: general, 1: medical, 2: ppe, 3: emergency
@@ -38,62 +41,141 @@ const PersonnelManagement = () => {
 
   // ✅ Lógica de filtrado robusta
   const filteredPersonnel = useMemo(() => {
-  if (!persons) return [];
+    if (!persons) return [];
 
-  return persons.filter((employee) => {
-    const searchTerm = filters.search?.toLowerCase().trim() || '';
+    return persons.filter((employee) => {
+      const searchTerm = filters.search?.toLowerCase().trim() || '';
 
-    const matchSearch =
-      !searchTerm ||
-      employee?.nombreCompleto?.toLowerCase()?.includes(searchTerm) ||
-      employee?.empleadoId?.toLowerCase()?.includes(searchTerm) ||
-      employee?.puesto?.toLowerCase()?.includes(searchTerm);
+      // Filtro de búsqueda
+      const matchSearch =
+        !searchTerm ||
+        employee?.nombreCompleto?.toLowerCase()?.includes(searchTerm) ||
+        employee?.empleadoId?.toLowerCase()?.includes(searchTerm) ||
+        employee?.puesto?.toLowerCase()?.includes(searchTerm);
 
-    const matchDept =
-      !filters.department ||
-      employee?.departamento?.toLowerCase() === filters.department.toLowerCase();
+      // Filtro de departamento
+      const matchDept =
+        !filters.department ||
+        filters.department.trim() === '' ||
+        (employee?.departamento?.toLowerCase().trim() === filters.department.toLowerCase().trim());
 
-    const matchStatus =
-      !filters.status ||
-      employee?.estado?.toLowerCase() === filters.status.toLowerCase();
+      // Filtro de estado
+      const matchStatus =
+        !filters.status ||
+        (employee?.estado?.toLowerCase() === filters.status.toLowerCase());
 
-    const matchPosition =
-      !filters.position ||
-      employee?.puesto?.toLowerCase() === filters.position.toLowerCase();
+      // Filtro de puesto
+      const matchPosition =
+        !filters.position ||
+        (employee?.puesto?.toLowerCase() === filters.position.toLowerCase());
 
-    // ❌ Eliminamos o comentamos estos porque NO existen en tu base
-    // const matchMedical =
-    //   !filters.medicalCompliance ||
-    //   employee?.cumplimientoMedico?.toLowerCase() ===
-    //     filters.medicalCompliance.toLowerCase();
+      // Filtro de cumplimiento médico
+      // Usar estadoEstudiosMedicos si existe, de lo contrario calcularlo
+      let medicalStatus = 'Pendiente';
+      
+      // Primero verificar si existe directamente en el objeto
+      if (employee.estadoEstudiosMedicos) {
+        medicalStatus = employee.estadoEstudiosMedicos;
+      } else {
+        // Si no existe, buscar en examenesMedicos[0]
+        const medicalData = Array.isArray(employee.examenesMedicos) && employee.examenesMedicos[0]
+          ? employee.examenesMedicos[0]
+          : {};
+        
+        if (medicalData.estadoEstudiosMedicos) {
+          medicalStatus = medicalData.estadoEstudiosMedicos;
+        } else {
+          // Si tiene datos pero no tiene estadoEstudiosMedicos, marcar como "Actualizar datos"
+          if (medicalData.ultimoExamenMedico !== undefined || 
+              medicalData.proximoExamenMedico !== undefined ||
+              medicalData.urlDocumentoMedico !== undefined) {
+            medicalStatus = 'Actualizar datos';
+          } else {
+            medicalStatus = 'Pendiente';
+          }
+        }
+      }
+      
+      const matchMedical =
+        !filters.medicalCompliance ||
+        (medicalStatus?.toLowerCase() === filters.medicalCompliance.toLowerCase());
 
-    // const matchPPE =
-    //   !filters.ppeCompliance ||
-    //   employee?.cumplimientoEPP?.toLowerCase() ===
-    //     filters.ppeCompliance.toLowerCase();
+      // Filtro de cumplimiento EPP
+      // Usar estadoEquipoEPP si existe, de lo contrario calcularlo
+      let ppeComplianceStatus = 'Pendiente';
+      
+      if (employee.estadoEquipoEPP) {
+        // Si existe el campo estadoEquipoEPP, usarlo directamente
+        ppeComplianceStatus = employee.estadoEquipoEPP;
+      } else {
+        // Si no existe, intentar calcularlo desde los datos de equipos
+        const equiposData = Array.isArray(employee.equipos) && employee.equipos[0]
+          ? employee.equipos[0]
+          : {};
+        
+        const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
+        const equipoAdicional = equiposData.equipoAdicional || {};
+        
+        // Si tiene datos pero no tiene estadoEquipoEPP, marcar como "Actualizar datos"
+        if (equipoProteccionPersonal.cascoSeguridad !== undefined || 
+            equipoProteccionPersonal.chalecoReflectivo !== undefined ||
+            equipoProteccionPersonal.botasSeguridad !== undefined ||
+            equipoAdicional.guantesTrabajo !== undefined ||
+            equipoAdicional.gafasSeguridad !== undefined ||
+            equipoAdicional.mascarilla !== undefined) {
+          ppeComplianceStatus = 'Actualizar datos';
+        } else {
+          ppeComplianceStatus = 'Pendiente';
+        }
+      }
+      
+      const matchPPE =
+        !filters.ppeCompliance ||
+        (ppeComplianceStatus?.toLowerCase() === filters.ppeCompliance.toLowerCase());
 
-    const matchHireDateFrom =
-      !filters.hireDateFrom ||
-      new Date(employee?.fechaIngreso) >= new Date(filters.hireDateFrom);
+      // Filtros de fecha de ingreso
+      let matchHireDateFrom = true;
+      let matchHireDateTo = true;
+      
+      if (filters.hireDateFrom && employee?.fechaIngreso) {
+        try {
+          const hireDate = new Date(employee.fechaIngreso);
+          const fromDate = new Date(filters.hireDateFrom);
+          matchHireDateFrom = hireDate >= fromDate;
+        } catch (e) {
+          matchHireDateFrom = true; // Si hay error en la fecha, no filtrar
+        }
+      }
+      
+      if (filters.hireDateTo && employee?.fechaIngreso) {
+        try {
+          const hireDate = new Date(employee.fechaIngreso);
+          const toDate = new Date(filters.hireDateTo);
+          // Ajustar la fecha "hasta" al final del día para incluir todo el día
+          toDate.setHours(23, 59, 59, 999);
+          matchHireDateTo = hireDate <= toDate;
+        } catch (e) {
+          matchHireDateTo = true; // Si hay error en la fecha, no filtrar
+        }
+      }
 
-    const matchHireDateTo =
-      !filters.hireDateTo ||
-      new Date(employee?.fechaIngreso) <= new Date(filters.hireDateTo);
-
-    return (
-      matchSearch &&
-      matchDept &&
-      matchStatus &&
-      matchPosition &&
-      matchHireDateFrom &&
-      matchHireDateTo
-    );
-  });
-}, [persons, filters]);
+      return (
+        matchSearch &&
+        matchDept &&
+        matchStatus &&
+        matchPosition &&
+        matchMedical &&
+        matchPPE &&
+        matchHireDateFrom &&
+        matchHireDateTo
+      );
+    });
+  }, [persons, filters]);
 
   // ✅ Acciones UI
   const handleViewProfile = (employee) => {
-    setSelectedEmployee(employee);
+    const employeeId = employee?.id || employee?._id || null;
+    setSelectedEmployeeId(employeeId);
     setModalMode('view');
     setInitialStep(0);
     setOpenedFromEPP(false);
@@ -101,7 +183,8 @@ const PersonnelManagement = () => {
   };
 
   const handleEditPersonnel = (employee) => {
-    setSelectedEmployee(employee);
+    const employeeId = employee?.id || employee?._id || null;
+    setSelectedEmployeeId(employeeId);
     setModalMode('edit');
     setInitialStep(0);
     setOpenedFromEPP(false);
@@ -109,7 +192,7 @@ const PersonnelManagement = () => {
   };
 
   const handleCreatePersonnel = () => {
-    setSelectedEmployee(null);
+    setSelectedEmployeeId(null);
     setModalMode('create');
     setInitialStep(0);
     setOpenedFromEPP(false);
@@ -117,7 +200,8 @@ const PersonnelManagement = () => {
   };
 
   const handleAssignPPE = (employee) => {
-    setSelectedEmployee(employee);
+    const employeeId = employee?.id || employee?._id || null;
+    setSelectedEmployeeId(employeeId);
     setModalMode('edit');
     setInitialStep(2); // Abrir directamente en el paso de EPP
     setOpenedFromEPP(true);
@@ -135,7 +219,7 @@ const PersonnelManagement = () => {
     await getPersons(); // 🔄 Refresca la lista actualizada desde el backend
 
     setIsModalOpen(false); // Cierra el modal
-    setSelectedEmployee(null);
+    setSelectedEmployeeId(null);
     setModalMode(null);
 
   } catch (err) {
@@ -344,8 +428,8 @@ const PersonnelManagement = () => {
             </div>
 
             <div className="flex items-center space-x-3">
-              <div className="flex items-center bg-card border border-border rounded-lg p-1">
-                <Button
+              {/* <div className="flex items-center bg-card border border-border rounded-lg p-1"> */}
+                {/* <Button
                   variant={activeView === 'personnel' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setActiveView('personnel')}
@@ -354,7 +438,7 @@ const PersonnelManagement = () => {
                   iconSize={16}
                 >
                   Personal
-                </Button>
+                </Button> */}
                 {/* TODO: Habilitar cuando se implemente cumplimiento */}
                 {/* <Button
                   variant={activeView === 'compliance' ? 'default' : 'ghost'}
@@ -366,7 +450,7 @@ const PersonnelManagement = () => {
                 >
                   Cumplimiento
                 </Button> */}
-              </div>
+                {/* </div> */}
 
               <Button
                 onClick={handleCreatePersonnel}
@@ -392,11 +476,22 @@ const PersonnelManagement = () => {
               />
 
               <PersonnelTable
-  personnel={filteredPersonnel}
-  onViewProfile={handleViewProfile}
-  onEditPersonnel={handleEditPersonnel}
-  onAssignPPE={handleAssignPPE}
-/>
+                personnel={filteredPersonnel}
+                onViewProfile={handleViewProfile}
+                onEditPersonnel={handleEditPersonnel}
+                onAssignPPE={handleAssignPPE}
+                hasActiveFilters={(() => {
+                  // Función robusta para detectar filtros activos
+                  // Considera strings vacíos, null, undefined y solo espacios en blanco como inactivos
+                  return Object.values(filters).some((value) => {
+                    if (value === null || value === undefined) return false;
+                    const strValue = String(value).trim();
+                    return strValue !== '';
+                  });
+                })()}
+                filters={filters}
+                onClearFilters={handleClearFilters}
+              />
 
             </div>
           ) : (
@@ -407,22 +502,55 @@ const PersonnelManagement = () => {
             />
           )}
 
-          {/* Modal */}
-          <PersonnelModal
-            isOpen={isModalOpen}
+          {/* Modales */}
+          <AddEmployeeModal
+            isOpen={isModalOpen && modalMode === 'create'}
             onClose={() => {
               setIsModalOpen(false);
-              setSelectedEmployee(null);
+              setSelectedEmployeeId(null);
               setModalMode(null);
               setInitialStep(0);
               setOpenedFromEPP(false);
             }}
-            employee={selectedEmployee}
-            mode={modalMode}
-            initialStep={initialStep}
-            openedFromEPP={openedFromEPP}
             onSave={handleSavePersonnel}
-            error={error}
+          />
+          
+          <EditEmployeeModal
+            isOpen={isModalOpen && modalMode === 'edit' && !openedFromEPP}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedEmployeeId(null);
+              setModalMode(null);
+              setInitialStep(0);
+              setOpenedFromEPP(false);
+            }}
+            employeeId={selectedEmployeeId}
+            onSave={handleSavePersonnel}
+          />
+          
+          <EditEPPModal
+            isOpen={isModalOpen && modalMode === 'edit' && openedFromEPP}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedEmployeeId(null);
+              setModalMode(null);
+              setInitialStep(0);
+              setOpenedFromEPP(false);
+            }}
+            employeeId={selectedEmployeeId}
+            onSave={handleSavePersonnel}
+          />
+          
+          <ViewEmployeeModal
+            isOpen={isModalOpen && modalMode === 'view'}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedEmployeeId(null);
+              setModalMode(null);
+              setInitialStep(0);
+              setOpenedFromEPP(false);
+            }}
+            employeeId={selectedEmployeeId}
           />
         </div>
       </div>

@@ -3,10 +3,16 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Image from '../../../components/AppImage';
 import usePerson from '../../../hooks/usePerson';
+import { 
+  departmentOptions, 
+  positionOptions, 
+  statusOptions, 
+  medicalStatusOptions 
+} from './personnelConstants';
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
-const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE }) => {
+const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE, hasActiveFilters, filters, onClearFilters }) => {
   const { persons, loading, error, getPersons } = usePerson();
 
   const [sortConfig, setSortConfig] = useState({ key: 'nombreCompleto', direction: 'asc' });
@@ -19,12 +25,19 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
   }, []);
 
   // 🔹 Fuente de datos (props o hook)
+  // Si personnel está definido (incluso si es array vacío), usarlo
+  // Solo usar persons del hook si personnel no está definido (null/undefined)
   const dataSource = useMemo(() => {
-    if (!personnel || personnel.length === 0) {
-      return persons || [];
+    if (personnel !== null && personnel !== undefined) {
+      return personnel; // Usar personnel incluso si está vacío (resultado de filtros)
     }
-    return personnel;
+    return persons || [];
   }, [personnel, persons]);
+
+  // 🔹 Reiniciar a la primera página cuando cambian los datos filtrados
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [personnel]);
 
   // 🔹 Ordenamiento
   const sortedPersonnel = useMemo(() => {
@@ -90,6 +103,7 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
       Completo: { bg: 'bg-success', text: 'text-success-foreground', icon: 'CheckCircle' },
       Pendiente: { bg: 'bg-warning', text: 'text-warning-foreground', icon: 'Clock' },
       Vencido: { bg: 'bg-error', text: 'text-error-foreground', icon: 'AlertCircle' },
+      'Actualizar datos': { bg: 'bg-info', text: 'text-info-foreground', icon: 'AlertCircle' },
     }[status] || { bg: 'bg-muted', text: 'text-muted-foreground', icon: 'Clock' };
 
     return (
@@ -140,13 +154,142 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
       </div>
     );
 
-  if (!sortedPersonnel?.length)
+  // Función para obtener etiquetas de los filtros activos
+  const getActiveFiltersLabels = () => {
+    if (!filters) return [];
+    
+    const activeFilters = [];
+    
+    // Obtener todas las opciones combinadas para buscar etiquetas
+    const allDepartmentOptions = [
+      { value: '', label: 'Todos los Departamentos' },
+      ...departmentOptions
+    ];
+    const allStatusOptions = [
+      { value: '', label: 'Todos los Estados' },
+      ...statusOptions
+    ];
+    const allPositionOptions = [
+      { value: '', label: 'Todos los Puestos' },
+      ...positionOptions
+    ];
+    const allMedicalOptions = [
+      { value: '', label: 'Todos los Estados' },
+      ...medicalStatusOptions
+    ];
+    const allPPEOptions = [
+      { value: '', label: 'Todos los Estados' },
+      ...medicalStatusOptions
+    ];
+    
+    if (filters.search?.trim()) {
+      activeFilters.push(`Búsqueda: "${filters.search}"`);
+    }
+    
+    if (filters.department) {
+      const dept = allDepartmentOptions.find(opt => opt.value === filters.department);
+      if (dept) activeFilters.push(`Departamento: ${dept.label}`);
+    }
+    
+    if (filters.status) {
+      const status = allStatusOptions.find(opt => opt.value === filters.status);
+      if (status) activeFilters.push(`Estado: ${status.label}`);
+    }
+    
+    if (filters.position) {
+      const position = allPositionOptions.find(opt => opt.value === filters.position);
+      if (position) activeFilters.push(`Puesto: ${position.label}`);
+    }
+    
+    if (filters.medicalCompliance) {
+      const medical = allMedicalOptions.find(opt => opt.value === filters.medicalCompliance);
+      if (medical) activeFilters.push(`Estudios Médicos: ${medical.label}`);
+    }
+    
+    if (filters.ppeCompliance) {
+      const ppe = allPPEOptions.find(opt => opt.value === filters.ppeCompliance);
+      if (ppe) activeFilters.push(`EPP: ${ppe.label}`);
+    }
+    
+    if (filters.hireDateFrom) {
+      const dateFrom = new Date(filters.hireDateFrom);
+      activeFilters.push(`Fecha desde: ${dateFrom.toLocaleDateString('es-ES')}`);
+    }
+    
+    if (filters.hireDateTo) {
+      const dateTo = new Date(filters.hireDateTo);
+      activeFilters.push(`Fecha hasta: ${dateTo.toLocaleDateString('es-ES')}`);
+    }
+    
+    return activeFilters;
+  };
+
+  // Si hay filtros activos y no hay resultados, mostrar mensaje específico
+  if (!sortedPersonnel?.length && hasActiveFilters) {
+    const activeFiltersLabels = getActiveFiltersLabels();
+    
     return (
-      <div className="text-center py-10 text-muted-foreground">
-        <Icon name="UserX" className="inline-block mr-2" size={18} />
-        No hay empleados registrados.
+      <div className="bg-card rounded-lg border border-border p-12">
+        <div className="text-center py-10">
+          <Icon name="SearchX" className="inline-block mb-4 text-muted-foreground" size={48} />
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            No se encontraron registros
+          </h3>
+          <p className="text-muted-foreground mb-3">
+            No hay empleados que coincidan con los filtros seleccionados.
+          </p>
+          
+          {activeFiltersLabels.length > 0 && (
+            <div className="mt-4 mb-4">
+              <p className="text-sm font-medium text-foreground mb-2">
+                Filtros aplicados:
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {activeFiltersLabels.map((filterLabel, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border"
+                  >
+                    {filterLabel}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="mt-6">
+            <Button
+              variant="outline"
+              onClick={onClearFilters}
+              iconName="X"
+              iconPosition="left"
+              iconSize={16}
+            >
+              Limpiar Filtros
+            </Button>
+          </div>
+        </div>
       </div>
     );
+  }
+
+  // Si no hay datos en absoluto (sin filtros activos), mostrar mensaje
+  // Solo mostrar este mensaje si NO hay filtros activos y NO hay datos
+  if (!sortedPersonnel?.length && !hasActiveFilters) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-12">
+        <div className="text-center py-10">
+          <Icon name="UserX" className="inline-block mb-4 text-muted-foreground" size={48} />
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            No hay empleados registrados
+          </h3>
+          <p className="text-muted-foreground">
+            Comienza agregando un nuevo empleado al sistema.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // 🔹 Render principal
   return (
@@ -164,11 +307,12 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Estado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {/* COLUMNA OCULTA: Estudios Médicos - Para mostrarla, descomenta la línea siguiente */}
+              {/* <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Estudios Médicos
-              </th>
+              </th> */}
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                EPP
+              Equipo de Protección Personal (EPP)
               </th>
               <SortableHeader label="Última Actualización" sortKey="fechaIngreso" />
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -198,11 +342,62 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                 <td className="px-6 py-4 whitespace-nowrap text-sm">{emp.departamento || '-'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">{emp.puesto || '-'}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(emp.estado)}</td>
+                {/* COLUMNA OCULTA: Estudios Médicos - Para mostrarla, descomenta el bloque siguiente */}
+                {/* <td className="px-6 py-4 whitespace-nowrap">
+                  {(() => {
+                    // Usar estadoEstudiosMedicos si existe directamente en el objeto
+                    if (emp.estadoEstudiosMedicos) {
+                      return getComplianceBadge(emp.estadoEstudiosMedicos);
+                    }
+                    
+                    // Si no existe, buscar en examenesMedicos[0]
+                    const medicalData = Array.isArray(emp.examenesMedicos) && emp.examenesMedicos[0]
+                      ? emp.examenesMedicos[0]
+                      : {};
+                    
+                    if (medicalData.estadoEstudiosMedicos) {
+                      return getComplianceBadge(medicalData.estadoEstudiosMedicos);
+                    }
+                    
+                    // Si tiene datos de exámenes médicos pero no tiene estadoEstudiosMedicos, mostrar "Actualizar datos"
+                    if (medicalData.ultimoExamenMedico !== undefined || 
+                        medicalData.proximoExamenMedico !== undefined ||
+                        medicalData.urlDocumentoMedico !== undefined) {
+                      return getComplianceBadge('Actualizar datos');
+                    }
+                    
+                    // Si no hay datos, mostrar "Pendiente"
+                    return getComplianceBadge('Pendiente');
+                  })()}
+                </td> */}
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {getComplianceBadge(emp.estado === 'Activo' ? 'Completo' : 'Pendiente')}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {getComplianceBadge(emp.estado === 'Activo' ? 'Completo' : 'Pendiente')}
+                  {(() => {
+                    // Usar estadoEquipoEPP si existe en el JSON
+                    if (emp.estadoEquipoEPP) {
+                      return getComplianceBadge(emp.estadoEquipoEPP);
+                    }
+                    
+                    // Si no existe, intentar calcularlo
+                    const equiposData = Array.isArray(emp.equipos) && emp.equipos[0]
+                      ? emp.equipos[0]
+                      : {};
+                    
+                    const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
+                    const equipoAdicional = equiposData.equipoAdicional || {};
+                    
+                    // Si tiene datos pero no tiene estadoEquipoEPP, mostrar "Actualizar datos"
+                    if (equipoProteccionPersonal.cascoSeguridad !== undefined || 
+                        equipoProteccionPersonal.chalecoReflectivo !== undefined ||
+                        equipoProteccionPersonal.botasSeguridad !== undefined ||
+                        equipoAdicional.guantesTrabajo !== undefined ||
+                        equipoAdicional.gafasSeguridad !== undefined ||
+                        equipoAdicional.mascarilla !== undefined) {
+                      return getComplianceBadge('Actualizar datos');
+                    }
+                    
+                    // Si no tiene datos, mostrar "Pendiente"
+                    return getComplianceBadge('Pendiente');
+                  })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                   {emp.fechaIngreso || '-'}
@@ -300,13 +495,64 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                 <span className="text-muted-foreground">Puesto:</span>
                 <span>{emp.puesto || '-'}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              {/* VISTA MÓVIL - COLUMNA OCULTA: Estudios Médicos - Para mostrarla, descomenta el bloque siguiente */}
+              {/* <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Estudios Médicos:</span>
-                {getComplianceBadge(emp.estado === 'Activo' ? 'Completo' : 'Pendiente')}
-              </div>
+                {(() => {
+                  // Usar estadoEstudiosMedicos si existe directamente en el objeto
+                  if (emp.estadoEstudiosMedicos) {
+                    return getComplianceBadge(emp.estadoEstudiosMedicos);
+                  }
+                  
+                  // Si no existe, buscar en examenesMedicos[0]
+                  const medicalData = Array.isArray(emp.examenesMedicos) && emp.examenesMedicos[0]
+                    ? emp.examenesMedicos[0]
+                    : {};
+                  
+                  if (medicalData.estadoEstudiosMedicos) {
+                    return getComplianceBadge(medicalData.estadoEstudiosMedicos);
+                  }
+                  
+                  // Si tiene datos de exámenes médicos pero no tiene estadoEstudiosMedicos, mostrar "Actualizar datos"
+                  if (medicalData.ultimoExamenMedico !== undefined || 
+                      medicalData.proximoExamenMedico !== undefined ||
+                      medicalData.urlDocumentoMedico !== undefined) {
+                    return getComplianceBadge('Actualizar datos');
+                  }
+                  
+                  // Si no hay datos, mostrar "Pendiente"
+                  return getComplianceBadge('Pendiente');
+                })()}
+              </div> */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">EPP:</span>
-                {getComplianceBadge(emp.estado === 'Activo' ? 'Completo' : 'Pendiente')}
+                {(() => {
+                  // Usar estadoEquipoEPP si existe en el JSON
+                  if (emp.estadoEquipoEPP) {
+                    return getComplianceBadge(emp.estadoEquipoEPP);
+                  }
+                  
+                  // Si no existe, intentar calcularlo
+                  const equiposData = Array.isArray(emp.equipos) && emp.equipos[0]
+                    ? emp.equipos[0]
+                    : {};
+                  
+                  const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
+                  const equipoAdicional = equiposData.equipoAdicional || {};
+                  
+                  // Si tiene datos pero no tiene estadoEquipoEPP, mostrar "Actualizar datos"
+                  if (equipoProteccionPersonal.cascoSeguridad !== undefined || 
+                      equipoProteccionPersonal.chalecoReflectivo !== undefined ||
+                      equipoProteccionPersonal.botasSeguridad !== undefined ||
+                      equipoAdicional.guantesTrabajo !== undefined ||
+                      equipoAdicional.gafasSeguridad !== undefined ||
+                      equipoAdicional.mascarilla !== undefined) {
+                    return getComplianceBadge('Actualizar datos');
+                  }
+                  
+                  // Si no tiene datos, mostrar "Pendiente"
+                  return getComplianceBadge('Pendiente');
+                })()}
               </div>
             </div>
 
