@@ -351,6 +351,7 @@ const InventoryManagement = () => {
   // Manejadores para requisiciones
   const [selectedRequisition, setSelectedRequisition] = useState(null);
   const [showRequisitionModal, setShowRequisitionModal] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
 
   const openRequisitionModal = (req) => {
   setSelectedRequisition(req);
@@ -358,71 +359,85 @@ const InventoryManagement = () => {
 };
 
 
+// Handler para "Ver" (solo lectura)
 const handleViewRequisition = (req) => {
-  const reqForView = {
+  const formattedReq = {
     id: req.id,
     orderNumber: req.numeroOrdenTrabajo,
     projectName: req.nombreProyecto,
     requestedBy: req.solicitadoPor,
-    requestDate: req.fechaSolicitud,
-    status: req.estado || 'Pendiente',
-    priority: req.prioridad || 'Normal',
+    requestDate: req.fechaSolicitud,  // Asumiendo que viene en formato compatible (ej. YYYY-MM-DD o DD/MM/YYYY)
+    status: req.estado || "Pendiente",
+    priority: req.prioridad || "Normal",
     description: req.descripcionSolicitud,
+    // Mapear materiales de inventario (del backend: req.materiales)
     items: req.materiales?.map(m => ({
-      id: m.id || Date.now(),
+      id: m.id || Date.now(),  // ID único para el modal
+      idArticulo: m.idArticulo || m.id || '',  // Referencia al artículo de inventario
+      codigoArticulo: m.codigoArticulo || '',  // Código del artículo
       name: m.nombreMaterial,
       quantity: m.cantidad,
       unit: m.unidad,
       description: m.descripcionEspecificaciones,
-      urgency: m.urgencia,
+      urgency: m.urgencia || 'Normal'  // Urgencia del material
     })) || [],
+    // Mapear materiales manuales (del backend: req.materialesManuales, si existe)
     manualItems: req.materialesManuales?.map(m => ({
-      id: m.id || Date.now(),
+      id: m.id || Date.now(),  // ID único para el modal
       name: m.nombreMaterial,
       quantity: m.cantidad,
       unit: m.unidad,
       description: m.descripcionEspecificaciones,
-      urgency: m.urgencia,
-    })) || [],
+      urgency: m.urgencia || 'Normal'  // Urgencia del material
+    })) || [],  // Si no hay manuales, queda vacío
     justification: req.justificacionSolicitud,
     notes: req.notasAdicionales
   };
 
-  setSelectedRequisition(reqForView);
-  setViewOnly(true);   // 👈 MUY IMPORTANTE
+  setSelectedRequisition(formattedReq);
+  setViewOnly(true);  // Modo solo lectura
   setShowRequisitionModal(true);
 };
 
-
-
-
-
-  const handleEditRequisition = (req) => {
-    const reqForEdit = {
-      id: req.id,
-      orderNumber: req.numeroOrdenTrabajo,
-      projectName: req.nombreProyecto,
-      requestedBy: req.solicitadoPor,
-      requestDate: req.fechaSolicitud,
-      status: req.estado || 'Pendiente',
-      priority: req.prioridad || 'Normal',
-      description: req.descripcionSolicitud,
-      items: req.materiales?.map(m => ({
-        id: m.id || Date.now(),
-        name: m.nombreMaterial,
-        quantity: m.cantidad,
-        unit: m.unidad,
-        description: m.descripcionEspecificaciones
-      })) || [],
-      justification: req.justificacionSolicitud,
-      notes: req.notasAdicionales
-    };
-
-    setSelectedRequisition(reqForEdit);
-    setShowRequisitionModal(true);
-    setViewOnly(false); 
+// Handler para "Editar" (permite cambios)
+const handleEditRequisition = (req) => {
+  const reqForEdit = {
+    id: req.id,
+    orderNumber: req.numeroOrdenTrabajo,
+    projectName: req.nombreProyecto,
+    requestedBy: req.solicitadoPor,
+    requestDate: req.fechaSolicitud,  // Asumiendo que viene en formato compatible
+    status: req.estado || 'Pendiente',
+    priority: req.prioridad || 'Normal',
+    description: req.descripcionSolicitud,
+    // Mapear materiales de inventario (del backend: req.materiales)
+    items: req.materiales?.map(m => ({
+      id: m.id || Date.now(),  // ID único para el modal
+      idArticulo: m.idArticulo || m.id || '',  // Referencia al artículo de inventario
+      codigoArticulo: m.codigoArticulo || '',  // Código del artículo
+      name: m.nombreMaterial,
+      quantity: m.cantidad,
+      unit: m.unidad,
+      description: m.descripcionEspecificaciones,
+      urgency: m.urgencia || 'Normal'  // Urgencia del material
+    })) || [],
+    // Mapear materiales manuales (del backend: req.materialesManuales, si existe)
+    manualItems: req.materialesManuales?.map(m => ({
+      id: m.id || Date.now(),  // ID único para el modal
+      name: m.nombreMaterial,
+      quantity: m.cantidad,
+      unit: m.unidad,
+      description: m.descripcionEspecificaciones,
+      urgency: m.urgencia || 'Normal'  // Urgencia del material
+    })) || [],  // Si no hay manuales, queda vacío
+    justification: req.justificacionSolicitud,
+    notes: req.notasAdicionales
   };
 
+  setSelectedRequisition(reqForEdit);
+  setViewOnly(false);  // Modo editable
+  setShowRequisitionModal(true);
+};
   
 
   const handleSaveRequisition = async (editedReq) => {
@@ -1062,13 +1077,13 @@ ${order.notas || 'Sin notas adicionales'}
 
                   {/* VER DETALLES */}
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    iconName="Edit"
-                    onClick={() => handleEditRequisition(req)}
-                  >
-                    Ver
-                  </Button>
+  variant="outline"
+  onClick={() => {
+    handleViewRequisition(req);  // 👈 usamos la función correcta
+  }}
+>
+  Ver
+</Button>
 
                   {/* EDITAR */}
                   <Button
@@ -1139,6 +1154,7 @@ ${order.notas || 'Sin notas adicionales'}
             }}
             requisition={selectedRequisition}
             onSave={handleSaveRequisition}
+            isViewMode={viewOnly}
           />
 
           {/* Create Purchase Order Modal */}

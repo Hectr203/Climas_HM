@@ -7,7 +7,7 @@ import useRequisi from "../../../hooks/useRequisi";
 import useOperac from "../../../hooks/useOperac";
 import useInventory from "../../../hooks/useInventory";
 
-const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
+const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false}) => {
   const { createRequisition, updateRequisition } = useRequisi();
   const { oportunities, getOportunities } = useOperac();
   const { articulos, getArticulos } = useInventory();
@@ -142,6 +142,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
   };
 
   const handleAddItem = () => {
+    if (isViewMode) return;
+
     if (newItem?.name && newItem?.quantity) {
       setFormData((prev) => ({
         ...prev,
@@ -160,6 +162,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
   };
 
   const handleAddManualItem = () => {
+    if (isViewMode) return;
+
     if (newManualItem?.name && newManualItem?.quantity) {
       setFormData((prev) => ({
         ...prev,
@@ -176,6 +180,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
   };
 
   const handleRemoveItem = (itemId, type) => {
+    if (isViewMode) return;
+
     setFormData((prev) => ({
       ...prev,
       [type]: prev[type].filter((item) => item.id !== itemId),
@@ -183,69 +189,64 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
   };
 
   const handleSave = async () => {
-  try {
-    // Formatear fecha a dd/MM/yyyy
-    const fecha = new Date(formData.requestDate);
-    const formattedDate = `${fecha.getDate().toString().padStart(2, "0")}/${(fecha.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}/${fecha.getFullYear()}`;
+    if (isViewMode) return;
 
-    // Construir materiales de inventario
-    const materiales = formData.items.map((item) => ({
-      id: item.idArticulo || undefined, // para que el backend lo identifique como referencia
-      codigoArticulo: item.codigoArticulo || "",
-      nombreMaterial: item.name || "",
-      cantidad: Number(item.quantity) || 0,
-      unidad:
-        item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
-      urgencia: item.urgency || "Normal",
-      descripcionEspecificaciones: item.description || "",
-    }));
+    try {
+      const fecha = new Date(formData.requestDate);
+      const formattedDate = `${fecha.getDate().toString().padStart(2, "0")}/${(fecha.getMonth() + 1)
+        .toString()
+        .padStart(2, "0")}/${fecha.getFullYear()}`;
 
-    // Construir materiales manuales
-    const materialesManuales = formData.manualItems.map((item) => ({
-      nombreMaterial: item.name || "",
-      cantidad: Number(item.quantity) || 0,
-      unidad:
-        item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
-      urgencia: item.urgency || "Normal",
-      descripcionEspecificaciones: item.description || "",
-    }));
+      const materiales = formData.items.map((item) => ({
+        id: item.idArticulo || undefined,
+        codigoArticulo: item.codigoArticulo || "",
+        nombreMaterial: item.name || "",
+        cantidad: Number(item.quantity) || 0,
+        unidad:
+          item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
+        urgencia: item.urgency || "Normal",
+        descripcionEspecificaciones: item.description || "",
+      }));
 
-    // Payload final
-    const payload = {
-      numeroOrdenTrabajo: formData.orderNumber,
-      nombreProyecto: formData.projectName,
-      solicitadoPor: formData.requestedBy,
-      fechaSolicitud: formattedDate,
-      prioridad: formData.priority,
-      estado: formData.status,
-      descripcionSolicitud: formData.description,
-      materiales, // <-- inventario
-      materialesManuales, // <-- manuales
-      justificacionSolicitud: formData.justification || "",
-      notasAdicionales: formData.notes || "",
-      proyectoNombre: formData.projectName,
-    };
+      const materialesManuales = formData.manualItems.map((item) => ({
+        nombreMaterial: item.name || "",
+        cantidad: Number(item.quantity) || 0,
+        unidad:
+          item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
+        urgencia: item.urgency || "Normal",
+        descripcionEspecificaciones: item.description || "",
+      }));
 
-    // Enviar
-    let response;
-    if (requisition?.id) {
-      response = await updateRequisition(requisition.id, payload);
-    } else {
-      response = await createRequisition(payload);
+      const payload = {
+        numeroOrdenTrabajo: formData.orderNumber,
+        nombreProyecto: formData.projectName,
+        solicitadoPor: formData.requestedBy,
+        fechaSolicitud: formattedDate,
+        prioridad: formData.priority,
+        estado: formData.status,
+        descripcionSolicitud: formData.description,
+        materiales,
+        materialesManuales,
+        justificacionSolicitud: formData.justification || "",
+        notasAdicionales: formData.notes || "",
+        proyectoNombre: formData.projectName,
+      };
+
+      let response;
+      if (requisition?.id) {
+        response = await updateRequisition(requisition.id, payload);
+      } else {
+        response = await createRequisition(payload);
+      }
+
+      if (response) {
+        onSave(response);
+        onClose();
+      }
+    } catch (error) {
+      console.error(" Error al guardar la requisición:", error);
     }
-
-    if (response) {
-      onSave(response);
-      onClose();
-    }
-  } catch (error) {
-    console.error(" Error al guardar la requisición:", error);
-  }
-};
-
-
+  };
 
   if (!isOpen) return null;
 
@@ -255,7 +256,9 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
-              {requisition?.id
+              {isViewMode
+                ? "Ver Requisición"
+                : requisition?.id
                 ? "Editar Requisición"
                 : "Nueva Requisición de Materiales"}
             </h2>
@@ -274,44 +277,44 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
           {/* Información básica */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select
-  label="Número de Orden de Trabajo"
-  options={
-    oportunities?.map((op) => ({
-      label: op.ordenTrabajo,
-      value: op.ordenTrabajo,
-    })) || []
-  }
-  value={formData?.orderNumber}
-  onChange={(value) => {
-    handleInputChange("orderNumber", value);
+              label="Número de Orden de Trabajo"
+              options={
+                oportunities?.map((op) => ({
+                  label: op.ordenTrabajo,
+                  value: op.ordenTrabajo,
+                })) || []
+              }
+              value={formData?.orderNumber}
+              onChange={(value) => {
+                handleInputChange("orderNumber", value);
 
-    // Buscar la oportunidad seleccionada
-    const selected = oportunities.find((op) => op.ordenTrabajo === value);
-    if (selected) {
-      // Llenar automáticamente el nombre del proyecto
-      handleInputChange("projectName", selected.proyectoNombre || "");
-    }
-  }}
-  required
-/>
-
+                const selected = oportunities.find((op) => op.ordenTrabajo === value);
+                if (selected) {
+                  handleInputChange("projectName", selected.proyectoNombre || "");
+                }
+              }}
+              disabled={isViewMode}
+              required
+            />
 
             <Input
-  label="Nombre del Proyecto"
-  placeholder="Nombre del proyecto"
-  value={formData?.projectName}
-  readOnly
-  className="bg-gray-100 cursor-not-allowed"
-  required
-/>
+              label="Nombre del Proyecto"
+              placeholder="Nombre del proyecto"
+              value={formData?.projectName}
+              readOnly
+              className="bg-gray-100 cursor-not-allowed"
+              disabled
+            />
 
             <Input
-  label="Solicitado por"
-  placeholder="Usuario Actual"
-  value={formData?.requestedBy}
-  onChange={(e) => handleInputChange("requestedBy", e?.target?.value)}
-  required
-/>
+              label="Solicitado por"
+              placeholder="Usuario Actual"
+              value={formData?.requestedBy}
+              onChange={(e) => handleInputChange("requestedBy", e?.target?.value)}
+              required
+              readOnly={isViewMode}
+              disabled={isViewMode}
+            />
 
             <Input
               label="Fecha de Solicitud"
@@ -319,6 +322,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               value={formData?.requestDate}
               onChange={(e) => handleInputChange("requestDate", e?.target?.value)}
               required
+              readOnly={isViewMode}
+              disabled={isViewMode}
             />
 
             <Select
@@ -327,6 +332,7 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               value={formData?.priority}
               onChange={(value) => handleInputChange("priority", value)}
               required
+              disabled={isViewMode}
             />
 
             <Select
@@ -335,6 +341,7 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               value={formData?.status}
               onChange={(value) => handleInputChange("status", value)}
               required
+              disabled={isViewMode}
             />
           </div>
 
@@ -349,6 +356,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               placeholder="Describe el propósito de esta requisición..."
               value={formData?.description}
               onChange={(e) => handleInputChange("description", e?.target?.value)}
+              readOnly={isViewMode}
+              disabled={isViewMode}
             />
           </div>
 
@@ -357,71 +366,83 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
             <h4 className="text-sm font-medium text-foreground mb-3">
               Agregar Material por Inventario
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-              <Select
-                label="Materiales"
-                options={
-                  articulos?.map((art) => ({
-                    label: art.nombre,
-                    value: art.id,
-                  })) || []
-                }
-                value={newItem?.idArticulo}
-                onChange={(value) => {
-                  const selected = articulos.find((a) => a.id === value);
-                  handleNewItemChange("idArticulo", value);
-                  handleNewItemChange("codigoArticulo", selected?.codigoArticulo || "");
-                  handleNewItemChange("name", selected?.nombre || "");
-                  handleNewItemChange("unit", selected?.unidad || "unidades");
-                }}
-              />
 
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-  label="Cantidad"
-  type="number"
-  placeholder="1"
-  value={newItem?.quantity}
-  onChange={(e) => {
-    const value = Number(e?.target?.value);
-    if (value > 0) handleNewItemChange("quantity", value);
-  }}
-/>
+            {/* Bloque completo deshabilitado en modo vista */}
+            <div className={`${isViewMode ? "opacity-50 pointer-events-none" : ""}`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
                 <Select
-                  label="Unidad"
-                  options={unitOptions}
-                  value={newItem?.unit}
-                  onChange={(value) => handleNewItemChange("unit", value)}
+                  label="Materiales"
+                  options={
+                    articulos?.map((art) => ({
+                      label: art.nombre,
+                      value: art.id,
+                    })) || []
+                  }
+                  value={newItem?.idArticulo}
+                  onChange={(value) => {
+                    const selected = articulos.find((a) => a.id === value);
+                    handleNewItemChange("idArticulo", value);
+                    handleNewItemChange("codigoArticulo", selected?.codigoArticulo || "");
+                    handleNewItemChange("name", selected?.nombre || "");
+                    handleNewItemChange("unit", selected?.unidad || "unidades");
+                  }}
+                  disabled={isViewMode}
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    label="Cantidad"
+                    type="number"
+                    placeholder="1"
+                    value={newItem?.quantity}
+                    onChange={(e) => {
+                      const value = Number(e?.target?.value);
+                      if (value > 0) handleNewItemChange("quantity", value);
+                    }}
+                    disabled={isViewMode}
+                  />
+
+                  <Select
+                    label="Unidad"
+                    options={unitOptions}
+                    value={newItem?.unit}
+                    onChange={(value) => handleNewItemChange("unit", value)}
+                    disabled={isViewMode}
+                  />
+                </div>
+
+                <Select
+                  label="Urgencia"
+                  options={urgencyOptions}
+                  value={newItem?.urgency}
+                  onChange={(value) => handleNewItemChange("urgency", value)}
+                  disabled={isViewMode}
                 />
               </div>
 
-              <Select
-                label="Urgencia"
-                options={urgencyOptions}
-                value={newItem?.urgency}
-                onChange={(value) => handleNewItemChange("urgency", value)}
+              <Input
+                label="Descripción/Especificaciones"
+                placeholder="Especificaciones técnicas..."
+                value={newItem?.description}
+                onChange={(e) =>
+                  handleNewItemChange("description", e?.target?.value)
+                }
+                disabled={isViewMode}
               />
+
+              {!isViewMode && (
+                <Button
+                  variant="outline"
+                  onClick={handleAddItem}
+                  iconName="Plus"
+                  iconSize={16}
+                  disabled={!newItem?.name || !newItem?.quantity}
+                  className="mt-3"
+                >
+                  Agregar Material
+                </Button>
+              )}
             </div>
-
-            <Input
-              label="Descripción/Especificaciones"
-              placeholder="Especificaciones técnicas..."
-              value={newItem?.description}
-              onChange={(e) =>
-                handleNewItemChange("description", e?.target?.value)
-              }
-            />
-
-            <Button
-              variant="outline"
-              onClick={handleAddItem}
-              iconName="Plus"
-              iconSize={16}
-              disabled={!newItem?.name || !newItem?.quantity}
-              className="mt-3"
-            >
-              Agregar Material
-            </Button>
           </div>
 
           {/* Material Manual */}
@@ -430,66 +451,76 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               Agregar Material Manualmente
             </h4>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-              <Input
-                label="Nombre del Material"
-                placeholder="Ej. Tornillos, Pintura, etc."
-                value={newManualItem?.name}
-                onChange={(e) =>
-                  handleNewManualItemChange("name", e?.target?.value)
-                }
-              />
-
-              <div className="grid grid-cols-2 gap-2">
+            <div className={`${isViewMode ? "opacity-50 pointer-events-none" : ""}`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
                 <Input
-  label="Cantidad"
-  type="number"
-  placeholder="1"
-  value={newManualItem?.quantity}
-  onChange={(e) => {
-    const value = Number(e?.target?.value);
-    if (value > 0) handleNewManualItemChange("quantity", value);
-  }}
-/>
-                <Select
-                  label="Unidad"
-                  options={unitOptions}
-                  value={newManualItem?.unit}
-                  onChange={(value) =>
-                    handleNewManualItemChange("unit", value)
+                  label="Nombre del Material"
+                  placeholder="Ej. Tornillos, Pintura, etc."
+                  value={newManualItem?.name}
+                  onChange={(e) =>
+                    handleNewManualItemChange("name", e?.target?.value)
                   }
+                  disabled={isViewMode}
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    label="Cantidad"
+                    type="number"
+                    placeholder="1"
+                    value={newManualItem?.quantity}
+                    onChange={(e) => {
+                      const value = Number(e?.target?.value);
+                      if (value > 0) handleNewManualItemChange("quantity", value);
+                    }}
+                    disabled={isViewMode}
+                  />
+
+                  <Select
+                    label="Unidad"
+                    options={unitOptions}
+                    value={newManualItem?.unit}
+                    onChange={(value) =>
+                      handleNewManualItemChange("unit", value)
+                    }
+                    disabled={isViewMode}
+                  />
+                </div>
+
+                <Select
+                  label="Urgencia"
+                  options={urgencyOptions}
+                  value={newManualItem?.urgency}
+                  onChange={(value) =>
+                    handleNewManualItemChange("urgency", value)
+                  }
+                  disabled={isViewMode}
                 />
               </div>
 
-              <Select
-                label="Urgencia"
-                options={urgencyOptions}
-                value={newManualItem?.urgency}
-                onChange={(value) =>
-                  handleNewManualItemChange("urgency", value)
+              <Input
+                label="Descripción/Especificaciones"
+                placeholder="Detalles o especificaciones..."
+                value={newManualItem?.description}
+                onChange={(e) =>
+                  handleNewManualItemChange("description", e?.target?.value)
                 }
+                disabled={isViewMode}
               />
+
+              {!isViewMode && (
+                <Button
+                  variant="outline"
+                  onClick={handleAddManualItem}
+                  iconName="Plus"
+                  iconSize={16}
+                  disabled={!newManualItem?.name || !newManualItem?.quantity}
+                  className="mt-3"
+                >
+                  Agregar Material
+                </Button>
+              )}
             </div>
-
-            <Input
-              label="Descripción/Especificaciones"
-              placeholder="Detalles o especificaciones..."
-              value={newManualItem?.description}
-              onChange={(e) =>
-                handleNewManualItemChange("description", e?.target?.value)
-              }
-            />
-
-            <Button
-              variant="outline"
-              onClick={handleAddManualItem}
-              iconName="Plus"
-              iconSize={16}
-              disabled={!newManualItem?.name || !newManualItem?.quantity}
-              className="mt-3"
-            >
-              Agregar Material
-            </Button>
           </div>
 
           {/* Lista de materiales */}
@@ -531,20 +562,23 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
                           </p>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          handleRemoveItem(
-                            item.id,
-                            formData.items.some((i) => i.id === item.id)
-                              ? "items"
-                              : "manualItems"
-                          )
-                        }
-                        iconName="Trash2"
-                        iconSize={14}
-                      />
+
+                      {!isViewMode && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            handleRemoveItem(
+                              item.id,
+                              formData.items.some((i) => i.id === item.id)
+                                ? "items"
+                                : "manualItems"
+                            )
+                          }
+                          iconName="Trash2"
+                          iconSize={14}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -565,6 +599,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               onChange={(e) =>
                 handleInputChange("justification", e?.target?.value)
               }
+              readOnly={isViewMode}
+              disabled={isViewMode}
             />
           </div>
 
@@ -579,22 +615,35 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave }) => {
               placeholder="Notas adicionales..."
               value={formData?.notes}
               onChange={(e) => handleInputChange("notes", e?.target?.value)}
+              readOnly={isViewMode}
+              disabled={isViewMode}
             />
           </div>
         </div>
 
+        {/* FOOTER */}
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-border">
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-  type="button"
-  onClick={handleSave}
-  className="bg-blue-600 hover:bg-blue-700 text-white"
-  disabled={!formData?.projectName}
->
-  {requisition?.id ? "Guardar Cambios" : "Crear Requisición"}
-</Button>
+
+          {/* Si es modo vista → Solo botón cerrar */}
+          {isViewMode ? (
+            <Button variant="outline" onClick={onClose}>
+              Cerrar
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSave}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={!formData?.projectName}
+              >
+                {requisition?.id ? "Guardar Cambios" : "Crear Requisición"}
+              </Button>
+            </>
+          )}
 
         </div>
       </div>

@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import requisiService from '../../../services/requisiService';
 import useGastos from '../../../hooks/useGastos';
 
-        
+      const [receivedMaterials, setReceivedMaterials] = useState([]);  
 
   const WorkflowControls = ({ selectedOrder, currentShift, totalOrders, workOrdersIds = [], workOrders = [], onForceRemove, onRevertStatus, localMissingByOrder = {} }) => {
           const isWorkingHours = currentShift === 'morning';
@@ -190,20 +190,15 @@ const generateReport = async () => {
   // MATERIALES - AHORA USARÁ RECEPCIÓN
   // --------------------------------------------
   const buildMaterials = () => {
-    // 1️⃣ Si existen materiales de recepción, usar esos
-    if (Array.isArray(receptionMaterials) && receptionMaterials.length > 0) {
-      return receptionMaterials.map(m => {
-        const required = Number(m.requerido ?? m.cantidad ?? m.required ?? 0);
-        const received = Number(m.recibido ?? m.entregado ?? m.received ?? 0);
+  if (!Array.isArray(receivedMaterials)) return [];
 
-        return {
-          name: m.material || m.nombre || "Material",
-          required,
-          received,
-          missing: Math.max(0, required - received)
-        };
-      });
-    }
+  return receivedMaterials.map(m => ({
+    name: m.descripcion || m.name || "Material",
+    required: m.required ?? 0,
+    received: m.received ?? 0,
+    missing: m.missing ?? Math.max(0, (m.required ?? 0) - (m.received ?? 0))
+  }));
+
 
     // 2️⃣ Fallback a selectedOrder.materials (si no hubiera recepción)
     const raw = selectedOrder?.materials || [];
@@ -292,14 +287,13 @@ const generateReport = async () => {
   doc.text("Materiales Recepcionados", margin, cursorY);
 
   doc.autoTable({
-    startY: cursorY + 10,
-    head: [["Material", "Requerido", "Recibido", "Faltante"]],
-    body: materials.map(m => [m.name, m.required, m.received, m.missing]),
-    theme: "grid",
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [10, 74, 138], textColor: 255 }
-  });
-
+  startY: cursorY + 10,
+  head: [["Material", "Requerido", "Recibido", "Faltante"]],
+  body: materials.map(m => [m.name, m.required, m.received, m.missing]),
+  theme: "grid",
+  styles: { fontSize: 9 },
+  headStyles: { fillColor: [10, 74, 138], textColor: 255 }
+});
   // --------------------------------------------
   // GUARDAR PDF
   // --------------------------------------------
@@ -551,4 +545,9 @@ const generateReport = async () => {
           );
         };
 
+        <MaterialReceptionPanel
+   workOrders={workOrders}
+   selectedOrder={selectedOrder}
+   onMaterialReception={setReceivedMaterials}
+/> 
         export default WorkflowControls;
