@@ -89,8 +89,10 @@ const FinanzasManagement = () => {
   const tabs = [
     { id: 'expenses', label: 'Seguimiento de Gastos', icon: 'Table' },
     { id: 'ordenes', label: 'Órdenes de Compra', icon: 'ShoppingCart'},
-    { id: 'summary', label: 'Resumen Financiero', icon: 'BarChart3' },
-    { id: 'receipts', label: 'Gestión de Recibos', icon: 'FileText' },
+
+    // TODO: Re-implementar cuando se tengan los datos
+    // { id: 'summary', label: 'Resumen Financiero', icon: 'BarChart3' },
+    // { id: 'receipts', label: 'Gestión de Recibos', icon: 'FileText' },
   ];
 
   // ========================================================

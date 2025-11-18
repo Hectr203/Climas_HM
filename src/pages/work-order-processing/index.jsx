@@ -8,7 +8,7 @@ import FilterToolbar from './components/FilterToolbar';
 import InventoryPanel from './components/InventoryPanel';
 import WorkOrderModal from './components/WorkOrderModal';
 import RequisitionModal from './components/RequisitionModal';
-import StatsCards from './components/StatsCards';
+// import StatsCards from './components/StatsCards';
 import useOperac from '../../hooks/useOperac';
 import useRequisi from '../../hooks/useRequisi';
 import jsPDF from "jspdf";
@@ -410,7 +410,7 @@ doc.text(resumenTexto, doc.internal.pageSize.getWidth() / 2, startY, { align: "c
             </div>
           </div>
 
-          <StatsCards stats={stats} />
+          {/* <StatsCards stats={stats} /> */}
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2 space-y-6">

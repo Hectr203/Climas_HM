@@ -925,25 +925,6 @@ function ProjectTimeline({ projects, onNewProject, clientsCatalog }) {
                                   </span>
                                 </div>
                               </div>
-
-                              <div className="flex items-center space-x-2">
-                                <div
-                                  className="w-24 bg-muted rounded-full h-2"
-                                  title={`${prog}%`}
-                                >
-                                  <div
-                                    className={`h-2 rounded-full ${statusColor(
-                                      canon
-                                    )}`}
-                                    style={{
-                                      width: `${prog}%`,
-                                    }}
-                                  />
-                                </div>
-                                <span className="text-xs text-foreground font-medium">
-                                  {prog}%
-                                </span>
-                              </div>
                             </div>
                           </div>
                         </div>
@@ -1083,7 +1064,7 @@ function ProjectTimeline({ projects, onNewProject, clientsCatalog }) {
               >
                 Generar Reporte
               </Button>
-              <Button
+              {/* <Button
                 variant="outline"
                 size="sm"
                 iconName="Calendar"
@@ -1091,7 +1072,7 @@ function ProjectTimeline({ projects, onNewProject, clientsCatalog }) {
                 className="w-full justify-start"
               >
                 Programar Reunión
-              </Button>
+              </Button> */}
             </div>
           </div>
         </div>
