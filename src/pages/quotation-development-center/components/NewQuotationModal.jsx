@@ -34,6 +34,41 @@ function formatearDinero(valor) {
   return Number(valor).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 }
 
+// Computa el presupuesto total desde la estructura del proyecto.
+// Maneja number, string numérico, arrays y objetos anidados sumando solo valores numéricos.
+function computeProjectBudget(presupuesto) {
+  if (presupuesto === null || presupuesto === undefined) return 0;
+  if (typeof presupuesto === 'number') return presupuesto;
+  if (typeof presupuesto === 'string' && !isNaN(Number(presupuesto))) return Number(presupuesto);
+
+  // Si es un objeto, primero buscar claves explícitas que representen el total
+  if (typeof presupuesto === 'object') {
+    const explicitKeys = [
+      'total', 'totalAmount', 'monto', 'montoTotal', 'presupuesto_total', 'presupuestoTotal',
+      'presupuesto', 'total_mxn', 'presupuesto_estimado', 'presupuesto_estimado_mxn'
+    ];
+    for (const key of explicitKeys) {
+      if (Object.prototype.hasOwnProperty.call(presupuesto, key)) {
+        const v = presupuesto[key];
+        if (typeof v === 'number' && !isNaN(v)) return v;
+        if (typeof v === 'string' && !isNaN(Number(v))) return Number(v);
+      }
+    }
+  }
+
+  // Si no hay clave explícita, sumar recursivamente los valores numéricos
+  const sumValues = (val) => {
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string' && !isNaN(Number(val))) return Number(val);
+    if (Array.isArray(val)) return val.reduce((s, v) => s + sumValues(v), 0);
+    if (typeof val === 'object') return Object.values(val).reduce((s, v) => s + sumValues(v), 0);
+    return 0;
+  };
+
+  return sumValues(presupuesto);
+}
+
 const NewQuotationModal = ({ isOpen, onClose, onCreateQuotation }) => {
   React.useEffect(() => {
     const handler = () => {
@@ -330,10 +365,13 @@ const NewQuotationModal = ({ isOpen, onClose, onCreateQuotation }) => {
       const proyectoSeleccionado = proyectos?.find(p => String(p.id) === String(formData?.proyectoId) || String(p._id) === String(formData?.proyectoId));
   
       let montoTotal = 0;
-      if (proyectoSeleccionado?.presupuesto && typeof proyectoSeleccionado?.presupuesto === 'object') {
-        montoTotal = Object.values(proyectoSeleccionado.presupuesto).reduce((acc, val) => acc + (typeof val === 'number' ? val : 0), 0);
-      } else if (typeof proyectoSeleccionado?.presupuesto === 'number') {
-        montoTotal = proyectoSeleccionado.presupuesto;
+      if (proyectoSeleccionado && proyectoSeleccionado.presupuesto !== undefined && proyectoSeleccionado.presupuesto !== null) {
+        const computed = computeProjectBudget(proyectoSeleccionado.presupuesto);
+        if (computed && !isNaN(Number(computed)) && Number(computed) > 0) {
+          montoTotal = Number(computed);
+        } else if (formData?.montoTotal && !isNaN(Number(formData.montoTotal))) {
+          montoTotal = Number(formData.montoTotal);
+        }
       } else if (formData?.montoTotal && !isNaN(Number(formData.montoTotal))) {
         montoTotal = Number(formData.montoTotal);
       }
@@ -549,31 +587,32 @@ const NewQuotationModal = ({ isOpen, onClose, onCreateQuotation }) => {
                       required
                       value={formData?.proyectoId}
                       onChange={value => {
-                        const selected = proyectos?.find(p => String(p.id) === String(value) || String(p._id) === String(value));
-                        // Precargar presupuesto total usando el nombre exacto
-                        let montoTotal = '';
-                        if (selected?.presupuesto && typeof selected.presupuesto === 'object') {
-                          montoTotal = selected.presupuesto.total || '';
-                        }
-                        // Precargar cronograma como rango de fechas usando el nombre exacto
-                        let cronograma = '';
-                        if (selected?.cronograma && typeof selected.cronograma === 'object') {
-                          if (selected.cronograma.fechaInicio && selected.cronograma.fechaFin) {
-                            cronograma = `${selected.cronograma.fechaInicio} a ${selected.cronograma.fechaFin}`;
-                          } else {
-                            cronograma = selected.cronograma.fechaInicio || selected.cronograma.fechaFin || '';
+                          const selected = proyectos?.find(p => String(p.id) === String(value) || String(p._id) === String(value));
+                          // Precargar presupuesto total usando una suma robusta de la estructura presupuesto
+                          let montoTotal = '';
+                          if (selected?.presupuesto !== undefined && selected?.presupuesto !== null) {
+                            const computed = computeProjectBudget(selected.presupuesto);
+                            montoTotal = computed ? String(computed) : '';
                           }
-                        }
-                        setFormData(prev => ({
-                          ...prev,
-                          proyectoId: value,
-                          nombreProyecto: selected?.nombre || selected?.nombreProyecto || selected?.proyectoNombre || '',
-                          descripcionProyecto: selected?.descripcion || selected?.descripcionProyecto || '',
-                          ubicacion: selected?.ubicacion || '',
-                          montoTotal: montoTotal,
-                          cronograma: cronograma
-                        }));
-                      }}
+                          // Precargar cronograma como rango de fechas usando el nombre exacto
+                          let cronograma = '';
+                          if (selected?.cronograma && typeof selected.cronograma === 'object') {
+                            if (selected.cronograma.fechaInicio && selected.cronograma.fechaFin) {
+                              cronograma = `${selected.cronograma.fechaInicio} a ${selected.cronograma.fechaFin}`;
+                            } else {
+                              cronograma = selected.cronograma.fechaInicio || selected.cronograma.fechaFin || '';
+                            }
+                          }
+                          setFormData(prev => ({
+                            ...prev,
+                            proyectoId: value,
+                            nombreProyecto: selected?.nombre || selected?.nombreProyecto || selected?.proyectoNombre || '',
+                            descripcionProyecto: selected?.descripcion || selected?.descripcionProyecto || '',
+                            ubicacion: selected?.ubicacion || '',
+                            montoTotal: montoTotal,
+                            cronograma: cronograma
+                          }));
+                        }}
                       options={proyectos?.filter(p => String(p.cliente?.id) === String(formData.clienteId)).map(p => ({ value: p.id || p._id, label: p.nombre || p.nombreProyecto || p.proyectoNombre }))}
                       isLoading={loadingProyectos}
                       error={errors?.nombreProyecto}

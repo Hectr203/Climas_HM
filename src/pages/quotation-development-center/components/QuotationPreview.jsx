@@ -308,6 +308,22 @@ const QuotationPreview = ({ quotation = {} }) => {
     };
   }, [quotation, getProyectos, getClients, showError, showWarning]);
 
+  // Resolver la ubicación que debe mostrarse: preferir la ubicación de la cotización
+  const resolvedUbicacionObj = (cotizacionCompleta && (
+    cotizacionCompleta.detalles_proyecto?.ubicacion_proyecto?.[0] ||
+    cotizacionCompleta.location ||
+    cotizacionCompleta.ubicacion
+  )) || (projectData?.data?.ubicacion || projectData?.ubicacion);
+
+  const formattedUbicacion = (() => {
+    if (!resolvedUbicacionObj) return '';
+    const direccion = resolvedUbicacionObj?.direccion || resolvedUbicacionObj?.direccion_proyecto || '';
+    const municipio = resolvedUbicacionObj?.municipio || resolvedUbicacionObj?.ciudad || '';
+    const estado = resolvedUbicacionObj?.estado || '';
+    const parts = [direccion, municipio, estado].map(p => (p || '').toString().trim()).filter(Boolean);
+    return parts.join(', ');
+  })();
+
   const handleExportPDF = async () => {
     if (!quotationRef.current) return;
     try {
@@ -487,15 +503,7 @@ const QuotationPreview = ({ quotation = {} }) => {
             <h4 className="font-medium mb-2">{projectData?.data?.nombre || projectData?.nombre || cotizacionCompleta?.projectName || 'Proyecto sin nombre'}</h4>
             <p className="text-sm text-foreground mb-3">{projectData?.data?.descripcion || projectData?.descripcion || cotizacionCompleta?.description || 'Sin descripción disponible'}</p>
             <div className="text-sm text-foreground space-y-2">
-              <p><span className="font-bold">Ubicación:</span> {
-                projectData?.data?.ubicacion ? 
-                `${projectData.data.ubicacion.direccion || ''}, ${projectData.data.ubicacion.municipio || ''}, ${projectData.data.ubicacion.estado || ''}` :
-                (projectData?.ubicacion ? 
-                  `${projectData.ubicacion.direccion || ''}, ${projectData.ubicacion.municipio || ''}, ${projectData.ubicacion.estado || ''}` :
-                  (cotizacionCompleta?.location ? 
-                    `${cotizacionCompleta.location.direccion || ''}, ${cotizacionCompleta.location.municipio || ''}, ${cotizacionCompleta.location.estado || ''}` :
-                    'Ubicación no especificada'))
-              }</p>
+              <p><span className="font-bold">Ubicación:</span> { formattedUbicacion || 'Ubicación no especificada' }</p>
               <p><span className="font-bold">Tipo de proyecto:</span> {(projectData?.data?.tipoProyecto || projectData?.tipoProyecto || cotizacionCompleta?.projectType || 'NO ESPECIFICADO')?.toUpperCase()}</p>
               <p><span className="font-bold">Prioridad:</span> {(projectData?.data?.prioridad || projectData?.prioridad || cotizacionCompleta?.priority || 'Media')}</p>
             </div>
