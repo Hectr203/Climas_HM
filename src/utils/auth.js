@@ -58,6 +58,7 @@ export const ROLE_PERMISSIONS = {
       "/cotizaciones",
       "/constructor-cotizaciones",
       "/monitoreo-ventas",
+      "/abonos",
       "/clientes",
       "/proyectos",
       "/visor-galeria",
@@ -186,7 +187,7 @@ export const getAllowedNavigationItems = (userRole) => {
       path: "/abonos",
       icon: "CreditCard",
       tooltip: "Gestión de abonos de proyectos",
-      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION],
+      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.VENTAS],
     },
     {
       label: "Operaciones",
