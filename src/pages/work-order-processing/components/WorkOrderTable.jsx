@@ -19,6 +19,7 @@ const WorkOrderTable = ({
   onEditOrder,
   loading,
   error,
+  onVisibleOrdersChange,
 }) => {
 const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
   const { clients, getClients, loading: loadingClients } = useClient();
@@ -81,6 +82,11 @@ const sortedOrders = useMemo(() => {
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const paginatedData = sortedOrders.slice(startIndex, endIndex);
+
+  // Notify parent of visible orders (current page)
+  useEffect(() => {
+    if (onVisibleOrdersChange) onVisibleOrdersChange(paginatedData);
+  }, [paginatedData, onVisibleOrdersChange]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);

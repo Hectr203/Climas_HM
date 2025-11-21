@@ -7,7 +7,7 @@ import useRequisi from "../../../hooks/useRequisi";
 import useOperac from "../../../hooks/useOperac";
 import useInventory from "../../../hooks/useInventory";
 
-const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false}) => {
+const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false, visibleOrders = null }) => {
   const { createRequisition, updateRequisition } = useRequisi();
   const { oportunities, getOportunities } = useOperac();
   const { articulos, getArticulos } = useInventory();
@@ -285,18 +285,19 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               <Select
                 label="Número de Orden de Trabajo"
                 options={
-                  oportunities?.map((op) => ({
-                    label: op.ordenTrabajo,
-                    value: op.ordenTrabajo,
+                  (visibleOrders && visibleOrders.length ? visibleOrders : oportunities || []).map((op) => ({
+                    label: op.ordenTrabajo || op.orderNumber || op.ordenTrabajo || "",
+                    value: op.ordenTrabajo || op.orderNumber || op.id || "",
                   })) || []
                 }
                 value={formData?.orderNumber}
                 onChange={(value) => {
                   handleInputChange("orderNumber", value);
 
-                  const selected = oportunities.find((op) => op.ordenTrabajo === value);
+                  const source = visibleOrders && visibleOrders.length ? visibleOrders : oportunities || [];
+                  const selected = source.find((op) => (op.ordenTrabajo || op.orderNumber || op.id) === value);
                   if (selected) {
-                    handleInputChange("projectName", selected.proyectoNombre || "");
+                    handleInputChange("projectName", selected.proyectoNombre || selected.nombreProyecto || "");
                   }
                 }}
                 required
