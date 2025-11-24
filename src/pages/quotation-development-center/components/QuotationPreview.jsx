@@ -44,6 +44,14 @@ const QuotationPreview = ({ quotation = {} }) => {
   const [projectData, setProjectData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [cotizacionCompleta, setCotizacionCompleta] = useState(null);
+  const [logoLoadError, setLogoLoadError] = useState(false);
+  const [logoIndex, setLogoIndex] = useState(0);
+  const logoCandidates = [
+    '/assets/images/climas-hm-logo.png',
+    '/assets/images/logodeclimas.jpg',
+    '/assets/images/WhatsApp_Image_2025-09-24_at_8.13.50_PM-1759346787603.jpeg',
+    '/assets/images/no_image.png'
+  ];
 
   const { getClients } = useClient();
   const { getProyectos, getProyectoById } = useProyecto();
@@ -456,15 +464,26 @@ const QuotationPreview = ({ quotation = {} }) => {
 
         {/* Encabezado empresa */}
         <div className="flex items-center justify-between mb-8 pb-4 border-b">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-              <Icon name="Wind" size={24} color="white" />
+            <div className="flex items-center space-x-4">
+              {!logoLoadError ? (
+                <img
+                  src={logoCandidates[logoIndex]}
+                  alt={clientData?.empresa || 'Climas H.M.'}
+                  className="w-40 h-auto object-contain"
+                  onError={() => {
+                    if (logoIndex < logoCandidates.length - 1) {
+                      setLogoIndex((i) => i + 1);
+                    } else {
+                      setLogoLoadError(true);
+                    }
+                  }}
+                />
+              ) : (
+                <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
+                  <Icon name="Wind" size={24} color="white" />
+                </div>
+              )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">AireFlow Pro</h1>
-              <p className="text-muted-foreground">Sistemas HVAC Profesionales</p>
-            </div>
-          </div>
           <div className="text-right text-sm text-muted-foreground">
             <p>RFC: AFP123456789</p>
             <p>Tel: +52 55 1234 5678</p>
@@ -505,7 +524,7 @@ const QuotationPreview = ({ quotation = {} }) => {
             <div className="text-sm text-foreground space-y-2">
               <p><span className="font-bold">Ubicación:</span> { formattedUbicacion || 'Ubicación no especificada' }</p>
               <p><span className="font-bold">Tipo de proyecto:</span> {(projectData?.data?.tipoProyecto || projectData?.tipoProyecto || cotizacionCompleta?.projectType || 'NO ESPECIFICADO')?.toUpperCase()}</p>
-              <p><span className="font-bold">Prioridad:</span> {(projectData?.data?.prioridad || projectData?.prioridad || cotizacionCompleta?.priority || 'Media')}</p>
+              {/* Prioridad ocultada por requerimiento */}
             </div>
           </div>
         </div>
