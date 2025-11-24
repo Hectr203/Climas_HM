@@ -118,6 +118,39 @@ const useAbono = () => {
   }, [showHttpError]);
 
   /**
+   * Obtiene abonos de un proyecto que no tienen comprobante asociado
+   */
+  const getAbonosSinComprobante = useCallback(async (proyectoId, params = {}) => {
+    if (!proyectoId) return { items: [], total: 0 };
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await abonoService.getAbonosSinComprobante(proyectoId, params);
+      if (response?.success && response?.data) {
+        const raw = response.data;
+        const items = Array.isArray(raw.items)
+          ? raw.items
+          : (Array.isArray(raw.abonos) ? raw.abonos : []);
+        const total = Number(raw.total ?? raw.totalAbonos ?? items.length) || 0;
+        return { items, total };
+      }
+      if (Array.isArray(response)) {
+        return { items: response, total: response.length };
+      }
+      if (response?.data && Array.isArray(response.data)) {
+        return { items: response.data, total: response.data.length };
+      }
+      return { items: [], total: 0 };
+    } catch (err) {
+      setError(err);
+      showHttpError('Error al obtener los abonos sin comprobante');
+      return { items: [], total: 0 };
+    } finally {
+      setLoading(false);
+    }
+  }, [showHttpError]);
+
+  /**
    * Crea un abono (evita duplicados)
    */
   const createAbono = useCallback(async (payload) => {
@@ -292,7 +325,7 @@ const useAbono = () => {
       showOperationSuccess('Abono aprobado');
       return updated;
     } catch (err) {
-      showHttpError('Error al aprobar el abono');
+      showHttpError('Error al aprobar el abono', err);
       return null;
     } finally {
       setLoading(false);
@@ -309,13 +342,15 @@ const useAbono = () => {
       showOperationSuccess('Abono rechazado');
       return updated;
     } catch (err) {
-      showHttpError('Error al rechazar el abono');
+      showHttpError('Error al rechazar el abono', err);
       return null;
     } finally {
       setLoading(false);
     }
   }, [showOperationSuccess, showHttpError]);
 
+
+  
   return {
     abonos,
     abonoSeleccionado,
@@ -325,6 +360,7 @@ const useAbono = () => {
     getAbonos,
     getAbonoById,
     getAbonosByProyecto,
+    getAbonosSinComprobante,
     createAbono,
     editAbono,
     deleteAbono,
