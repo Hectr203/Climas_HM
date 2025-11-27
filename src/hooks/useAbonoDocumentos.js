@@ -37,16 +37,32 @@ const useAbonoDocumentos = () => {
     }
   }, [showHttpError]);
 
-  const subirDocumento = useCallback(async ({ idAbono, archivo }) => {
+  const subirDocumento = useCallback(async ({ idAbono, file, descripcion }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await abonoDocumentService.subirDocumento({ idAbono, archivo });
+      const res = await abonoDocumentService.subirDocumento({ idAbono, file, descripcion });
       showOperationSuccess('create', 'Documento');
       return res;
     } catch (err) {
       setError(err);
       showHttpError(err?.userMessage || 'No se pudo subir el documento');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [showOperationSuccess, showHttpError]);
+
+  const updateDocumento = useCallback(async ({ id, file, descripcion }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await abonoDocumentService.updateDocumento({ id, file, descripcion });
+      showOperationSuccess('update', 'Documento');
+      return res;
+    } catch (err) {
+      setError(err);
+      showHttpError(err?.userMessage || 'No se pudo actualizar el documento');
       return null;
     } finally {
       setLoading(false);
@@ -121,6 +137,7 @@ const useAbonoDocumentos = () => {
     error,
     listarDocumentos,
     subirDocumento,
+    updateDocumento,
     obtenerDocumentoUrl,
     descargarDocumento,
     eliminarDocumento,

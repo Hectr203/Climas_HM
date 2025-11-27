@@ -16,6 +16,196 @@ const allowedMime = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ];
 const MAX_FILE_MB = 50;
+
+const EditDocumentModal = ({
+  isOpen,
+  documento,
+  onClose,
+  onDocumentUpdated,
+}) => {
+  const { updateDocumento, loading: loadingUpdate } = useAbonoDocumentos();
+  const [file, setFile] = useState(null);
+  const [descripcion, setDescripcion] = useState('');
+  const [filePreview, setFilePreview] = useState(null);
+  const [warningMsg, setWarningMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const fileInputRef = useRef(null);
+  const objectUrlRef = useRef(null);
+
+  useEffect(() => {
+    if (documento) {
+      setDescripcion(documento.descripcion || '');
+    }
+  }, [documento]);
+
+  useEffect(() => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    if (!file) {
+      setFilePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setFilePreview(url);
+  }, [file]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setFile(null);
+      setFilePreview(null);
+      setWarningMsg('');
+      setErrorMsg('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setWarningMsg('');
+    setErrorMsg('');
+    if (!allowedMime.includes(f.type)) {
+      setWarningMsg(
+        'Tipo de archivo no permitido. Usa PDF, imágenes o documentos Office.'
+      );
+      return;
+    }
+    if (f.size / (1024 * 1024) > MAX_FILE_MB) {
+      setWarningMsg(`Archivo demasiado grande. Máximo ${MAX_FILE_MB} MB.`);
+      return;
+    }
+    setFile(f);
+  };
+
+  const handleUpdate = async () => {
+    const documentoId = documento?.idDocumento ?? documento?.id ?? documento?._id ?? documento?.documentoId ?? documento?.documento_id;
+    if (!documentoId) return;
+    setWarningMsg('');
+    setErrorMsg('');
+    if (!file && descripcion === (documento.descripcion || '')) {
+      setWarningMsg('Debes seleccionar un nuevo archivo o modificar la descripción.');
+      return;
+    }
+
+    try {
+      await updateDocumento({
+        id: documentoId,
+        file,
+        descripcion,
+      });
+      onDocumentUpdated();
+      onClose();
+    } catch (err) {
+      setErrorMsg(err.userMessage || 'No se pudo actualizar el documento.');
+    }
+  };
+
+  const renderPreview = () => {
+    const previewUrl = filePreview || documento?.urlDescarga || documento?.url || documento?.link || documento?.archivoUrl;
+    if (!previewUrl) {
+      return (
+        <div className="text-sm text-muted-foreground">
+          No hay vista previa disponible.
+        </div>
+      );
+    }
+    const isPdf = (file?.type || documento?.contentType)?.includes('pdf');
+
+    if (isPdf) {
+      return (
+        <iframe
+          title="Preview"
+          src={previewUrl}
+          className="w-full h-64 border rounded"
+        />
+      );
+    }
+    return (
+      <img
+        src={previewUrl}
+        alt="Preview"
+        className="w-full h-64 object-contain border rounded"
+      />
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-card border rounded-lg shadow-xl w-full max-w-2xl mx-4">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Editar Comprobante</h3>
+          <button onClick={onClose}>
+            <Icon name="X" />
+          </button>
+        </div>
+        <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          {warningMsg && (
+            <div className="text-yellow-700 bg-yellow-100 p-2 rounded">
+              {warningMsg}
+            </div>
+          )}
+          {errorMsg && (
+            <div className="text-red-700 bg-red-100 p-2 rounded">{errorMsg}</div>
+          )}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium">Archivo</label>
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Icon name="UploadCloud" className="mr-2" />
+              Seleccionar nuevo archivo
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="sr-only"
+              onChange={handleFileChange}
+              accept={allowedMime.join(',')}
+            />
+            {file && (
+              <div className="text-sm text-muted-foreground">
+                Archivo seleccionado: {file.name}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium">Descripción</label>
+            <textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="border rounded p-2 w-full bg-background"
+              rows="3"
+              placeholder="Descripción del comprobante"
+            />
+          </div>
+          <div>
+            <div className="text-sm font-medium mb-2">Vista Previa</div>
+            {renderPreview()}
+          </div>
+        </div>
+        <div className="p-4 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleUpdate}
+            loading={loadingUpdate}
+            iconName="Save"
+          >
+            Guardar Cambios
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const formatCurrency = (amount) => {
   if (amount == null || isNaN(amount)) return '$0.00';
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount) || 0);
@@ -29,6 +219,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
   const [abonosPendientes, setAbonosPendientes] = useState([]);
   const [abonosProyecto, setAbonosProyecto] = useState([]);
   const [file, setFile] = useState(null);
+  const [descripcion, setDescripcion] = useState('');
   const [filePreview, setFilePreview] = useState(null);
   const [abonoSeleccionado, setAbonoSeleccionado] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,12 +228,14 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
   const [warningMsg, setWarningMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const objectUrlRef = useRef(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [documentoToEdit, setDocumentoToEdit] = useState(null);
 
-  // 🆕 ref para disparar el input de archivos desde un botón estilizado
+  const objectUrlRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const projectId = useMemo(() => project?.id ?? project?._id ?? project?.rawId, [project]);
+
   const filtrarAbonosPendientes = (lista = []) => {
     const arr = Array.isArray(lista) ? lista : [];
     return arr.filter((abono) => {
@@ -50,6 +243,17 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
       const sinComprobante = abono?.comprobanteGenerado === false;
       return sameProject && sinComprobante;
     });
+  };
+
+  const loadComprobantes = async () => {
+    if (!projectId) return;
+    try {
+      const items = await listarDocumentos({ idProyecto: projectId });
+      setComprobantes(Array.isArray(items) ? items : []);
+    } catch (err) {
+      console.error('Error cargando comprobantes', err);
+      setErrorMsg('No se pudieron cargar los comprobantes.');
+    }
   };
 
   useEffect(() => {
@@ -63,6 +267,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
       setAbonosProyecto([]);
       setWarningMsg('');
       setErrorMsg('');
+      setDescripcion('');
       return;
     }
     const loadData = async () => {
@@ -149,14 +354,13 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
     }
     setLoading(true);
     try {
-      await subirDocumento({ idAbono: abonoSeleccionado, archivo: file });
+      await subirDocumento({ idAbono: abonoSeleccionado, file, descripcion });
       setFile(null);
       setFilePreview(null);
+      setDescripcion('');
       setWarningMsg('');
       setErrorMsg('');
-      // refrescar estado de comprobantes
-      const items = await listarDocumentos({ idProyecto: projectId });
-      setComprobantes(Array.isArray(items) ? items : []);
+      await loadComprobantes();
       const resPendientes = await getAbonosSinComprobante(projectId);
       const pendientesOrigen = Array.isArray(resPendientes?.items)
         ? resPendientes.items
@@ -224,6 +428,15 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const handleEditClick = (documento) => {
+    setDocumentoToEdit(documento);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDocumentUpdated = () => {
+    loadComprobantes();
+  };
+
   const renderList = () => {
     if (loadingList) {
       return (
@@ -248,6 +461,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
           const abono = abonosProyecto.find((a) => (a?.id === abonoId || a?._id === abonoId));
           const monto = Number(abono?.montoAbono ?? abono?.monto ?? abono?.monto_abono ?? 0);
           const tieneArchivo = Boolean(documentoId || urlLista);
+
           return (
             <div
               key={item?.id ?? item?._id ?? abonoId}
@@ -265,6 +479,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
                     </span>
                   )}
                 </div>
+                {item.descripcion && <p className="text-xs mt-1">{item.descripcion}</p>}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -274,7 +489,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
                   disabled={!tieneArchivo}
                   onClick={() => tieneArchivo && abrirDocumento(documentoId, urlLista)}
                 >
-                  Ver documento
+                  Ver
                 </Button>
                 <Button
                   variant="outline"
@@ -285,6 +500,15 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
                 >
                   Descargar
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  iconName="Edit"
+                  disabled={!tieneArchivo}
+                  onClick={() => tieneArchivo && handleEditClick(item)}
+                >
+                  Editar
+                </Button>
               </div>
             </div>
           );
@@ -294,177 +518,191 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-lg shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b border-border flex items-center justify-between bg-card">
-          <div className="flex items-center gap-2">
-            <Icon name="FileText" size={18} />
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">
-                Gestión de comprobantes
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Proyecto: {project?.name ?? project?.nombreProyecto ?? '—'}
-              </p>
-            </div>
-          </div>
-          <button
-            className="text-muted-foreground hover:text-foreground"
-            onClick={onClose}
-            title="Cerrar"
-          >
-            <Icon name="X" size={18} />
-          </button>
-        </div>
-
-        <div className="px-4 pt-4">
-          {warningMsg && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
-              <Icon name="AlertTriangle" size={16} className="mt-[2px]" />
-              <span>{warningMsg}</span>
-            </div>
-          )}
-          {errorMsg && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <Icon name="AlertCircle" size={16} className="mt-[2px]" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-          <div className="flex border-b border-border gap-2">
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                activeTab === 'upload'
-                  ? 'text-primary border-b-2 border-primary bg-muted/40'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              onClick={() => setActiveTab('upload')}
-            >
-              Subir comprobante
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                activeTab === 'list'
-                  ? 'text-primary border-b-2 border-primary bg-muted/40'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              onClick={() => setActiveTab('list')}
-            >
-              Comprobantes cargados
-            </button>
-          </div>
-        </div>
-
-        <div className="p-4 overflow-y-auto flex-1">
-          {activeTab === 'upload' && (
-            <div className="space-y-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-foreground">
-                  Abono a asociar
-                </label>
-                <select
-                  className="border border-border rounded px-3 py-2 bg-background text-foreground text-sm"
-                  value={abonoSeleccionado}
-                  onChange={(e) => setAbonoSeleccionado(e.target.value)}
-                  disabled={loadingList || !abonosPendientes.length}
-                >
-                  <option value="">
-                    {loadingList ? 'Cargando abonos...' : 'Selecciona un abono'}
-                  </option>
-                  {abonosPendientes.map((abono) => {
-                    const id = abono?.id ?? abono?._id;
-                    const monto = Number(abono?.montoAbono ?? abono?.monto ?? abono?.monto_abono ?? 0);
-                    const folio = abono?.folio ?? abono?.referencia ?? id;
-                    const numero = abono?.numeroAbono ?? abono?.numero_abono;
-                    return (
-                      <option key={id} value={id}>
-                        {numero ? `#${numero}` : 'Abono'} - {folio} - {formatCurrency(monto)}
-                      </option>
-                    );
-                  })}
-                </select>
-                {!loadingList && !abonosPendientes.length && (
-                  <p className="text-xs text-muted-foreground">
-                    No hay abonos pendientes de comprobante para este proyecto.
-                  </p>
-                )}
-              </div>
-
-              {/* 🆕 Mejora de estilos del selector de archivo */}
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-foreground">
-                  Archivo comprobante
-                </label>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  {/* Botón estilizado que abre el input de archivo */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    iconName="UploadCloud"
-                    iconPosition="left"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="sm:w-auto w-full justify-center"
-                  >
-                    Seleccionar archivo
-                  </Button>
-
-                  {/* Nombre del archivo seleccionado */}
-                  <div className="flex-1 text-xs sm:text-sm text-muted-foreground truncate border border-dashed border-border rounded px-3 py-2 bg-muted/20">
-                    {file
-                      ? (
-                        <span className="text-foreground">
-                          {file.name}{' '}
-                          <span className="text-xs text-muted-foreground">
-                            ({(file.size / 1024).toFixed(1)} KB)
-                          </span>
-                        </span>
-                        )
-                      : 'Ningún archivo seleccionado'}
-                  </div>
-                </div>
-
-                {/* Input real, oculto visualmente pero accesible */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx"
-                  onChange={handleFileChange}
-                  className="sr-only"
-                />
-
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-card border border-border rounded-lg shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between bg-card">
+            <div className="flex items-center gap-2">
+              <Icon name="FileText" size={18} />
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Gestión de comprobantes
+                </h3>
                 <p className="text-xs text-muted-foreground">
-                  Formatos permitidos: PDF, imágenes (JPG/PNG/GIF/WEBP) y documentos Office. Límite {MAX_FILE_MB} MB.
+                  Proyecto: {project?.name ?? project?.nombreProyecto ?? '—'}
                 </p>
               </div>
+            </div>
+            <button
+              className="text-muted-foreground hover:text-foreground"
+              onClick={onClose}
+              title="Cerrar"
+            >
+              <Icon name="X" size={18} />
+            </button>
+          </div>
 
-              <div>
-                <div className="text-sm font-medium text-foreground mb-2">
-                  Vista previa
+          <div className="px-4 pt-4">
+            {warningMsg && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+                <Icon name="AlertTriangle" size={16} className="mt-[2px]" />
+                <span>{warningMsg}</span>
+              </div>
+            )}
+            {errorMsg && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <Icon name="AlertCircle" size={16} className="mt-[2px]" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+            <div className="flex border-b border-border gap-2">
+              <button
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  activeTab === 'upload'
+                    ? 'text-primary border-b-2 border-primary bg-muted/40'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('upload')}
+              >
+                Subir comprobante
+              </button>
+              <button
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  activeTab === 'list'
+                    ? 'text-primary border-b-2 border-primary bg-muted/40'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab('list')}
+              >
+                Comprobantes cargados
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 overflow-y-auto flex-1">
+            {activeTab === 'upload' && (
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Abono a asociar
+                  </label>
+                  <select
+                    className="border border-border rounded px-3 py-2 bg-background text-foreground text-sm"
+                    value={abonoSeleccionado}
+                    onChange={(e) => setAbonoSeleccionado(e.target.value)}
+                    disabled={loadingList || !abonosPendientes.length}
+                  >
+                    <option value="">
+                      {loadingList ? 'Cargando abonos...' : 'Selecciona un abono'}
+                    </option>
+                    {abonosPendientes.map((abono) => {
+                      const id = abono?.id ?? abono?._id;
+                      const monto = Number(abono?.montoAbono ?? abono?.monto ?? abono?.monto_abono ?? 0);
+                      const folio = abono?.folio ?? abono?.referencia ?? id;
+                      const numero = abono?.numeroAbono ?? abono?.numero_abono;
+                      return (
+                        <option key={id} value={id}>
+                          {numero ? `#${numero}` : 'Abono'} - {folio} - {formatCurrency(monto)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {!loadingList && !abonosPendientes.length && (
+                    <p className="text-xs text-muted-foreground">
+                      No hay abonos pendientes de comprobante para este proyecto.
+                    </p>
+                  )}
                 </div>
-                <div className="border border-border rounded-lg bg-muted/30 p-3">
-                  {renderPreview()}
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Archivo comprobante
+                  </label>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      iconName="UploadCloud"
+                      iconPosition="left"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="sm:w-auto w-full justify-center"
+                    >
+                      Seleccionar archivo
+                    </Button>
+                    <div className="flex-1 text-xs sm:text-sm text-muted-foreground truncate border border-dashed border-border rounded px-3 py-2 bg-muted/20">
+                      {file
+                        ? (
+                          <span className="text-foreground">
+                            {file.name}{' '}
+                            <span className="text-xs text-muted-foreground">
+                              ({(file.size / 1024).toFixed(1)} KB)
+                            </span>
+                          </span>
+                          )
+                        : 'Ningún archivo seleccionado'}
+                    </div>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={allowedMime.join(',')}
+                    onChange={handleFileChange}
+                    className="sr-only"
+                  />
+
+                  <p className="text-xs text-muted-foreground">
+                    Formatos permitidos: PDF, imágenes (JPG/PNG/GIF/WEBP) y documentos Office. Límite {MAX_FILE_MB} MB.
+                  </p>
+                </div>
+                
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium">Descripción</label>
+                  <textarea
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    className="border rounded p-2 w-full bg-background"
+                    rows="3"
+                    placeholder="Descripción del comprobante (opcional)"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium text-foreground mb-2">
+                    Vista previa
+                  </div>
+                  <div className="border border-border rounded-lg bg-muted/30 p-3">
+                    {renderPreview()}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === 'list' && renderList()}
-        </div>
-
-        <div className="p-4 border-t border-border flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Cerrar
-          </Button>
-          {activeTab === 'upload' && (
-            <Button onClick={handleUpload} loading={loading} iconName="Upload" iconPosition="left">
-              Subir comprobante
+            {activeTab === 'list' && renderList()}
+          </div>
+          
+          <div className="p-4 border-t border-border flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cerrar
             </Button>
-          )}
+            {activeTab === 'upload' && (
+              <Button onClick={handleUpload} loading={loading} iconName="Upload" iconPosition="left">
+                Subir comprobante
+              </Button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      <EditDocumentModal
+        isOpen={isEditModalOpen}
+        documento={documentoToEdit}
+        onClose={() => setIsEditModalOpen(false)}
+        onDocumentUpdated={handleDocumentUpdated}
+      />
+    </>
   );
 };
 

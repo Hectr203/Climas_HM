@@ -7,17 +7,40 @@ import httpService from './httpService';
  *  - GET    /abonos/documentos/listar          (query: idProyecto?, idAbono?)
  *  - GET    /abonos/documentos/:documentoId    (query: expiresIn?)
  *  - DELETE /abonos/documentos/eliminar/:id
+ *  - PUT    /documentos-abonos/editar/:id      (form-data: file, descripcion)
  */
 const abonoDocumentService = {
-  async subirDocumento({ idAbono, archivo }) {
-    if (!idAbono || !archivo) {
-      throw new Error('Faltan datos para subir el documento (idAbono/archivo).');
+  async subirDocumento({ idAbono, file, descripcion }) {
+    if (!idAbono || !file) {
+      throw new Error('Faltan datos para subir el documento (idAbono/file).');
     }
     const formData = new FormData();
     formData.append('idAbono', idAbono);
-    formData.append('archivo', archivo);
+    formData.append('file', file);
+    if (descripcion) {
+      formData.append('descripcion', descripcion);
+    }
 
     return await httpService.post('/abonos/documentos/subir', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  async updateDocumento({ id, file, descripcion }) {
+    if (!id || (!file && typeof descripcion !== 'string')) {
+      throw new Error(
+        'Faltan datos para actualizar el documento (id y file/descripcion).'
+      );
+    }
+    const formData = new FormData();
+    if (file) {
+      formData.append('file', file);
+    }
+    if (typeof descripcion === 'string') {
+      formData.append('descripcion', descripcion);
+    }
+
+    return await httpService.put(`/documentos-abonos/editar/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
