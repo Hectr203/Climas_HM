@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Icon from "../../../components/AppIcon";
 import Button from "../../../components/ui/Button";
 import useOperac from "../../../hooks/useOperac";
@@ -23,7 +23,7 @@ const WorkOrderTable = ({
 }) => {
 const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
   const { clients, getClients, loading: loadingClients } = useClient();
-  const { showConfirm, showOperationSuccess, showHttpError } = useNotifications();
+  const { showConfirm, showOperationSuccess, showHttpError, showInfo } = useNotifications();
 
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: "prioridad", direction: "asc" });
@@ -84,13 +84,31 @@ const sortedOrders = useMemo(() => {
   const paginatedData = sortedOrders.slice(startIndex, endIndex);
 
   // Notify parent of visible orders (current page)
+  // Usar useRef para evitar actualizaciones innecesarias y ciclos infinitos
+  const prevPaginatedDataRef = useRef(null);
   useEffect(() => {
-    if (onVisibleOrdersChange) onVisibleOrdersChange(paginatedData);
+    if (!onVisibleOrdersChange) return;
+    
+    // Comparar IDs para evitar actualizaciones innecesarias
+    const currentIds = paginatedData.map(order => order?.id).join(',');
+    const prevIds = prevPaginatedDataRef.current?.map(order => order?.id).join(',') || '';
+    
+    // Solo actualizar si los IDs realmente cambiaron
+    if (currentIds !== prevIds) {
+      onVisibleOrdersChange(paginatedData);
+      prevPaginatedDataRef.current = paginatedData;
+    }
   }, [paginatedData, onVisibleOrdersChange]);
 
   useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-    if (currentPage < 1) setCurrentPage(1);
+    // Solo ajustar la página si está fuera de rango válido
+    if (totalPages > 0) {
+      if (currentPage > totalPages) {
+        setCurrentPage(totalPages);
+      } else if (currentPage < 1) {
+        setCurrentPage(1);
+      }
+    }
   }, [currentPage, totalPages]);
 
   const handleChangePageSize = (e) => {
