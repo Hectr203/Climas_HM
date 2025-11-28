@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import useAbono from '../../../hooks/useAbono';
+import useAbonoDocumentos from '../../../hooks/useAbonoDocumentos';
 import EditAbonoModal from './EditAbonoModal';
+import { EditDocumentModal } from './ComprobantesModal';
+import ComprobanteUploader from './ComprobanteUploader';
 
 // Formatear monto en moneda MXN
 const formatearMoneda = (cantidad) => {
@@ -27,7 +30,7 @@ const formatearFecha = (fecha) => {
     } else {
       fechaObj = fecha;
     }
-    
+
     if (isNaN(fechaObj.getTime())) return '—';
     return fechaObj.toLocaleDateString('es-MX', {
       day: '2-digit',
@@ -41,9 +44,25 @@ const formatearFecha = (fecha) => {
 
 const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
   const { getAbonosByProyecto, loading } = useAbono();
+  const { listarDocumentos, subirDocumento, obtenerDocumentoUrl, descargarDocumento } = useAbonoDocumentos();
+
   const [abonos, setAbonos] = useState([]);
   const [error, setError] = useState('');
   const [abonoAEditar, setAbonoAEditar] = useState(null);
+
+  // Estados para gestión de comprobantes
+  const [documentosPorAbono, setDocumentosPorAbono] = useState({}); // Map de abonoId -> documento
+  const [loadingDocumentos, setLoadingDocumentos] = useState(false);
+  const [documentoAEditar, setDocumentoAEditar] = useState(null);
+  const [isEditDocModalOpen, setIsEditDocModalOpen] = useState(false);
+
+  // Estados para agregar comprobante
+  const [abonoParaComprobante, setAbonoParaComprobante] = useState(null);
+  const [isAddComprobanteModalOpen, setIsAddComprobanteModalOpen] = useState(false);
+  const [nuevoComprobanteFile, setNuevoComprobanteFile] = useState(null);
+  const [nuevoComprobanteDesc, setNuevoComprobanteDesc] = useState('');
+  const [comprobanteWarning, setComprobanteWarning] = useState('');
+  const [loadingUpload, setLoadingUpload] = useState(false);
 
   useEffect(() => {
     const cargarAbonos = async () => {
@@ -75,6 +94,38 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
     cargarAbonos();
   }, [isOpen, project, getAbonosByProyecto]);
 
+  // Cargar documentos cuando se cargan los abonos
+  useEffect(() => {
+    const cargarDocumentos = async () => {
+      if (abonos.length > 0 && project) {
+        setLoadingDocumentos(true);
+        try {
+          const proyectoId = project?.id ?? project?._id ?? project?.rawId;
+          if (proyectoId) {
+            const docs = await listarDocumentos({ idProyecto: proyectoId });
+
+            // Crear mapa de abonoId -> documento
+            const mapaDocumentos = {};
+            if (Array.isArray(docs)) {
+              docs.forEach(doc => {
+                const abonoId = doc?.idAbono ?? doc?.abonoId ?? doc?.abono_id;
+                if (abonoId) {
+                  mapaDocumentos[String(abonoId)] = doc;
+                }
+              });
+            }
+            setDocumentosPorAbono(mapaDocumentos);
+          }
+        } catch (err) {
+          console.error('Error cargando documentos:', err);
+        } finally {
+          setLoadingDocumentos(false);
+        }
+      }
+    };
+    cargarDocumentos();
+  }, [abonos, project, listarDocumentos]);
+
   const manejarEditarAbono = (abono) => {
     setAbonoAEditar(abono);
   };
@@ -97,10 +148,114 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
       }
     }
     setAbonoAEditar(null);
-    
+
     // Notificar al componente padre que se actualizó un abono, pasando el proyecto y el abono actualizado
     if (typeof onAbonoUpdated === 'function') {
       onAbonoUpdated(project, abonoActualizado);
+    }
+  };
+
+  // Funciones para gestión de comprobantes
+  const abrirDocumento = async (documentoId, fallbackUrl) => {
+    if (!documentoId && fallbackUrl) {
+      window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      const url = await obtenerDocumentoUrl(documentoId);
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      console.error('Error al abrir documento:', err);
+      setError('No se pudo abrir el documento.');
+    }
+  };
+
+  const descargarDocumentoHandler = async (documentoId, fallbackUrl) => {
+    if (!documentoId && fallbackUrl) {
+      window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      const url = await descargarDocumento(documentoId);
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      console.error('Error al descargar documento:', err);
+      setError('No se pudo descargar el documento.');
+    }
+  };
+
+  const editarDocumento = (documento) => {
+    setDocumentoAEditar(documento);
+    setIsEditDocModalOpen(true);
+  };
+
+  const handleDocumentUpdated = async () => {
+    // Recargar documentos
+    if (project) {
+      const proyectoId = project?.id ?? project?._id ?? project?.rawId;
+      if (proyectoId) {
+        try {
+          const docs = await listarDocumentos({ idProyecto: proyectoId });
+          const mapaDocumentos = {};
+          if (Array.isArray(docs)) {
+            docs.forEach(doc => {
+              const abonoId = doc?.idAbono ?? doc?.abonoId ?? doc?.abono_id;
+              if (abonoId) {
+                mapaDocumentos[String(abonoId)] = doc;
+              }
+            });
+          }
+          setDocumentosPorAbono(mapaDocumentos);
+        } catch (err) {
+          console.error('Error recargando documentos:', err);
+        }
+      }
+    }
+  };
+
+  const agregarComprobante = (abono) => {
+    setAbonoParaComprobante(abono);
+    setNuevoComprobanteFile(null);
+    setNuevoComprobanteDesc('');
+    setComprobanteWarning('');
+    setIsAddComprobanteModalOpen(true);
+  };
+
+  const handleSubirComprobante = async () => {
+    if (!nuevoComprobanteFile) {
+      setComprobanteWarning('Debes seleccionar un archivo.');
+      return;
+    }
+    if (!abonoParaComprobante) return;
+
+    const abonoId = abonoParaComprobante?.id ?? abonoParaComprobante?._id;
+    if (!abonoId) return;
+
+    setLoadingUpload(true);
+    try {
+      await subirDocumento({
+        idAbono: abonoId,
+        file: nuevoComprobanteFile,
+        descripcion: nuevoComprobanteDesc
+      });
+
+      // Recargar documentos
+      await handleDocumentUpdated();
+
+      // Cerrar modal
+      setIsAddComprobanteModalOpen(false);
+      setAbonoParaComprobante(null);
+      setNuevoComprobanteFile(null);
+      setNuevoComprobanteDesc('');
+    } catch (err) {
+      console.error('Error al subir comprobante:', err);
+      setComprobanteWarning(err?.userMessage || 'No se pudo subir el comprobante.');
+    } finally {
+      setLoadingUpload(false);
     }
   };
 
@@ -200,7 +355,7 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                 <div>Método de Pago</div>
                 <div>Descripción</div>
                 <div>N° Abono</div>
-                <div>Estado</div>
+                <div>Comprobante</div>
                 <div>Acciones</div>
               </div>
 
@@ -233,19 +388,63 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                       <div className="text-sm text-foreground text-center">
                         {numeroAbono != null ? `#${numeroAbono}` : '—'}
                       </div>
-                      <div className="text-sm">
-                        <span
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            estado === 'aprobado' || (activo && estado === 'registrado')
-                              ? 'bg-green-100 text-green-800'
-                              : estado === 'rechazado' || estado === 'inactivo'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {activo ? estado : 'inactivo'}
-                        </span>
+
+                      {/* Columna de Comprobante */}
+                      <div className="flex items-center gap-1">
+                        {(() => {
+                          const abonoId = String(abono?.id ?? abono?._id ?? '');
+                          const documento = documentosPorAbono[abonoId];
+                          const documentoId = documento?.idDocumento ?? documento?.id ?? documento?._id;
+                          const urlDoc = documento?.urlDescarga ?? documento?.url;
+
+                          if (documento && (documentoId || urlDoc)) {
+                            return (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => abrirDocumento(documentoId, urlDoc)}
+                                  title="Ver comprobante"
+                                  className="h-7 w-7"
+                                >
+                                  <Icon name="Eye" size={14} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => descargarDocumentoHandler(documentoId, urlDoc)}
+                                  title="Descargar"
+                                  className="h-7 w-7"
+                                >
+                                  <Icon name="Download" size={14} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => editarDocumento(documento)}
+                                  title="Editar comprobante"
+                                  className="h-7 w-7"
+                                >
+                                  <Icon name="Edit" size={14} />
+                                </Button>
+                              </>
+                            );
+                          } else {
+                            return (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => agregarComprobante(abono)}
+                                className="text-xs h-7"
+                              >
+                                <Icon name="Plus" size={14} className="mr-1" />
+                                Agregar
+                              </Button>
+                            );
+                          }
+                        })()}
                       </div>
+
                       <div className="flex items-center justify-center">
                         <Button
                           variant="ghost"
@@ -279,18 +478,77 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                             <Icon name="Edit" size={16} />
                           </Button>
                           <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              estado === 'aprobado' || (activo && estado === 'registrado')
-                                ? 'bg-green-100 text-green-800'
-                                : estado === 'rechazado' || estado === 'inactivo'
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${estado === 'aprobado' || (activo && estado === 'registrado')
+                              ? 'bg-green-100 text-green-800'
+                              : estado === 'rechazado' || estado === 'inactivo'
                                 ? 'bg-red-100 text-red-800'
                                 : 'bg-blue-100 text-blue-800'
-                            }`}
+                              }`}
                           >
                             {activo ? estado : 'inactivo'}
                           </span>
                         </div>
                       </div>
+
+                      {/* Comprobante en móvil */}
+                      <div className="mt-2">
+                        {(() => {
+                          const abonoId = String(abono?.id ?? abono?._id ?? '');
+                          const documento = documentosPorAbono[abonoId];
+                          const documentoId = documento?.idDocumento ?? documento?.id ?? documento?._id;
+                          const urlDoc = documento?.urlDescarga ?? documento?.url;
+
+                          if (documento && (documentoId || urlDoc)) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Comprobante:</span>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => abrirDocumento(documentoId, urlDoc)}
+                                    className="text-xs h-7"
+                                  >
+                                    <Icon name="Eye" size={12} className="mr-1" />
+                                    Ver
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => descargarDocumentoHandler(documentoId, urlDoc)}
+                                    className="text-xs h-7"
+                                  >
+                                    <Icon name="Download" size={12} className="mr-1" />
+                                    Descargar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => editarDocumento(documento)}
+                                    className="text-xs h-7"
+                                  >
+                                    <Icon name="Edit" size={12} className="mr-1" />
+                                    Editar
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => agregarComprobante(abono)}
+                                className="text-xs"
+                              >
+                                <Icon name="Plus" size={12} className="mr-1" />
+                                Agregar comprobante
+                              </Button>
+                            );
+                          }
+                        })()}
+                      </div>
+
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <span className="text-muted-foreground">Fecha:</span>
@@ -342,6 +600,52 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
           onClose={manejarCerrarEdicion}
           onSave={manejarAbonoActualizado}
         />
+      )}
+
+      {/* Modal de edición de comprobante */}
+      <EditDocumentModal
+        isOpen={isEditDocModalOpen}
+        documento={documentoAEditar}
+        onClose={() => setIsEditDocModalOpen(false)}
+        onDocumentUpdated={handleDocumentUpdated}
+      />
+
+      {/* Modal para agregar comprobante */}
+      {isAddComprobanteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsAddComprobanteModalOpen(false)} />
+          <div className="relative bg-card border rounded-lg shadow-xl w-full max-w-2xl mx-4">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Agregar Comprobante</h3>
+              <button onClick={() => setIsAddComprobanteModalOpen(false)}>
+                <Icon name="X" />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="mb-3 text-sm text-muted-foreground">
+                Abono: {abonoParaComprobante?.folio ?? abonoParaComprobante?.referencia ?? '—'} - {formatearMoneda(Number(abonoParaComprobante?.montoAbono ?? abonoParaComprobante?.monto ?? 0))}
+              </div>
+              <ComprobanteUploader
+                file={nuevoComprobanteFile}
+                onFileChange={setNuevoComprobanteFile}
+                descripcion={nuevoComprobanteDesc}
+                onDescripcionChange={setNuevoComprobanteDesc}
+                disabled={loadingUpload}
+                showPreview={true}
+                warningMsg={comprobanteWarning}
+                onWarningChange={setComprobanteWarning}
+              />
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddComprobanteModalOpen(false)} disabled={loadingUpload}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSubirComprobante} loading={loadingUpload} iconName="Upload">
+                Subir Comprobante
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -3,6 +3,8 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import useAbono from '../../../hooks/useAbono';
 import useProyecto from '../../../hooks/useProyect';
+import useAbonoDocumentos from '../../../hooks/useAbonoDocumentos';
+import ComprobanteUploader from './ComprobanteUploader';
 
 // Formatear monto en moneda MXN
 const formatearMoneda = (cantidad) => {
@@ -37,15 +39,15 @@ const formatearNumeroConSeparadores = (valor) => {
   // Remover cualquier formato previo y obtener solo números y punto decimal
   const numeroLimpio = String(valor).replace(/[^\d.]/g, '');
   if (!numeroLimpio) return '';
-  
+
   // Separar parte entera y decimal
   const partes = numeroLimpio.split('.');
   const parteEntera = partes[0] || '0';
   const parteDecimal = partes[1] ? `.${partes[1]}` : '';
-  
+
   // Formatear parte entera con separadores de miles
   const formateado = parteEntera.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  
+
   return formateado + parteDecimal;
 };
 
@@ -62,7 +64,10 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
 
   // Hook de abonos
   const { createAbono, loading } = useAbono();
-  
+
+  // Hook de documentos
+  const { subirDocumento } = useAbonoDocumentos();
+
   // Hook para obtener información del proyecto
   const { getProyectoById } = useProyecto();
 
@@ -77,6 +82,12 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
   const [referenciaPago, setReferenciaPago] = useState('');
   const [notas, setNotas] = useState('');
 
+  // Estados para comprobante
+  const [subirComprobante, setSubirComprobante] = useState(false);
+  const [comprobanteFile, setComprobanteFile] = useState(null);
+  const [comprobanteDescripcion, setComprobanteDescripcion] = useState('');
+  const [comprobanteWarning, setComprobanteWarning] = useState('');
+
   // Información del proyecto obtenida de la API
   const [infoProyecto, setInfoProyecto] = useState({ id: '', nombre: '', presupuesto: 0, clienteId: '' });
   const [totalAbonado, setTotalAbonado] = useState(0);
@@ -88,7 +99,7 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
   useEffect(() => {
     if (isOpen) {
       const id = project?.id || project?._id || project?.idProyecto || '';
-      
+
       // Establecer el ID del proyecto
       setIdProyecto(id);
 
@@ -98,19 +109,19 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
           .then((respuesta) => {
             const proyectoData = respuesta?.data || respuesta;
             if (proyectoData) {
-            const presupuestoTotal = proyectoData.presupuesto?.total || proyectoData.totalPresupuesto || 0;
+              const presupuestoTotal = proyectoData.presupuesto?.total || proyectoData.totalPresupuesto || 0;
               const totalAbonadoData = proyectoData.resumenFinanciero?.totalAbonado || 0;
-              
+
               setInfoProyecto({
                 id: proyectoData.id || proyectoData._id || id,
                 nombre: proyectoData.nombre || proyectoData.name || 'Sin nombre',
                 presupuesto: Number(presupuestoTotal),
                 clienteId: proyectoData.cliente?.id || proyectoData.clienteId || proyectoData.cliente_id || ''
               });
-              
+
               // Establecer el total abonado desde la API
               setTotalAbonado(totalAbonadoData);
-              
+
               // Actualizar saldo basado en presupuesto obtenido de la API
               const nuevoSaldo = Math.max(presupuestoTotal - totalAbonadoData, 0);
               setSaldo(nuevoSaldo);
@@ -152,6 +163,10 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       setDescripcionMetodo('');
       setReferenciaPago('');
       setNotas('');
+      setSubirComprobante(false);
+      setComprobanteFile(null);
+      setComprobanteDescripcion('');
+      setComprobanteWarning('');
 
       setSaldo(Math.max(presupuestoProyecto - Number(currentPaid || 0), 0));
       setError('');
@@ -174,10 +189,10 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
   const manejarCambioMonto = (valor) => {
     // Limpiar el valor ingresado (remover comas y caracteres no numéricos excepto punto decimal)
     const valorLimpio = limpiarNumeroFormateado(valor);
-    
+
     // Si el campo está vacío, usar "0"
     let valorFinal = valorLimpio === '' ? '0' : valorLimpio;
-    
+
     // Si el valor actual es "0" y el usuario está escribiendo algo nuevo
     if (monto === '0' && valorLimpio !== '' && valorLimpio !== '0') {
       // Si el usuario escribe un punto decimal, permitir "0."
@@ -196,19 +211,19 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
         }
       }
     }
-    
+
     // Permitir solo un punto decimal: si hay múltiples, mantener solo el primero
     const partes = valorFinal.split('.');
     if (partes.length > 2) {
       valorFinal = partes[0] + '.' + partes.slice(1).join('');
     }
-    
+
     // Actualizar el valor numérico limpio para cálculos
     setMonto(valorFinal);
-    
+
     // Actualizar el valor formateado para mostrar
     setMontoFormateado(formatearNumeroConSeparadores(valorFinal));
-    
+
     // Calcular saldo si el valor es numérico válido
     const num = Number(valorFinal);
     if (!isNaN(num)) {
@@ -216,7 +231,7 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       const importeTotal = Number(infoProyecto.presupuesto || 0);
       const nuevoSaldo = Math.max(importeTotal - totalPagadoAcumulado, 0);
       setSaldo(nuevoSaldo);
-      
+
       // Limpiar error si el monto es válido
       if (totalPagadoAcumulado <= importeTotal) {
         setError('');
@@ -260,7 +275,7 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
     // Validar que el total pagado acumulado no exceda el importe total del proyecto
     const totalPagadoAcumulado = Number(totalAbonado || 0) + montoNum;
     const importeTotal = Number(infoProyecto.presupuesto || 0);
-    
+
     if (totalPagadoAcumulado > importeTotal) {
       const excedente = totalPagadoAcumulado - importeTotal;
       setError(
@@ -285,6 +300,23 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       const creado = respuesta?.data || respuesta;
 
       if (creado) {
+        // Si hay comprobante, intentar subirlo
+        if (subirComprobante && comprobanteFile) {
+          const abonoId = creado?.id ?? creado?._id;
+          if (abonoId) {
+            try {
+              await subirDocumento({
+                idAbono: abonoId,
+                file: comprobanteFile,
+                descripcion: comprobanteDescripcion
+              });
+            } catch (errDoc) {
+              console.warn('Error al subir comprobante:', errDoc);
+              // No bloquear el cierre si falla la subida del comprobante
+            }
+          }
+        }
+
         onSave?.(creado);
         onClose?.();
       }
@@ -380,11 +412,10 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
                   placeholder="0.00"
                   value={montoFormateado}
                   onChange={(e) => manejarCambioMonto(e.target.value)}
-                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${
-                    Number(monto) > 0 && (Number(totalAbonado || 0) + Number(monto || 0)) > Number(infoProyecto.presupuesto || 0)
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${Number(monto) > 0 && (Number(totalAbonado || 0) + Number(monto || 0)) > Number(infoProyecto.presupuesto || 0)
                       ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
                       : 'border-input'
-                  }`}
+                    }`}
                   required
                   disabled={loading}
                 />
@@ -436,11 +467,11 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
                     onChange={(e) => setReferenciaPago(e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     placeholder={
-                      metodoPago === 'Transferencia' 
+                      metodoPago === 'Transferencia'
                         ? 'Número de transferencia o CLABE'
                         : metodoPago === 'Tarjeta'
-                        ? 'Últimos 4 dígitos o número de autorización'
-                        : 'Número de cheque'
+                          ? 'Últimos 4 dígitos o número de autorización'
+                          : 'Número de cheque'
                     }
                     required
                     disabled={loading}
@@ -491,6 +522,36 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
                   disabled={loading}
                 />
               </div>
+            </div>
+
+            {/* Comprobante de pago */}
+            <div className="md:col-span-2 border-t border-border pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  id="subirComprobante"
+                  checked={subirComprobante}
+                  onChange={(e) => setSubirComprobante(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                  disabled={loading}
+                />
+                <label htmlFor="subirComprobante" className="text-sm font-medium text-foreground cursor-pointer">
+                  Subir comprobante de pago
+                </label>
+              </div>
+
+              {subirComprobante && (
+                <ComprobanteUploader
+                  file={comprobanteFile}
+                  onFileChange={setComprobanteFile}
+                  descripcion={comprobanteDescripcion}
+                  onDescripcionChange={setComprobanteDescripcion}
+                  disabled={loading}
+                  showPreview={true}
+                  warningMsg={comprobanteWarning}
+                  onWarningChange={setComprobanteWarning}
+                />
+              )}
             </div>
 
             {error && <div className="text-sm text-red-600">{error}</div>}
