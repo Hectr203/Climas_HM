@@ -21,7 +21,7 @@ const WorkOrderTable = ({
   error,
   onVisibleOrdersChange,
 }) => {
-const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
+  const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
   const { clients, getClients, loading: loadingClients } = useClient();
   const { showConfirm, showOperationSuccess, showHttpError, showInfo } = useNotifications();
 
@@ -51,30 +51,29 @@ const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
     [workOrders, oportunities]
   );
   
-    // PARA ELIMINARLO PERO NO DESDE EL BACK SI NO VISUAL
-const [deletedOrderIds, setDeletedOrderIds] = useState(() => {
-  const stored = localStorage.getItem("deletedWorkOrders");
-  return stored ? new Set(JSON.parse(stored)) : new Set();
-});
-
-useEffect(() => {
-  localStorage.setItem("deletedWorkOrders", JSON.stringify([...deletedOrderIds]));
-}, [deletedOrderIds]);
-
-const sortedOrders = useMemo(() => {
-  const filtered = dataSource.filter((order) => !deletedOrderIds.has(order.id));
-  if (!sortConfig.key) return filtered;
-  const sorted = [...filtered];
-  sorted.sort((a, b) => {
-    const aVal = a[sortConfig.key] || "";
-    const bVal = b[sortConfig.key] || "";
-    if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-    if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-    return 0;
+  // PARA ELIMINARLO PERO NO DESDE EL BACK SI NO VISUAL
+  const [deletedOrderIds, setDeletedOrderIds] = useState(() => {
+    const stored = localStorage.getItem("deletedWorkOrders");
+    return stored ? new Set(JSON.parse(stored)) : new Set();
   });
-  return sorted;
-}, [dataSource, sortConfig, deletedOrderIds]);
 
+  useEffect(() => {
+    localStorage.setItem("deletedWorkOrders", JSON.stringify([...deletedOrderIds]));
+  }, [deletedOrderIds]);
+
+  const sortedOrders = useMemo(() => {
+    const filtered = dataSource.filter((order) => !deletedOrderIds.has(order.id));
+    if (!sortConfig.key) return filtered;
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      const aVal = a[sortConfig.key] || "";
+      const bVal = b[sortConfig.key] || "";
+      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [dataSource, sortConfig, deletedOrderIds]);
 
   // Paginación
   const totalItems = sortedOrders.length;
@@ -122,18 +121,18 @@ const sortedOrders = useMemo(() => {
   const nextPage = () => goToPage(currentPage + 1);
   
 
-const handleDelete = (order) => {
-  showConfirm(`¿Seguro que deseas eliminar la orden "${order.ordenTrabajo}"?`, {
-    onConfirm: () => {
-      setDeletedOrderIds((prev) => new Set([...prev, order.id]));
-      showOperationSuccess("delete", "Orden de trabajo");
-      onEditOrder?.({ type: "delete", id: order.id });
-    },
-    onCancel: () => {
-      showInfo("Eliminación cancelada");
-    },
-  });
-};
+  const handleDelete = (order) => {
+    showConfirm(`¿Seguro que deseas eliminar la orden "${order.ordenTrabajo}"?`, {
+      onConfirm: () => {
+        setDeletedOrderIds((prev) => new Set([...prev, order.id]));
+        showOperationSuccess("delete", "Orden de trabajo");
+        onEditOrder?.({ type: "delete", id: order.id });
+      },
+      onCancel: () => {
+        showInfo("Eliminación cancelada"); // CAMBIO: Asegurado para consistencia con .jsx (ya existía)
+      },
+    });
+  };
   const handleSort = (key) => {
     setSortConfig((prev) => ({
       key,

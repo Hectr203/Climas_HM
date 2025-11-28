@@ -9,7 +9,7 @@ import useInventory from "../../../hooks/useInventory";
 import useUnits from "../../../hooks/useUnits";
 import unitService from "../../../services/unitService";
 
-const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false }) => {
+const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false, visibleOrders = null }) => { // CAMBIO: Restaurada prop visibleOrders de .txt
   const { createRequisition, updateRequisition } = useRequisi();
   const { oportunities, getOportunities } = useOperac();
   const { articulos, getArticulos } = useInventory();
@@ -384,7 +384,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
             <Select
   label="Número de Orden de Trabajo"
   options={
-    oportunities?.map((op) => ({
+    // CAMBIO: Restaurada lógica de visibleOrders de .txt para filtrar órdenes visibles
+    (visibleOrders && visibleOrders.length ? visibleOrders : oportunities || []).map((op) => ({
       label: op.ordenTrabajo,
       value: op.ordenTrabajo,
     })) || []
@@ -394,7 +395,8 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
     handleInputChange("orderNumber", value);
 
     // Buscar la oportunidad seleccionada
-    const selected = oportunities.find((op) => op.ordenTrabajo === value);
+    const source = visibleOrders && visibleOrders.length ? visibleOrders : oportunities || [];
+    const selected = source.find((op) => op.ordenTrabajo === value);
     if (selected) {
       // Llenar automáticamente el nombre del proyecto
       handleInputChange("projectName", selected.proyectoNombre || "");
@@ -457,6 +459,7 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               placeholder="Describe el propósito de esta requisición..."
               value={formData?.description}
               onChange={(e) => handleInputChange("description", e?.target?.value)}
+              readOnly={isViewMode}
             />
           </div>
 
@@ -568,10 +571,11 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
           )}
 
           {/* Material Manual */}
-          <div className="bg-muted/30 rounded-lg p-4 mt-6">
-            <h4 className="text-sm font-medium text-foreground mb-3">
-              Agregar Material Manualmente
-            </h4>
+          {!isViewMode && (
+            <div className="bg-muted/30 rounded-lg p-4 mt-6">
+              <h4 className="text-sm font-medium text-foreground mb-3">
+                Agregar Material Manualmente
+              </h4>
 
               <div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
@@ -694,6 +698,7 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               Agregar Material
             </Button>
           </div>
+          )}
 
           {/* Lista de materiales */}
           {(formData.items.length > 0 || formData.manualItems.length > 0) && (
