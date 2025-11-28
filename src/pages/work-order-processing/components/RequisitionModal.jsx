@@ -6,11 +6,14 @@ import Select from "../../../components/ui/Select";
 import useRequisi from "../../../hooks/useRequisi";
 import useOperac from "../../../hooks/useOperac";
 import useInventory from "../../../hooks/useInventory";
+import useUnits from "../../../hooks/useUnits";
+import unitService from "../../../services/unitService";
 
-const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false, visibleOrders = null }) => {
+const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false, visibleOrders = null }) => { // CAMBIO: Restaurada prop visibleOrders de .txt
   const { createRequisition, updateRequisition } = useRequisi();
   const { oportunities, getOportunities } = useOperac();
   const { articulos, getArticulos } = useInventory();
+  const { units, getUnits, createUnit, getUnitOptions, loading: loadingUnits } = useUnits();
 
   const [formData, setFormData] = useState({
     requestNumber: "",
@@ -44,6 +47,16 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
     description: "",
     urgency: "Normal",
   });
+
+  // Estados para manejar nuevas unidades
+  const [showAddUnitModal, setShowAddUnitModal] = useState(false);
+  const [newUnitName, setNewUnitName] = useState("");
+  const [newUnitDescription, setNewUnitDescription] = useState("");
+  const [customUnitInput, setCustomUnitInput] = useState("");
+  const [selectedUnitType, setSelectedUnitType] = useState("standard"); // "standard" | "otros"
+  
+  // Contador para generar IDs únicos
+  const itemIdCounter = React.useRef(0);
 
   useEffect(() => {
     if (requisition) {
@@ -85,8 +98,49 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
     if (isOpen) {
       getOportunities();
       getArticulos();
+      getUnits(); // Cargar unidades al abrir el modal
     }
   }, [isOpen]);
+
+  // Obtener opciones de unidades dinámicamente
+  const unitOptions = React.useMemo(() => {
+    // Obtener unidades del hook (pueden estar vacías al inicio)
+    const hookUnits = getUnitOptions();
+    
+    // Obtener unidades por defecto del servicio
+    const defaultUnits = unitService.getDefaultUnits();
+    
+    // Combinar unidades por defecto con las del backend
+    // Crear un mapa para evitar duplicados (por nombre en minúsculas)
+    const unitsMap = new Map();
+    
+    // Primero agregar las por defecto
+    defaultUnits.forEach(unit => {
+      const key = unit.nombre.toLowerCase();
+      if (!unitsMap.has(key)) {
+        unitsMap.set(key, {
+          value: unit.nombre.toLowerCase(),
+          label: unit.nombre
+        });
+      }
+    });
+    
+    // Luego agregar las del backend (sobrescriben las por defecto si hay duplicados)
+    hookUnits.forEach(unit => {
+      const key = unit.value.toLowerCase();
+      unitsMap.set(key, unit);
+    });
+    
+    // Convertir a array y ordenar
+    const allUnits = Array.from(unitsMap.values())
+      .sort((a, b) => a.label.localeCompare(b.label));
+    
+    // Agregar opción "Otros" al final
+    return [
+      ...allUnits,
+      { value: "otros", label: "Otros" }
+    ];
+  }, [units]);
 
   const priorityOptions = [
     { value: "Crítica", label: "Crítica" },
@@ -103,16 +157,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
     { value: "Completada", label: "Completada" },
   ];
 
-  const unitOptions = [
-    { value: "unidades", label: "Unidades" },
-    { value: "metros", label: "Metros" },
-    { value: "litros", label: "Litros" },
-    { value: "kilogramos", label: "Kilogramos" },
-    { value: "cajas", label: "Cajas" },
-    { value: "paquetes", label: "Paquetes" },
-    { value: "cilindros", label: "Cilindros" },
-    { value: "rollos", label: "Rollos" },
-  ];
 
   const urgencyOptions = [
     { value: "Urgente", label: "Urgente" },
@@ -141,13 +185,67 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
     }));
   };
 
-  const handleAddItem = () => {
-    if (isViewMode) return;
+  // Manejar cambio de unidad - detectar si es "otros"
+  const handleUnitChange = (value, itemType) => {
+    if (value === "otros") {
+      // Si selecciona "Otros", mostrar input para unidad personalizada
+      setSelectedUnitType("otros");
+      if (itemType === "inventory") {
+        setNewItem(prev => ({ ...prev, unit: "", customUnit: true }));
+      } else {
+        setNewManualItem(prev => ({ ...prev, unit: "", customUnit: true }));
+      }
+    } else {
+      setSelectedUnitType("standard");
+      if (itemType === "inventory") {
+        setNewItem(prev => ({ ...prev, unit: value, customUnit: false }));
+      } else {
+        setNewManualItem(prev => ({ ...prev, unit: value, customUnit: false }));
+      }
+    }
+  };
 
+  // Manejar creación de nueva unidad
+  const handleCreateNewUnit = async () => {
+    if (!newUnitName || !newUnitName.trim()) {
+      return;
+    }
+
+    const result = await createUnit({
+      nombre: newUnitName.trim(),
+      descripcion: newUnitDescription.trim() || ""
+    });
+
+    if (result) {
+      // Actualizar la unidad seleccionada en el item actual
+      const unitValue = result.nombre.toLowerCase();
+      if (newItem.customUnit) {
+        setNewItem(prev => ({ ...prev, unit: unitValue, customUnit: false }));
+        setSelectedUnitType("standard");
+      } else if (newManualItem.customUnit) {
+        setNewManualItem(prev => ({ ...prev, unit: unitValue, customUnit: false }));
+        setSelectedUnitType("standard");
+      }
+      
+      // Recargar unidades para actualizar la lista
+      await getUnits();
+      
+      // Cerrar modal y limpiar
+      setShowAddUnitModal(false);
+      setNewUnitName("");
+      setNewUnitDescription("");
+    }
+  };
+
+  const handleAddItem = () => {
     if (newItem?.name && newItem?.quantity) {
+      // Si tiene unidad personalizada, usar esa, sino usar la unidad seleccionada
+      const finalUnit = newItem.customUnit ? newItem.unit : (newItem.unit || "unidades");
+      
+      itemIdCounter.current += 1;
       setFormData((prev) => ({
         ...prev,
-        items: [...prev.items, { ...newItem, id: Date.now() }],
+        items: [...prev.items, { ...newItem, unit: finalUnit, id: `item-${itemIdCounter.current}-${Date.now()}` }],
       }));
       setNewItem({
         idArticulo: "",
@@ -157,17 +255,21 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
         unit: "unidades",
         description: "",
         urgency: "Normal",
+        customUnit: false,
       });
+      setSelectedUnitType("standard");
     }
   };
 
   const handleAddManualItem = () => {
-    if (isViewMode) return;
-
     if (newManualItem?.name && newManualItem?.quantity) {
+      // Si tiene unidad personalizada, usar esa, sino usar la unidad seleccionada
+      const finalUnit = newManualItem.customUnit ? newManualItem.unit : (newManualItem.unit || "unidades");
+      
+      itemIdCounter.current += 1;
       setFormData((prev) => ({
         ...prev,
-        manualItems: [...prev.manualItems, { ...newManualItem, id: Date.now() }],
+        manualItems: [...prev.manualItems, { ...newManualItem, unit: finalUnit, id: `manual-${itemIdCounter.current}-${Date.now()}` }],
       }));
       setNewManualItem({
         name: "",
@@ -175,13 +277,13 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
         unit: "unidades",
         description: "",
         urgency: "Normal",
+        customUnit: false,
       });
+      setSelectedUnitType("standard");
     }
   };
 
   const handleRemoveItem = (itemId, type) => {
-    if (isViewMode) return;
-
     setFormData((prev) => ({
       ...prev,
       [type]: prev[type].filter((item) => item.id !== itemId),
@@ -189,64 +291,69 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
   };
 
   const handleSave = async () => {
-    if (isViewMode) return;
+  try {
+    // Formatear fecha a dd/MM/yyyy
+    const fecha = new Date(formData.requestDate);
+    const formattedDate = `${fecha.getDate().toString().padStart(2, "0")}/${(fecha.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}/${fecha.getFullYear()}`;
 
-    try {
-      const fecha = new Date(formData.requestDate);
-      const formattedDate = `${fecha.getDate().toString().padStart(2, "0")}/${(fecha.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}/${fecha.getFullYear()}`;
+    // Construir materiales de inventario
+    const materiales = formData.items.map((item) => ({
+      id: item.idArticulo || undefined, // para que el backend lo identifique como referencia
+      codigoArticulo: item.codigoArticulo || "",
+      nombreMaterial: item.name || "",
+      cantidad: Number(item.quantity) || 0,
+      unidad:
+        item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
+      urgencia: item.urgency || "Normal",
+      descripcionEspecificaciones: item.description || "",
+    }));
 
-      const materiales = formData.items.map((item) => ({
-        id: item.idArticulo || undefined,
-        codigoArticulo: item.codigoArticulo || "",
-        nombreMaterial: item.name || "",
-        cantidad: Number(item.quantity) || 0,
-        unidad:
-          item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
-        urgencia: item.urgency || "Normal",
-        descripcionEspecificaciones: item.description || "",
-      }));
+    // Construir materiales manuales
+    const materialesManuales = formData.manualItems.map((item) => ({
+      nombreMaterial: item.name || "",
+      cantidad: Number(item.quantity) || 0,
+      unidad:
+        item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
+      urgencia: item.urgency || "Normal",
+      descripcionEspecificaciones: item.description || "",
+    }));
 
-      const materialesManuales = formData.manualItems.map((item) => ({
-        nombreMaterial: item.name || "",
-        cantidad: Number(item.quantity) || 0,
-        unidad:
-          item.unit?.charAt(0).toUpperCase() + item.unit?.slice(1).toLowerCase() || "Unidades",
-        urgencia: item.urgency || "Normal",
-        descripcionEspecificaciones: item.description || "",
-      }));
+    // Payload final
+    const payload = {
+      numeroOrdenTrabajo: formData.orderNumber,
+      nombreProyecto: formData.projectName,
+      solicitadoPor: formData.requestedBy,
+      fechaSolicitud: formattedDate,
+      prioridad: formData.priority,
+      estado: formData.status,
+      descripcionSolicitud: formData.description,
+      materiales, // <-- inventario
+      materialesManuales, // <-- manuales
+      justificacionSolicitud: formData.justification || "",
+      notasAdicionales: formData.notes || "",
+      proyectoNombre: formData.projectName,
+    };
 
-      const payload = {
-        numeroOrdenTrabajo: formData.orderNumber,
-        nombreProyecto: formData.projectName,
-        solicitadoPor: formData.requestedBy,
-        fechaSolicitud: formattedDate,
-        prioridad: formData.priority,
-        estado: formData.status,
-        descripcionSolicitud: formData.description,
-        materiales,
-        materialesManuales,
-        justificacionSolicitud: formData.justification || "",
-        notasAdicionales: formData.notes || "",
-        proyectoNombre: formData.projectName,
-      };
-
-      let response;
-      if (requisition?.id) {
-        response = await updateRequisition(requisition.id, payload);
-      } else {
-        response = await createRequisition(payload);
-      }
-
-      if (response) {
-        onSave(response);
-        onClose();
-      }
-    } catch (error) {
-      console.error(" Error al guardar la requisición:", error);
+    // Enviar
+    let response;
+    if (requisition?.id) {
+      response = await updateRequisition(requisition.id, payload);
+    } else {
+      response = await createRequisition(payload);
     }
-  };
+
+    if (response) {
+      onSave(response);
+      onClose();
+    }
+  } catch (error) {
+    console.error(" Error al guardar la requisición:", error);
+  }
+};
+
+
 
   if (!isOpen) return null;
 
@@ -256,9 +363,7 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
-              {isViewMode
-                ? "Ver Requisición"
-                : requisition?.id
+              {requisition?.id
                 ? "Editar Requisición"
                 : "Nueva Requisición de Materiales"}
             </h2>
@@ -276,95 +381,71 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
         <div className="p-6 space-y-6">
           {/* Información básica */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {isViewMode ? (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Número de Orden de Trabajo</label>
-                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.orderNumber || "-"}</div>
-              </div>
-            ) : (
-              <Select
-                label="Número de Orden de Trabajo"
-                options={
-                  (visibleOrders && visibleOrders.length ? visibleOrders : oportunities || []).map((op) => ({
-                    label: op.ordenTrabajo || op.orderNumber || op.ordenTrabajo || "",
-                    value: op.ordenTrabajo || op.orderNumber || op.id || "",
-                  })) || []
-                }
-                value={formData?.orderNumber}
-                onChange={(value) => {
-                  handleInputChange("orderNumber", value);
+            <Select
+  label="Número de Orden de Trabajo"
+  options={
+    // CAMBIO: Restaurada lógica de visibleOrders de .txt para filtrar órdenes visibles
+    (visibleOrders && visibleOrders.length ? visibleOrders : oportunities || []).map((op) => ({
+      label: op.ordenTrabajo,
+      value: op.ordenTrabajo,
+    })) || []
+  }
+  value={formData?.orderNumber}
+  onChange={(value) => {
+    handleInputChange("orderNumber", value);
 
-                  const source = visibleOrders && visibleOrders.length ? visibleOrders : oportunities || [];
-                  const selected = source.find((op) => (op.ordenTrabajo || op.orderNumber || op.id) === value);
-                  if (selected) {
-                    handleInputChange("projectName", selected.proyectoNombre || selected.nombreProyecto || "");
-                  }
-                }}
-                required
-              />
-            )}
+    // Buscar la oportunidad seleccionada
+    const source = visibleOrders && visibleOrders.length ? visibleOrders : oportunities || [];
+    const selected = source.find((op) => op.ordenTrabajo === value);
+    if (selected) {
+      // Llenar automáticamente el nombre del proyecto
+      handleInputChange("projectName", selected.proyectoNombre || "");
+    }
+  }}
+  required
+/>
+
 
             <Input
               label="Nombre del Proyecto"
               placeholder="Nombre del proyecto"
-              value={formData?.projectName}
+              value={formData?.projectName || ""}
+              onChange={isViewMode ? () => {} : (e) => handleInputChange("projectName", e?.target?.value)}
               readOnly={isViewMode}
               className={isViewMode ? "bg-input text-foreground" : "bg-gray-100"}
             />
 
             <Input
-              label="Solicitado por"
-              placeholder="Usuario Actual"
-              value={formData?.requestedBy}
-              onChange={(e) => handleInputChange("requestedBy", e?.target?.value)}
+  label="Solicitado por"
+  placeholder="Usuario Actual"
+  value={formData?.requestedBy}
+  onChange={(e) => handleInputChange("requestedBy", e?.target?.value)}
+  required
+/>
+
+            <Input
+              label="Fecha de Solicitud"
+              type="date"
+              value={formData?.requestDate}
+              onChange={(e) => handleInputChange("requestDate", e?.target?.value)}
               required
-              readOnly={isViewMode}
             />
 
-            {isViewMode ? (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Fecha de Solicitud</label>
-                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.requestDate}</div>
-              </div>
-            ) : (
-              <Input
-                label="Fecha de Solicitud"
-                type="date"
-                value={formData?.requestDate}
-                onChange={(e) => handleInputChange("requestDate", e?.target?.value)}
-                required
-              />
-            )}
+            <Select
+              label="Prioridad"
+              options={priorityOptions}
+              value={formData?.priority}
+              onChange={(value) => handleInputChange("priority", value)}
+              required
+            />
 
-            {isViewMode ? (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Prioridad</label>
-                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.priority}</div>
-              </div>
-            ) : (
-              <Select
-                label="Prioridad"
-                options={priorityOptions}
-                value={formData?.priority}
-                onChange={(value) => handleInputChange("priority", value)}
-                required
-              />
-            )}
-
-            {isViewMode ? (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
-                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.status}</div>
-              </div>
-            ) : (
-              <Select
-                label="Estado"
-                options={statusOptions}
-                value={formData?.status}
-                onChange={(value) => handleInputChange("status", value)}
-                required
-              />
-            )}
+            <Select
+              label="Estado"
+              options={statusOptions}
+              value={formData?.status}
+              onChange={(value) => handleInputChange("status", value)}
+              required
+            />
           </div>
 
           {/* Descripción */}
@@ -421,12 +502,41 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                       }}
                     />
 
-                    <Select
-                      label="Unidad"
-                      options={unitOptions}
-                      value={newItem?.unit}
-                      onChange={(value) => handleNewItemChange("unit", value)}
-                    />
+                    <div>
+                      <Select
+                        label="Unidad"
+                        options={unitOptions}
+                        value={newItem?.customUnit ? "otros" : (newItem?.unit || "unidades")}
+                        onChange={(value) => handleUnitChange(value, "inventory")}
+                      />
+                      {newItem?.customUnit && (
+                        <div className="mt-2 space-y-2">
+                          <Input
+                            label="Especificar unidad"
+                            placeholder="Ej: Pallet, Bolsa, etc."
+                            value={newItem?.unit || ""}
+                            onChange={(e) => handleNewItemChange("unit", e.target.value)}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Pre-llenar el nombre con el valor actual si existe
+                              if (newItem?.unit) {
+                                setNewUnitName(newItem.unit);
+                              }
+                              setShowAddUnitModal(true);
+                            }}
+                            iconName="Plus"
+                            iconSize={14}
+                            className="w-full"
+                            disabled={!newItem?.unit || !newItem.unit.trim()}
+                          >
+                            Guardar como nueva unidad
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <Select
@@ -436,28 +546,28 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                     onChange={(value) => handleNewItemChange("urgency", value)}
                   />
                 </div>
-
-                <Input
-                  label="Descripción/Especificaciones"
-                  placeholder="Especificaciones técnicas..."
-                  value={newItem?.description}
-                  onChange={(e) =>
-                    handleNewItemChange("description", e?.target?.value)
-                  }
-                />
-
-                <Button
-                  variant="outline"
-                  onClick={handleAddItem}
-                  iconName="Plus"
-                  iconSize={16}
-                  disabled={!newItem?.name || !newItem?.quantity}
-                  className="mt-3"
-                >
-                  Agregar Material
-                </Button>
               </div>
-            </div>
+
+            <Input
+              label="Descripción/Especificaciones"
+              placeholder="Especificaciones técnicas..."
+              value={newItem?.description}
+              onChange={(e) =>
+                handleNewItemChange("description", e?.target?.value)
+              }
+            />
+
+            <Button
+              variant="outline"
+              onClick={handleAddItem}
+              iconName="Plus"
+              iconSize={16}
+              disabled={!newItem?.name || !newItem?.quantity}
+              className="mt-3"
+            >
+              Agregar Material
+            </Button>
+          </div>
           )}
 
           {/* Material Manual */}
@@ -490,14 +600,41 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                       }}
                     />
 
-                    <Select
-                      label="Unidad"
-                      options={unitOptions}
-                      value={newManualItem?.unit}
-                      onChange={(value) =>
-                        handleNewManualItemChange("unit", value)
-                      }
-                    />
+                    <div>
+                      <Select
+                        label="Unidad"
+                        options={unitOptions}
+                        value={newManualItem?.customUnit ? "otros" : (newManualItem?.unit || "unidades")}
+                        onChange={(value) => handleUnitChange(value, "manual")}
+                      />
+                      {newManualItem?.customUnit && (
+                        <div className="mt-2 space-y-2">
+                          <Input
+                            label="Especificar unidad"
+                            placeholder="Ej: Pallet, Bolsa, etc."
+                            value={newManualItem?.unit || ""}
+                            onChange={(e) => handleNewManualItemChange("unit", e.target.value)}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Pre-llenar el nombre con el valor actual si existe
+                              if (newManualItem?.unit) {
+                                setNewUnitName(newManualItem.unit);
+                              }
+                              setShowAddUnitModal(true);
+                            }}
+                            iconName="Plus"
+                            iconSize={14}
+                            className="w-full"
+                            disabled={!newManualItem?.unit || !newManualItem.unit.trim()}
+                          >
+                            Guardar como nueva unidad
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <Select
@@ -510,27 +647,57 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                   />
                 </div>
 
+              <div className="grid grid-cols-2 gap-2">
                 <Input
-                  label="Descripción/Especificaciones"
-                  placeholder="Detalles o especificaciones..."
-                  value={newManualItem?.description}
-                  onChange={(e) =>
-                    handleNewManualItemChange("description", e?.target?.value)
+  label="Cantidad"
+  type="number"
+  placeholder="1"
+  value={newManualItem?.quantity}
+  onChange={(e) => {
+    const value = Number(e?.target?.value);
+    if (value > 0) handleNewManualItemChange("quantity", value);
+  }}
+/>
+                <Select
+                  label="Unidad"
+                  options={unitOptions}
+                  value={newManualItem?.unit}
+                  onChange={(value) =>
+                    handleNewManualItemChange("unit", value)
                   }
                 />
-
-                <Button
-                  variant="outline"
-                  onClick={handleAddManualItem}
-                  iconName="Plus"
-                  iconSize={16}
-                  disabled={!newManualItem?.name || !newManualItem?.quantity}
-                  className="mt-3"
-                >
-                  Agregar Material
-                </Button>
               </div>
+
+              <Select
+                label="Urgencia"
+                options={urgencyOptions}
+                value={newManualItem?.urgency}
+                onChange={(value) =>
+                  handleNewManualItemChange("urgency", value)
+                }
+              />
             </div>
+
+            <Input
+              label="Descripción/Especificaciones"
+              placeholder="Detalles o especificaciones..."
+              value={newManualItem?.description}
+              onChange={(e) =>
+                handleNewManualItemChange("description", e?.target?.value)
+              }
+            />
+
+            <Button
+              variant="outline"
+              onClick={handleAddManualItem}
+              iconName="Plus"
+              iconSize={16}
+              disabled={!newManualItem?.name || !newManualItem?.quantity}
+              className="mt-3"
+            >
+              Agregar Material
+            </Button>
+          </div>
           )}
 
           {/* Lista de materiales */}
@@ -572,23 +739,20 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                           </p>
                         )}
                       </div>
-
-                      {!isViewMode && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handleRemoveItem(
-                              item.id,
-                              formData.items.some((i) => i.id === item.id)
-                                ? "items"
-                                : "manualItems"
-                            )
-                          }
-                          iconName="Trash2"
-                          iconSize={14}
-                        />
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleRemoveItem(
+                            item.id,
+                            formData.items.some((i) => i.id === item.id)
+                              ? "items"
+                              : "manualItems"
+                          )
+                        }
+                        iconName="Trash2"
+                        iconSize={14}
+                      />
                     </div>
                   </div>
                 ))}
@@ -609,7 +773,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               onChange={(e) =>
                 handleInputChange("justification", e?.target?.value)
               }
-              readOnly={isViewMode}
             />
           </div>
 
@@ -624,37 +787,88 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               placeholder="Notas adicionales..."
               value={formData?.notes}
               onChange={(e) => handleInputChange("notes", e?.target?.value)}
-              readOnly={isViewMode}
             />
           </div>
         </div>
 
-        {/* FOOTER */}
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-border">
-
-          {/* Si es modo vista → Solo botón cerrar */}
-          {isViewMode ? (
-            <Button variant="outline" onClick={onClose}>
-              Cerrar
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSave}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={!formData?.projectName}
-              >
-                {requisition?.id ? "Guardar Cambios" : "Crear Requisición"}
-              </Button>
-            </>
-          )}
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+  type="button"
+  onClick={handleSave}
+  className="bg-blue-600 hover:bg-blue-700 text-white"
+  disabled={!formData?.projectName}
+>
+  {requisition?.id ? "Guardar Cambios" : "Crear Requisición"}
+</Button>
 
         </div>
       </div>
+
+      {/* Modal para agregar nueva unidad */}
+      {showAddUnitModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-1060 p-4">
+          <div className="bg-card rounded-lg border border-border w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h3 className="text-lg font-semibold text-foreground">
+                Agregar Nueva Unidad de Medida
+              </h3>
+              <Button variant="ghost" size="icon" onClick={() => {
+                setShowAddUnitModal(false);
+                setNewUnitName("");
+                setNewUnitDescription("");
+              }}>
+                <Icon name="X" size={20} />
+              </Button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <Input
+                label="Nombre de la Unidad"
+                placeholder="Ej: Pallet, Bolsa, Galón, etc."
+                value={newUnitName}
+                onChange={(e) => setNewUnitName(e.target.value)}
+                required
+              />
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Descripción (Opcional)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground"
+                  rows={2}
+                  placeholder="Descripción de la unidad..."
+                  value={newUnitDescription}
+                  onChange={(e) => setNewUnitDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddUnitModal(false);
+                    setNewUnitName("");
+                    setNewUnitDescription("");
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleCreateNewUnit}
+                  disabled={!newUnitName || !newUnitName.trim() || loadingUnits}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {loadingUnits ? "Guardando..." : "Guardar Unidad"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

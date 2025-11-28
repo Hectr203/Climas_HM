@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Icon from "../../../components/AppIcon";
 import Button from "../../../components/ui/Button";
 import useOperac from "../../../hooks/useOperac";
@@ -21,9 +21,9 @@ const WorkOrderTable = ({
   error,
   onVisibleOrdersChange,
 }) => {
-const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
+  const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
   const { clients, getClients, loading: loadingClients } = useClient();
-  const { showConfirm, showOperationSuccess, showHttpError } = useNotifications();
+  const { showConfirm, showOperationSuccess, showHttpError, showInfo } = useNotifications();
 
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: "prioridad", direction: "asc" });
@@ -51,30 +51,29 @@ const { oportunities, getOportunities, deleteWorkOrder } = useOperac();
     [workOrders, oportunities]
   );
   
-    // PARA ELIMINARLO PERO NO DESDE EL BACK SI NO VISUAL
-const [deletedOrderIds, setDeletedOrderIds] = useState(() => {
-  const stored = localStorage.getItem("deletedWorkOrders");
-  return stored ? new Set(JSON.parse(stored)) : new Set();
-});
-
-useEffect(() => {
-  localStorage.setItem("deletedWorkOrders", JSON.stringify([...deletedOrderIds]));
-}, [deletedOrderIds]);
-
-const sortedOrders = useMemo(() => {
-  const filtered = dataSource.filter((order) => !deletedOrderIds.has(order.id));
-  if (!sortConfig.key) return filtered;
-  const sorted = [...filtered];
-  sorted.sort((a, b) => {
-    const aVal = a[sortConfig.key] || "";
-    const bVal = b[sortConfig.key] || "";
-    if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-    if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-    return 0;
+  // PARA ELIMINARLO PERO NO DESDE EL BACK SI NO VISUAL
+  const [deletedOrderIds, setDeletedOrderIds] = useState(() => {
+    const stored = localStorage.getItem("deletedWorkOrders");
+    return stored ? new Set(JSON.parse(stored)) : new Set();
   });
-  return sorted;
-}, [dataSource, sortConfig, deletedOrderIds]);
 
+  useEffect(() => {
+    localStorage.setItem("deletedWorkOrders", JSON.stringify([...deletedOrderIds]));
+  }, [deletedOrderIds]);
+
+  const sortedOrders = useMemo(() => {
+    const filtered = dataSource.filter((order) => !deletedOrderIds.has(order.id));
+    if (!sortConfig.key) return filtered;
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      const aVal = a[sortConfig.key] || "";
+      const bVal = b[sortConfig.key] || "";
+      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [dataSource, sortConfig, deletedOrderIds]);
 
   // Paginación
   const totalItems = sortedOrders.length;
@@ -84,13 +83,31 @@ const sortedOrders = useMemo(() => {
   const paginatedData = sortedOrders.slice(startIndex, endIndex);
 
   // Notify parent of visible orders (current page)
+  // Usar useRef para evitar actualizaciones innecesarias y ciclos infinitos
+  const prevPaginatedDataRef = useRef(null);
   useEffect(() => {
-    if (onVisibleOrdersChange) onVisibleOrdersChange(paginatedData);
+    if (!onVisibleOrdersChange) return;
+    
+    // Comparar IDs para evitar actualizaciones innecesarias
+    const currentIds = paginatedData.map(order => order?.id).join(',');
+    const prevIds = prevPaginatedDataRef.current?.map(order => order?.id).join(',') || '';
+    
+    // Solo actualizar si los IDs realmente cambiaron
+    if (currentIds !== prevIds) {
+      onVisibleOrdersChange(paginatedData);
+      prevPaginatedDataRef.current = paginatedData;
+    }
   }, [paginatedData, onVisibleOrdersChange]);
 
   useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-    if (currentPage < 1) setCurrentPage(1);
+    // Solo ajustar la página si está fuera de rango válido
+    if (totalPages > 0) {
+      if (currentPage > totalPages) {
+        setCurrentPage(totalPages);
+      } else if (currentPage < 1) {
+        setCurrentPage(1);
+      }
+    }
   }, [currentPage, totalPages]);
 
   const handleChangePageSize = (e) => {
@@ -104,18 +121,18 @@ const sortedOrders = useMemo(() => {
   const nextPage = () => goToPage(currentPage + 1);
   
 
-const handleDelete = (order) => {
-  showConfirm(`¿Seguro que deseas eliminar la orden "${order.ordenTrabajo}"?`, {
-    onConfirm: () => {
-      setDeletedOrderIds((prev) => new Set([...prev, order.id]));
-      showOperationSuccess("delete", "Orden de trabajo");
-      onEditOrder?.({ type: "delete", id: order.id });
-    },
-    onCancel: () => {
-      showInfo("Eliminación cancelada");
-    },
-  });
-};
+  const handleDelete = (order) => {
+    showConfirm(`¿Seguro que deseas eliminar la orden "${order.ordenTrabajo}"?`, {
+      onConfirm: () => {
+        setDeletedOrderIds((prev) => new Set([...prev, order.id]));
+        showOperationSuccess("delete", "Orden de trabajo");
+        onEditOrder?.({ type: "delete", id: order.id });
+      },
+      onCancel: () => {
+        showInfo("Eliminación cancelada"); // CAMBIO: Asegurado para consistencia con .jsx (ya existía)
+      },
+    });
+  };
   const handleSort = (key) => {
     setSortConfig((prev) => ({
       key,
