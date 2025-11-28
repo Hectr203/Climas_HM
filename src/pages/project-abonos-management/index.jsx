@@ -10,6 +10,7 @@ import CreateProjectModal from './components/CreateProjectModal';
 import EditProjectModal from './components/EditProjectModal';
 import RegisterAbonoModal from './components/RegisterAbonoModal';
 import ViewAbonosModal from './components/ViewAbonosModal';
+import ComprobantesModal from './components/ComprobantesModal';
 import useProyect from '../../hooks/useProyect';
 
 /* =========================================================================
@@ -96,6 +97,9 @@ const ProjectManagement = () => {
 
   // Control del selector de proyecto (cuando se quiere crear un abono sin abrir desde la tabla)
   const [mostrarSelectorProyecto, setMostrarSelectorProyecto] = useState(false);
+
+  // Estado para abrir la gestión de comprobantes
+  const [gestionarComprobantesPara, setGestionarComprobantesPara] = useState(null);
 
   // Trigger para refrescar las estadísticas de abonos cuando se crea o actualiza un abono
   const [refreshAbonosStats, setRefreshAbonosStats] = useState(0);
@@ -371,6 +375,8 @@ const ProjectManagement = () => {
   };
   const abrirVerAbonos = (proyecto) => { setVerAbonosPara(proyecto); };
   const cerrarVerAbonos = () => { setVerAbonosPara(null); };
+  const abrirGestionComprobantes = (proyecto) => { setGestionarComprobantesPara(proyecto); };
+  const cerrarGestionComprobantes = () => { setGestionarComprobantesPara(null); };
   const _abrirNuevoAbono = () => {
     if (proyectosFiltrados && proyectosFiltrados.length > 0) {
       setMostrarSelectorProyecto(true);
@@ -554,6 +560,7 @@ const ProjectManagement = () => {
                   onProjectSelect={manejarEditarProyecto}
                   onRegisterAbono={abrirRegistroAbono}
                   onViewAbonos={abrirVerAbonos}
+                  onManageComprobantes={abrirGestionComprobantes}
                   getPaidAmount={obtenerTotalPagado}
                   onBulkAction={manejarAccionMasiva}
                 />
@@ -670,6 +677,15 @@ const ProjectManagement = () => {
                     console.error('Error al recargar los proyectos después de actualizar un abono:', errorRecarga);
                   }
                 }}
+              />
+            )}
+
+            {/* Modal de gestión de comprobantes */}
+            {gestionarComprobantesPara && (
+              <ComprobantesModal
+                isOpen
+                project={gestionarComprobantesPara}
+                onClose={cerrarGestionComprobantes}
               />
             )}
           </div>

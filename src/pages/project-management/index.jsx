@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import Sidebar from '../../components/ui/Sidebar';
 import Header from '../../components/ui/Header';
 import Breadcrumb from '../../components/ui/Breadcrumb';
-import ProjectFilters from './components/ProjectFilters';
+import ProjectFilters, { applyProjectFilters } from './components/ProjectFilters';
 import ProjectTable from './components/ProjectTable';
 import ProjectTimeline from './components/ProjectTimeline';
 import ProjectQuotations from './components/ProjectQuotations';
@@ -68,43 +68,103 @@ const ProjectManagement = () => {
     setFilteredProjects(arr);
   }, [projects]);
 
-  /* ====== filtros */
-  const norm = (s) => (s ?? '').toString().normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, ' ');
+  /* ====== Normalización de proyectos para filtros ====== */
+  const normalizeProjectForFilters = (doc) => {
+    if (!doc) return null;
+    
+    const clienteNode = doc.cliente ?? doc.client ?? doc.customer ?? doc.account ?? null;
+    
+    // Función auxiliar para normalizar texto (quita tildes)
+    const norm = (s) => (s ?? '').toString().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
 
-  const canonicalEstado = (raw) => {
-    const v = norm(raw);
-    if (v.includes('planific')) return 'planificacion';
-    if (v.includes('en proceso') || v.includes('progress')) return 'en proceso';
-    if (v.includes('pausa') || v.includes('hold')) return 'en pausa';
-    if (v.includes('revision') || v.includes('review')) return 'en revision';
-    if (v.includes('complet')) return 'completado';
-    if (v.includes('cancel')) return 'cancelado';
-    return v;
+    // Obtener estado normalizado
+    const cachedEstado = uiEstadoCache.get(doc.id ?? doc._id);
+    const estadoRaw = cachedEstado || doc.estado || doc.status || '';
+    
+    // Normalizar estado a formato esperado por los filtros
+    const estadoNormalizado = (() => {
+      const v = norm(estadoRaw); // Usar norm para quitar tildes
+      const vLower = String(estadoRaw).toLowerCase().trim();
+      
+      if (v.includes('planific') || vLower === 'planning' || vLower === '0') return 'planning';
+      if (v.includes('proceso') || v.includes('progress') || vLower === 'in-progress' || vLower === 'in_progress' || vLower === '1') return 'in-progress';
+      if (v.includes('pausa') || v.includes('hold') || vLower === 'on-hold' || vLower === 'on_hold' || vLower === 'paused' || vLower === '2') return 'on-hold';
+      if (v.includes('revision') || v.includes('review') || vLower === '3') return 'review';
+      if (v.includes('complet') || vLower === 'completed' || vLower === 'done' || vLower === '4') return 'completed';
+      if (v.includes('cancel') || vLower === 'cancelled' || vLower === '5') return 'cancelled';
+      return vLower || 'planning';
+    })();
+
+    // Normalizar prioridad
+    const prioridadRaw = doc.prioridad ?? doc.priority ?? '';
+    const prioridadNormalizada = (() => {
+      const v = norm(prioridadRaw);
+      if (v.includes('baja') || v === 'low') return 'low';
+      if (v.includes('media') || v === 'medium') return 'medium';
+      if (v.includes('alta') || v === 'high') return 'high';
+      if (v.includes('urgente') || v === 'urgent') return 'urgent';
+      return v || null;
+    })();
+
+    // Normalizar departamento
+    const departamentoRaw = doc.departamento ?? doc.department ?? '';
+    const departamentoNormalizado = (() => {
+      const v = norm(departamentoRaw);
+      if (v.includes('ventas') || v === 'sales') return 'sales';
+      if (v.includes('ingenieria') || v.includes('ingeniería') || v === 'engineering') return 'engineering';
+      if (v.includes('instalacion') || v.includes('instalación') || v === 'installation') return 'installation';
+      if (v.includes('mantenimiento') || v === 'maintenance') return 'maintenance';
+      if (v.includes('administracion') || v.includes('administración') || v === 'administration') return 'administration';
+      return v || null;
+    })();
+
+    const p = doc.presupuesto || {};
+    const budget = doc.totalPresupuesto ?? doc.budget ?? p.total ?? null;
+
+    return {
+      id: doc.id ?? doc._id,
+      code: doc.codigo ?? doc.code ?? '',
+      name: doc.nombreProyecto ?? doc.nombre ?? '',
+      client: {
+        id: (clienteNode && typeof clienteNode === 'object' && (clienteNode.id || clienteNode._id)) ||
+            doc.clienteId || doc.idCliente || doc.clientId || null,
+        name: (clienteNode && typeof clienteNode === 'object' && 
+               (clienteNode.nombre || clienteNode.name || clienteNode.empresa || clienteNode.razonSocial)) ||
+               (typeof clienteNode === 'string' ? clienteNode : null) ||
+               doc.clienteNombre || doc.clientName || null,
+      },
+      status: estadoNormalizado,
+      statusLabel: doc.statusLabel || estadoRaw,
+      priority: prioridadNormalizada,
+      budget: budget ? Number(budget) : null,
+      startDate: doc.cronograma?.fechaInicio ?? doc.startDate ?? null,
+      endDate: doc.cronograma?.fechaFin ?? doc.endDate ?? null,
+      department: departamentoNormalizado,
+      raw: doc,
+    };
   };
 
+  /* ====== filtros ====== */
   const handleFiltersChange = (filters) => {
-    let filtered = Array.isArray(projects) ? [...projects] : [];
+    const rawProjects = Array.isArray(projects) ? projects : [];
+    
+    // Normalizar proyectos para aplicar filtros
+    const normalizedProjects = rawProjects.map(normalizeProjectForFilters).filter(Boolean);
+    
+    // Aplicar filtros usando la función completa
+    const filtered = applyProjectFilters(normalizedProjects, filters);
+    
+    // Convertir de vuelta al formato original para mantener compatibilidad
+    const filteredRaw = filtered.map(p => {
+      // Buscar el proyecto original por ID
+      const original = rawProjects.find(rp => (rp.id ?? rp._id) === p.id);
+      return original || p.raw || p;
+    });
 
-    if (filters?.search) {
-      const q = norm(filters.search);
-      filtered = filtered.filter(p =>
-        norm(p?.nombre)?.includes(q) ||
-        norm(p?.codigo)?.includes(q) ||
-        norm(p?.cliente?.nombre)?.includes(q)
-      );
-    }
-
-    if (filters?.status) {
-      filtered = filtered.filter(p =>
-        canonicalEstado(uiEstadoCache.get(p.id) || p.estado) === canonicalEstado(filters.status)
-      );
-    }
-
-    setFilteredProjects(filtered);
+    setFilteredProjects(filteredRaw);
   };
 
   const handleEditProject = (project) => {

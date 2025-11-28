@@ -208,7 +208,7 @@ const ProjectFilters = ({
         <div className="relative">
           <Input
             type="search"
-            placeholder="Buscar por nombre de proyecto, cliente, código..."
+            placeholder="Buscar por nombre de proyecto, código..."
             value={filters.search}
             onChange={(e) => handleFilterChange('search', e.target.value)}
             className="pl-10"

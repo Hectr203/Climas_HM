@@ -208,6 +208,7 @@ const ProjectTable = ({
   onBulkAction,
   onRegisterAbono,
   onViewAbonos,      // callback para ver abonos de un proyecto
+  onManageComprobantes, // callback para gestionar comprobantes de un proyecto
   getPaidAmount,     // fallback si el backend aún no envía totalRestante
 }) => {
   const navigate = useNavigate();
@@ -592,6 +593,15 @@ const ProjectTable = ({
                       >
                         <Icon name="CreditCard" size={16} />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onManageComprobantes?.(project)}
+                        title="Gestión de comprobantes"
+                        aria-label="Gestión de comprobantes"
+                      >
+                        <Icon name="FileText" size={16} />
+                      </Button>
 
                       {/* Ejemplo de acción de imagen si luego lo conectas */}
                       {/* <Button variant="ghost" size="icon" onClick={() => _handleImageUpload(project)} title="Subir imagen" aria-label="Subir imagen"><Icon name="Image" size={16} /></Button> */}
@@ -736,6 +746,16 @@ const ProjectTable = ({
                 className="flex-1"
               >
                 Registrar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onManageComprobantes?.(project)}
+                iconName="FileText"
+                iconPosition="left"
+                className="flex-1"
+              >
+                Comprobantes
               </Button>
             </div>
 

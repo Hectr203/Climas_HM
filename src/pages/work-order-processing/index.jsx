@@ -8,7 +8,7 @@ import FilterToolbar from './components/FilterToolbar';
 import InventoryPanel from './components/InventoryPanel';
 import WorkOrderModal from './components/WorkOrderModal';
 import RequisitionModal from './components/RequisitionModal';
-import StatsCards from './components/StatsCards';
+// import StatsCards from './components/StatsCards';
 import useOperac from '../../hooks/useOperac';
 import useRequisi from '../../hooks/useRequisi';
 import jsPDF from "jspdf";
@@ -25,6 +25,7 @@ const WorkOrderProcessing = () => {
   // Estados locales
   const [localOrders, setLocalOrders] = useState([]); // para sincronizar órdenes
   const [localRequisitions, setLocalRequisitions] = useState([]); // para requisiciones
+  const [visibleOrders, setVisibleOrders] = useState([]); // órdenes actualmente visibles en la tabla (página actual)
 
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -33,6 +34,7 @@ const WorkOrderProcessing = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRequisitionModalOpen, setIsRequisitionModalOpen] = useState(false);
   const [stats, setStats] = useState({});
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   // Obtener requisiciones y oportunidades al iniciar
   useEffect(() => {
@@ -252,9 +254,10 @@ const WorkOrderProcessing = () => {
     }
   };
 
+// PDF ORDENES
 const handleExportData = () => {
-  if (!filteredOrders || filteredOrders.length === 0) {
-    alert("No hay datos disponibles para exportar.");
+  if (!visibleOrders || visibleOrders.length === 0) {
+    alert("No hay datos visibles para exportar.");
     return;
   }
 
@@ -266,7 +269,7 @@ const handleExportData = () => {
 
   const gray = "#333333";
 
-  //ENCABEZADO AZUL
+  //ENCABEZADO
   doc.setFillColor(10, 74, 138);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 40, "F");
   doc.setTextColor(255, 255, 255);
@@ -297,29 +300,25 @@ const handleExportData = () => {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-
-  //Totales de resumen
-  const totalOrdenes = filteredOrders.length;
-  const completadas = filteredOrders.filter((o) => o.estado === "Completada" || o.status === "Completada").length;
-  const pendientes = filteredOrders.filter((o) => o.estado === "Pendiente" || o.status === "Pendiente").length;
-  const enProceso = filteredOrders.filter((o) => o.estado === "En Proceso" || o.status === "En Proceso").length;
+  const totalOrdenes = visibleOrders.length;
+  const completadas = visibleOrders.filter((o) => o.estado === "Completada" || o.status === "Completada").length;
+  const pendientes = visibleOrders.filter((o) => o.estado === "Pendiente" || o.status === "Pendiente").length;
+  const enProceso = visibleOrders.filter((o) => o.estado === "En Proceso" || o.status === "En Proceso").length;
 
 startY += 20;
-
-// Construimos el texto completo
 const resumenTexto = `Total de Órdenes: ${totalOrdenes}   |   Completadas: ${completadas}   |   Pendientes: ${pendientes}   |   En Proceso: ${enProceso}`;
 doc.text(resumenTexto, doc.internal.pageSize.getWidth() / 2, startY, { align: "center" });
 
 
-  //ORDENAR POR PRIORIDAD (Alta → Media → Baja → Crítico)
+  //ORDENAR POR PRIORIDAD
   const prioridadOrden = ["Alta", "Media", "Baja", "Crítico"];
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
+  const sortedOrders = [...visibleOrders].sort((a, b) => {
     const prioridadA = prioridadOrden.indexOf((a.prioridad || a.priority || "").trim());
     const prioridadB = prioridadOrden.indexOf((b.prioridad || b.priority || "").trim());
     return (prioridadA === -1 ? 99 : prioridadA) - (prioridadB === -1 ? 99 : prioridadB);
   });
 
-  //TABLA DETALLADA
+  //TABLA
   const tableColumn = [
     "N° Orden",
     "Técnico Asignado",
@@ -358,14 +357,109 @@ doc.text(resumenTexto, doc.internal.pageSize.getWidth() / 2, startY, { align: "c
     alternateRowStyles: { fillColor: [245, 245, 245] },
     margin: { left: 30, right: 30 },
   });
-
   //GUARDAR PDF
-  doc.save(`reporte_ordenes_trabajo_${new Date().toISOString().split("T")[0]}.pdf`);
+  doc.save(`REPORTE_TRABAJO_${new Date().toISOString().split("T")[0]}.pdf`);
 };
 
+// PDF ELIMINADAS
+const handleExportDeleted = () => {
+  const allOrders = (oportunities && oportunities.length ? oportunities : (localOrders || []));
+  let deletedOrders = [];
+  try {
+    const stored = localStorage.getItem("deletedWorkOrders");
+    const deletedIds = stored ? JSON.parse(stored) : [];
+    const deletedIdStr = Array.isArray(deletedIds) ? deletedIds.map((i) => String(i)) : [];
+    if (deletedIdStr.length > 0) {
+      deletedOrders = allOrders.filter((o) => deletedIdStr.includes(String(o.id)));
+    }
+  } catch (e) {
+    deletedOrders = [];
+  }
+  if (!deletedOrders.length) {
+    deletedOrders = allOrders.filter((o) => {
+      const estado = (o?.estado || o?.status || "").toString().toLowerCase();
+      if (estado.includes("elimin") || estado.includes("borr") || estado.includes("deleted")) return true;
+      if (o?.deleted === true || o?.isDeleted === true || o?.removed === true || o?.deletedAt) return true;
+      return false;
+    });
+    if (!deletedOrders.length) {
+      const diff = allOrders.filter(o => !filteredOrders.some(f => f?.id === o?.id));
+      if (diff.length) deletedOrders = diff;
+    }
+  }
+
+  if (!deletedOrders || deletedOrders.length === 0) {
+    alert('No hay órdenes eliminadas para exportar.');
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'A4' });
+  const gray = '#333333';
+
+  // Encabezado
+  doc.setFillColor(180, 30, 30);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 40, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('ÓRDENES ELIMINADAS', doc.internal.pageSize.getWidth() / 2, 25, { align: 'center' });
+
+  // Fecha
+  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`Generado el ${fecha}`, doc.internal.pageSize.getWidth() - 120, 25);
+
+  doc.setTextColor(gray);
+  doc.setFontSize(10);
+  doc.text(`Total Eliminadas: ${deletedOrders.length}`, 40, 60);
 
 
+  const tableColumn = [
+    'N° Orden',
+    'Técnico Asignado',
+    'Prioridad',
+    'Estado',
+    'Fecha Límite',
+    'Cliente',
+    'Tipo Proyecto',
+    'Notas',
+  ];
 
+  // Ordenar por prioridad como en la otra exportación
+  const prioridadOrden = ['Alta', 'Media', 'Baja', 'Crítico'];
+  const sortedDeleted = [...deletedOrders].sort((a, b) => {
+    const prioridadA = prioridadOrden.indexOf((a.prioridad || a.priority || '').trim());
+    const prioridadB = prioridadOrden.indexOf((b.prioridad || b.priority || '').trim());
+    return (prioridadA === -1 ? 99 : prioridadA) - (prioridadB === -1 ? 99 : prioridadB);
+  });
+
+  const tableRowsDeleted = sortedDeleted.map((order) => [
+    order?.ordenTrabajo || order?.orderNumber || '—',
+    order?.tecnicoAsignado?.nombre || order?.assignedTechnician || 'Sin técnico',
+    order?.prioridad || order?.priority || '—',
+    order?.estado || order?.status || '—',
+    order?.fechaLimite || order?.dueDate || '—',
+    order?.cliente?.empresa || order?.cliente?.nombre || order?.clientName || 'Sin cliente',
+    order?.tipo || order?.projectName || '—',
+    order?.notasAdicionales || order?.notes || '—',
+  ]);
+
+  doc.autoTable({
+    startY: 80,
+    head: [tableColumn],
+    body: tableRowsDeleted,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 5 },
+    headStyles: { fillColor: [180, 30, 30], textColor: 255, halign: 'center', fontStyle: 'bold' },
+    bodyStyles: { textColor: [50, 50, 50] },
+    alternateRowStyles: { fillColor: [250, 245, 245] },
+    margin: { left: 30, right: 30 },
+  });
+
+  doc.save(`ORDENES_ELIMINADAS_${new Date().toISOString().split('T')[0]}.pdf`);
+};
 
   return (
     <div className="min-h-screen bg-background">
@@ -388,29 +482,91 @@ doc.text(resumenTexto, doc.internal.pageSize.getWidth() / 2, startY, { align: "c
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <Button variant="outline" iconName="Plus" iconSize={16} onClick={handleCreateNewOrder}>
-                  Nueva Orden
-                </Button>
-                <Button variant="outline" iconName="ClipboardList" iconSize={16} onClick={handleCreateNewRequisition}>
-                  Nueva Requisición
-                </Button>
-                <div className="flex justify-end p-4">
- <Button
-  variant="default"
-  iconName="Download"
+                <Button
+  variant="outline"
+  iconName="Plus"
   iconSize={16}
-  onClick={handleExportData} 
+  onClick={handleCreateNewOrder}
+  className="border-black text-black hover:bg-gray-100 hover:text-black"
 >
-  Exportar
+  Nueva Orden
 </Button>
-</div>
+
+<Button
+  variant="outline"
+  iconName="ClipboardList"
+  iconSize={16}
+  onClick={handleCreateNewRequisition}
+  className="border-black text-black hover:bg-gray-100 hover:text-black"
+>
+  Nueva Requisición
+</Button>
+
+                  <div className="flex justify-end p-4">
+                    <div className="relative">
+                      <Button
+                        variant="outline"
+                        iconName="Download"
+                        iconSize={16}
+                        onClick={() => setExportMenuOpen((s) => !s)}
+                        className="border-blue-600 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        aria-haspopup="true"
+                        aria-expanded={exportMenuOpen}
+                      >
+                        Exportar
+                      </Button>
+
+                      {exportMenuOpen && (
+                        <div className="absolute right-0 mt-2 w-44 bg-white border border-border rounded shadow z-50">
+                          <button
+  className="flex items-center gap-2 w-full px-4 py-3 text-sm text-gray-700 hover:bg-muted/60 transition-colors"
+  onClick={() => {
+    setExportMenuOpen(false);
+    handleExportData();
+  }}
+>
+  <svg
+    className="w-4 h-4 text-blue-600"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+  </svg>
+  Registros
+</button>
+
+<button
+  className="flex items-center gap-2 w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+  onClick={() => {
+    setExportMenuOpen(false);
+    handleExportDeleted();
+  }}
+>
+  <svg
+    className="w-4 h-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m2 0H7m3-3h4a1 1 0 011 1v2H9V5a1 1 0 011-1z" />
+  </svg>
+  Eliminadas
+</button>
+
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
 
               </div>
             </div>
           </div>
 
-          <StatsCards stats={stats} />
+          {/* <StatsCards stats={stats} /> */}
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2 space-y-6">
@@ -429,6 +585,7 @@ doc.text(resumenTexto, doc.internal.pageSize.getWidth() / 2, startY, { align: "c
                 onEditOrder={handleSaveOrder}
                 loading={loading}
                 error={error}
+                onVisibleOrdersChange={setVisibleOrders}
               />
             </div>
 
@@ -455,6 +612,7 @@ doc.text(resumenTexto, doc.internal.pageSize.getWidth() / 2, startY, { align: "c
             isOpen={isRequisitionModalOpen}
             onClose={() => { setIsRequisitionModalOpen(false); setSelectedRequisition(null); }}
             requisition={selectedRequisition}
+            visibleOrders={visibleOrders}
             onSave={handleSaveRequisition}
           />
         </div>

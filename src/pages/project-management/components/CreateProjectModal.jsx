@@ -17,9 +17,11 @@ const projectTypes = [
 ];
 
 const departmentOptions = [
+  { value: 'Ventas', label: 'Ventas' },
   { value: 'Ingeniería', label: 'Ingeniería' },
+  { value: 'Instalación', label: 'Instalación' },
   { value: 'Mantenimiento', label: 'Mantenimiento' },
-  { value: 'Operaciones', label: 'Operaciones' },
+  { value: 'Administración', label: 'Administración' },
 ];
 
 const priorityOptions = [
@@ -485,9 +487,9 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                       : [
                           { value: '', label: 'Selecciona un municipio' },
                           ...(municipios
-                            ? Object.values(municipios.municipios || {}).map((m) => ({
-                                value: m,
-                                label: m,
+                            ? Object.entries(municipios.municipios || {}).map(([code, name]) => ({
+                                value: code,
+                                label: name,
                               }))
                             : []),
                         ]

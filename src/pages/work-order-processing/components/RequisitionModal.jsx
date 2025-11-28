@@ -7,7 +7,7 @@ import useRequisi from "../../../hooks/useRequisi";
 import useOperac from "../../../hooks/useOperac";
 import useInventory from "../../../hooks/useInventory";
 
-const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false}) => {
+const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = false, visibleOrders = null }) => {
   const { createRequisition, updateRequisition } = useRequisi();
   const { oportunities, getOportunities } = useOperac();
   const { articulos, getArticulos } = useInventory();
@@ -276,34 +276,40 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
         <div className="p-6 space-y-6">
           {/* Información básica */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select
-              label="Número de Orden de Trabajo"
-              options={
-                oportunities?.map((op) => ({
-                  label: op.ordenTrabajo,
-                  value: op.ordenTrabajo,
-                })) || []
-              }
-              value={formData?.orderNumber}
-              onChange={(value) => {
-                handleInputChange("orderNumber", value);
-
-                const selected = oportunities.find((op) => op.ordenTrabajo === value);
-                if (selected) {
-                  handleInputChange("projectName", selected.proyectoNombre || "");
+            {isViewMode ? (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Número de Orden de Trabajo</label>
+                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.orderNumber || "-"}</div>
+              </div>
+            ) : (
+              <Select
+                label="Número de Orden de Trabajo"
+                options={
+                  (visibleOrders && visibleOrders.length ? visibleOrders : oportunities || []).map((op) => ({
+                    label: op.ordenTrabajo || op.orderNumber || op.ordenTrabajo || "",
+                    value: op.ordenTrabajo || op.orderNumber || op.id || "",
+                  })) || []
                 }
-              }}
-              disabled={isViewMode}
-              required
-            />
+                value={formData?.orderNumber}
+                onChange={(value) => {
+                  handleInputChange("orderNumber", value);
+
+                  const source = visibleOrders && visibleOrders.length ? visibleOrders : oportunities || [];
+                  const selected = source.find((op) => (op.ordenTrabajo || op.orderNumber || op.id) === value);
+                  if (selected) {
+                    handleInputChange("projectName", selected.proyectoNombre || selected.nombreProyecto || "");
+                  }
+                }}
+                required
+              />
+            )}
 
             <Input
               label="Nombre del Proyecto"
               placeholder="Nombre del proyecto"
               value={formData?.projectName}
-              readOnly
-              className="bg-gray-100 cursor-not-allowed"
-              disabled
+              readOnly={isViewMode}
+              className={isViewMode ? "bg-input text-foreground" : "bg-gray-100"}
             />
 
             <Input
@@ -313,36 +319,52 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               onChange={(e) => handleInputChange("requestedBy", e?.target?.value)}
               required
               readOnly={isViewMode}
-              disabled={isViewMode}
             />
 
-            <Input
-              label="Fecha de Solicitud"
-              type="date"
-              value={formData?.requestDate}
-              onChange={(e) => handleInputChange("requestDate", e?.target?.value)}
-              required
-              readOnly={isViewMode}
-              disabled={isViewMode}
-            />
+            {isViewMode ? (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Fecha de Solicitud</label>
+                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.requestDate}</div>
+              </div>
+            ) : (
+              <Input
+                label="Fecha de Solicitud"
+                type="date"
+                value={formData?.requestDate}
+                onChange={(e) => handleInputChange("requestDate", e?.target?.value)}
+                required
+              />
+            )}
 
-            <Select
-              label="Prioridad"
-              options={priorityOptions}
-              value={formData?.priority}
-              onChange={(value) => handleInputChange("priority", value)}
-              required
-              disabled={isViewMode}
-            />
+            {isViewMode ? (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Prioridad</label>
+                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.priority}</div>
+              </div>
+            ) : (
+              <Select
+                label="Prioridad"
+                options={priorityOptions}
+                value={formData?.priority}
+                onChange={(value) => handleInputChange("priority", value)}
+                required
+              />
+            )}
 
-            <Select
-              label="Estado"
-              options={statusOptions}
-              value={formData?.status}
-              onChange={(value) => handleInputChange("status", value)}
-              required
-              disabled={isViewMode}
-            />
+            {isViewMode ? (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Estado</label>
+                <div className="p-2 border border-border rounded-md bg-input text-foreground">{formData?.status}</div>
+              </div>
+            ) : (
+              <Select
+                label="Estado"
+                options={statusOptions}
+                value={formData?.status}
+                onChange={(value) => handleInputChange("status", value)}
+                required
+              />
+            )}
           </div>
 
           {/* Descripción */}
@@ -357,80 +379,73 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               value={formData?.description}
               onChange={(e) => handleInputChange("description", e?.target?.value)}
               readOnly={isViewMode}
-              disabled={isViewMode}
             />
           </div>
 
           {/* Material por Inventario */}
-          <div className="bg-muted/30 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-foreground mb-3">
-              Agregar Material por Inventario
-            </h4>
+          {!isViewMode && (
+            <div className="bg-muted/30 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-foreground mb-3">
+                Agregar Material por Inventario
+              </h4>
 
-            {/* Bloque completo deshabilitado en modo vista */}
-            <div className={`${isViewMode ? "opacity-50 pointer-events-none" : ""}`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-                <Select
-                  label="Materiales"
-                  options={
-                    articulos?.map((art) => ({
-                      label: art.nombre,
-                      value: art.id,
-                    })) || []
-                  }
-                  value={newItem?.idArticulo}
-                  onChange={(value) => {
-                    const selected = articulos.find((a) => a.id === value);
-                    handleNewItemChange("idArticulo", value);
-                    handleNewItemChange("codigoArticulo", selected?.codigoArticulo || "");
-                    handleNewItemChange("name", selected?.nombre || "");
-                    handleNewItemChange("unit", selected?.unidad || "unidades");
-                  }}
-                  disabled={isViewMode}
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    label="Cantidad"
-                    type="number"
-                    placeholder="1"
-                    value={newItem?.quantity}
-                    onChange={(e) => {
-                      const value = Number(e?.target?.value);
-                      if (value > 0) handleNewItemChange("quantity", value);
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+                  <Select
+                    label="Materiales"
+                    options={
+                      articulos?.map((art) => ({
+                        label: art.nombre,
+                        value: art.id,
+                      })) || []
+                    }
+                    value={newItem?.idArticulo}
+                    onChange={(value) => {
+                      const selected = articulos.find((a) => a.id === value);
+                      handleNewItemChange("idArticulo", value);
+                      handleNewItemChange("codigoArticulo", selected?.codigoArticulo || "");
+                      handleNewItemChange("name", selected?.nombre || "");
+                      handleNewItemChange("unit", selected?.unidad || "unidades");
                     }}
-                    disabled={isViewMode}
                   />
 
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Cantidad"
+                      type="number"
+                      placeholder="1"
+                      value={newItem?.quantity}
+                      onChange={(e) => {
+                        const value = Number(e?.target?.value);
+                        if (value > 0) handleNewItemChange("quantity", value);
+                      }}
+                    />
+
+                    <Select
+                      label="Unidad"
+                      options={unitOptions}
+                      value={newItem?.unit}
+                      onChange={(value) => handleNewItemChange("unit", value)}
+                    />
+                  </div>
+
                   <Select
-                    label="Unidad"
-                    options={unitOptions}
-                    value={newItem?.unit}
-                    onChange={(value) => handleNewItemChange("unit", value)}
-                    disabled={isViewMode}
+                    label="Urgencia"
+                    options={urgencyOptions}
+                    value={newItem?.urgency}
+                    onChange={(value) => handleNewItemChange("urgency", value)}
                   />
                 </div>
 
-                <Select
-                  label="Urgencia"
-                  options={urgencyOptions}
-                  value={newItem?.urgency}
-                  onChange={(value) => handleNewItemChange("urgency", value)}
-                  disabled={isViewMode}
+                <Input
+                  label="Descripción/Especificaciones"
+                  placeholder="Especificaciones técnicas..."
+                  value={newItem?.description}
+                  onChange={(e) =>
+                    handleNewItemChange("description", e?.target?.value)
+                  }
                 />
-              </div>
 
-              <Input
-                label="Descripción/Especificaciones"
-                placeholder="Especificaciones técnicas..."
-                value={newItem?.description}
-                onChange={(e) =>
-                  handleNewItemChange("description", e?.target?.value)
-                }
-                disabled={isViewMode}
-              />
-
-              {!isViewMode && (
                 <Button
                   variant="outline"
                   onClick={handleAddItem}
@@ -441,74 +456,69 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                 >
                   Agregar Material
                 </Button>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Material Manual */}
-          <div className="bg-muted/30 rounded-lg p-4 mt-6">
-            <h4 className="text-sm font-medium text-foreground mb-3">
-              Agregar Material Manualmente
-            </h4>
+          {!isViewMode && (
+            <div className="bg-muted/30 rounded-lg p-4 mt-6">
+              <h4 className="text-sm font-medium text-foreground mb-3">
+                Agregar Material Manualmente
+              </h4>
 
-            <div className={`${isViewMode ? "opacity-50 pointer-events-none" : ""}`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-                <Input
-                  label="Nombre del Material"
-                  placeholder="Ej. Tornillos, Pintura, etc."
-                  value={newManualItem?.name}
-                  onChange={(e) =>
-                    handleNewManualItemChange("name", e?.target?.value)
-                  }
-                  disabled={isViewMode}
-                />
-
-                <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
                   <Input
-                    label="Cantidad"
-                    type="number"
-                    placeholder="1"
-                    value={newManualItem?.quantity}
-                    onChange={(e) => {
-                      const value = Number(e?.target?.value);
-                      if (value > 0) handleNewManualItemChange("quantity", value);
-                    }}
-                    disabled={isViewMode}
+                    label="Nombre del Material"
+                    placeholder="Ej. Tornillos, Pintura, etc."
+                    value={newManualItem?.name}
+                    onChange={(e) =>
+                      handleNewManualItemChange("name", e?.target?.value)
+                    }
                   />
 
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Cantidad"
+                      type="number"
+                      placeholder="1"
+                      value={newManualItem?.quantity}
+                      onChange={(e) => {
+                        const value = Number(e?.target?.value);
+                        if (value > 0) handleNewManualItemChange("quantity", value);
+                      }}
+                    />
+
+                    <Select
+                      label="Unidad"
+                      options={unitOptions}
+                      value={newManualItem?.unit}
+                      onChange={(value) =>
+                        handleNewManualItemChange("unit", value)
+                      }
+                    />
+                  </div>
+
                   <Select
-                    label="Unidad"
-                    options={unitOptions}
-                    value={newManualItem?.unit}
+                    label="Urgencia"
+                    options={urgencyOptions}
+                    value={newManualItem?.urgency}
                     onChange={(value) =>
-                      handleNewManualItemChange("unit", value)
+                      handleNewManualItemChange("urgency", value)
                     }
-                    disabled={isViewMode}
                   />
                 </div>
 
-                <Select
-                  label="Urgencia"
-                  options={urgencyOptions}
-                  value={newManualItem?.urgency}
-                  onChange={(value) =>
-                    handleNewManualItemChange("urgency", value)
+                <Input
+                  label="Descripción/Especificaciones"
+                  placeholder="Detalles o especificaciones..."
+                  value={newManualItem?.description}
+                  onChange={(e) =>
+                    handleNewManualItemChange("description", e?.target?.value)
                   }
-                  disabled={isViewMode}
                 />
-              </div>
 
-              <Input
-                label="Descripción/Especificaciones"
-                placeholder="Detalles o especificaciones..."
-                value={newManualItem?.description}
-                onChange={(e) =>
-                  handleNewManualItemChange("description", e?.target?.value)
-                }
-                disabled={isViewMode}
-              />
-
-              {!isViewMode && (
                 <Button
                   variant="outline"
                   onClick={handleAddManualItem}
@@ -519,9 +529,9 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                 >
                   Agregar Material
                 </Button>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Lista de materiales */}
           {(formData.items.length > 0 || formData.manualItems.length > 0) && (
@@ -600,7 +610,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
                 handleInputChange("justification", e?.target?.value)
               }
               readOnly={isViewMode}
-              disabled={isViewMode}
             />
           </div>
 
@@ -616,7 +625,6 @@ const RequisitionModal = ({ isOpen, onClose, requisition, onSave, isViewMode = f
               value={formData?.notes}
               onChange={(e) => handleInputChange("notes", e?.target?.value)}
               readOnly={isViewMode}
-              disabled={isViewMode}
             />
           </div>
         </div>

@@ -77,6 +77,18 @@ const abonoService = {
   },
 
   /**
+   * Lista abonos de un proyecto que no tienen comprobante asociado.
+   * Endpoint: proyectos/{idProyecto}/abonos/sin-comprobante
+   * @param {string} proyectoId
+   * @param {Object} [params]
+   * @returns {Promise<Object|Array>}
+   */
+  async getAbonosSinComprobante(proyectoId, params = {}) {
+    if (!proyectoId) return { items: [] };
+    return await httpService.get(`/proyectos/${proyectoId}/abonos/sin-comprobante`, { params });
+  },
+
+  /**
    * Lista abonos por cliente
    * @param {string} clienteId
    * @param {Object} [params]
@@ -112,6 +124,38 @@ const abonoService = {
    */
   async rechazarAbono(id, motivo = '') {
     return await httpService.post(`${BASE_PATH}/${id}/rechazar`, { motivo });
+  },
+
+  /**
+   * Obtiene los comprobantes de pago asociados a los abonos de un proyecto.
+   * Se espera que la API devuelva un objeto con { items } o { data }.
+   */
+  async getComprobantesByProyecto(proyectoId) {
+    if (!proyectoId) return { items: [] };
+    return await httpService.get(`${BASE_PATH}/proyecto/${proyectoId}/comprobantes`);
+  },
+
+  /**
+   * Obtiene el comprobante asociado a un abono puntual.
+   */
+  async getComprobanteByAbono(abonoId) {
+    if (!abonoId) return null;
+    return await httpService.get(`${BASE_PATH}/${abonoId}/comprobante`);
+  },
+
+  /**
+   * Sube (o reemplaza) el comprobante de un abono usando multipart/form-data.
+   */
+  async uploadComprobante(abonoId, file) {
+    if (!abonoId || !file) {
+      throw new Error('Falta el abono o el archivo del comprobante.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return await httpService.post(`${BASE_PATH}/${abonoId}/comprobante`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
 };
 

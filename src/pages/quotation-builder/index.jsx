@@ -347,7 +347,7 @@ const QuotationBuilder = () => {
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs text-muted-foreground">v{quotation?.version}</span>
                       <span className="text-xs font-medium">
-                        ${quotation?.calculations?.total?.toLocaleString('es-MX')}
+                        ${Number(quotation?.savedTotal ?? quotation?.calculations?.total ?? quotation?.quotationData?.totalAmount ?? 0).toLocaleString('es-MX')}
                       </span>
                     </div>
                   </div>
