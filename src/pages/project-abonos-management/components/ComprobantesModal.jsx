@@ -558,21 +558,19 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
             )}
             <div className="flex border-b border-border gap-2">
               <button
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                  activeTab === 'upload'
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${activeTab === 'upload'
                     ? 'text-primary border-b-2 border-primary bg-muted/40'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
                 onClick={() => setActiveTab('upload')}
               >
                 Subir comprobante
               </button>
               <button
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                  activeTab === 'list'
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${activeTab === 'list'
                     ? 'text-primary border-b-2 border-primary bg-muted/40'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
                 onClick={() => setActiveTab('list')}
               >
                 Comprobantes cargados
@@ -641,7 +639,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
                               ({(file.size / 1024).toFixed(1)} KB)
                             </span>
                           </span>
-                          )
+                        )
                         : 'Ningún archivo seleccionado'}
                     </div>
                   </div>
@@ -658,7 +656,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
                     Formatos permitidos: PDF, imágenes (JPG/PNG/GIF/WEBP) y documentos Office. Límite {MAX_FILE_MB} MB.
                   </p>
                 </div>
-                
+
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium">Descripción</label>
                   <textarea
@@ -683,7 +681,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
 
             {activeTab === 'list' && renderList()}
           </div>
-          
+
           <div className="p-4 border-t border-border flex items-center justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
               Cerrar
@@ -707,3 +705,5 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
 };
 
 export default ComprobantesModal;
+export { EditDocumentModal };
+
