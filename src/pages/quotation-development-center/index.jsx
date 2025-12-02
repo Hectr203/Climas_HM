@@ -5,6 +5,7 @@ import Sidebar from '../../components/ui/Sidebar';
 import Header from '../../components/ui/Header';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import QuotationBuilder from './components/QuotationBuilder';
+import ViewUnitPrices from './components/ViewUnitPrices';
 import MaterialRiskChecklist from './components/MaterialRiskChecklist';
 import QuotationPreview from './components/QuotationPreview';
 import ClientCommunication from './components/ClientCommunication';
@@ -21,7 +22,7 @@ const QuotationDevelopmentCenter = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [isNewQuotationModalOpen, setIsNewQuotationModalOpen] = useState(false);
-  
+
   // Verificar parámetros de URL al cargar
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -40,9 +41,9 @@ const QuotationDevelopmentCenter = () => {
       setIsLoading(true);
       try {
         const response = await getCotizaciones();
-  // console.log eliminado
+        // console.log eliminado
         const cotizaciones = Array.isArray(response.data?.data) ? response.data.data : [];
-  // console.log eliminado
+        // console.log eliminado
         // Mapeo adaptado a la estructura real del backend
         const mapped = cotizaciones.map(cotizacion => ({
           id: cotizacion.id || '', // id de Cosmos
@@ -104,7 +105,7 @@ const QuotationDevelopmentCenter = () => {
     };
     setQuotations(prev => {
       const updated = [mappedQuotation, ...prev];
-  // console.log eliminado
+      // console.log eliminado
       return updated;
     });
     setSelectedQuotation(mappedQuotation);
@@ -178,12 +179,12 @@ const QuotationDevelopmentCenter = () => {
   };
 
   const handleQuotationUpdate = (quotationId, updates) => {
-    setQuotations(prev => prev?.map(quote => 
-      quote?.id === quotationId 
+    setQuotations(prev => prev?.map(quote =>
+      quote?.id === quotationId
         ? { ...quote, ...updates, lastModified: new Date()?.toISOString()?.split('T')?.[0] }
         : quote
     ));
-    
+
     if (selectedQuotation?.id === quotationId) {
       setSelectedQuotation(prev => ({ ...prev, ...updates }));
     }
@@ -196,20 +197,20 @@ const QuotationDevelopmentCenter = () => {
       date: new Date()?.toISOString()?.split('T')?.[0]
     };
 
-    setQuotations(prev => prev?.map(quote => 
-      quote?.id === quotationId 
-        ? { 
-            ...quote, 
-            revisions: [...(quote?.revisions || []), newRevision],
-            lastModified: newRevision?.date
-          }
+    setQuotations(prev => prev?.map(quote =>
+      quote?.id === quotationId
+        ? {
+          ...quote,
+          revisions: [...(quote?.revisions || []), newRevision],
+          lastModified: newRevision?.date
+        }
         : quote
     ));
   };
 
   const handleSubmitInternalReview = (quotationId, reviewData) => {
-    setQuotations(prev => prev?.map(quote => 
-      quote?.id === quotationId 
+    setQuotations(prev => prev?.map(quote =>
+      quote?.id === quotationId
         ? { ...quote, internalReview: reviewData }
         : quote
     ));
@@ -222,12 +223,12 @@ const QuotationDevelopmentCenter = () => {
       date: new Date()?.toISOString()?.split('T')?.[0]
     };
 
-    setQuotations(prev => prev?.map(quote => 
-      quote?.id === quotationId 
-        ? { 
-            ...quote, 
-            communications: [...(quote?.communications || []), newComm]
-          }
+    setQuotations(prev => prev?.map(quote =>
+      quote?.id === quotationId
+        ? {
+          ...quote,
+          communications: [...(quote?.communications || []), newComm]
+        }
         : quote
     ));
   };
@@ -277,10 +278,10 @@ const QuotationDevelopmentCenter = () => {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      
+
       <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
         <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} />
-        
+
         <div className="">
           <div className="container mx-auto px-4 py-8">
             {/* Breadcrumb */}
@@ -296,7 +297,7 @@ const QuotationDevelopmentCenter = () => {
                   Creación y gestión avanzada de cotizaciones con validación de costos y comunicación directa
                 </p>
               </div>
-              
+
               <div className="flex items-center space-x-4 mt-4 lg:mt-0">
                 {/* Botón comentado: Exportar PDF (se dejó comentado para posible uso futuro)
                 <Button
@@ -327,15 +328,14 @@ const QuotationDevelopmentCenter = () => {
                   <div className="p-4 border-b">
                     <h3 className="font-semibold">Cotizaciones Activas</h3>
                   </div>
-                  
+
                   <div className="p-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
                     {quotations?.map((quotation) => (
                       <div
                         key={quotation?.id}
                         onClick={() => handleQuotationSelect(quotation)}
-                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-all ${
-                          selectedQuotation?.id === quotation?.id ? 'bg-primary/10' : 'bg-card'
-                        } ${getPriorityColor(quotation?.priority)}`}
+                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-all ${selectedQuotation?.id === quotation?.id ? 'bg-primary/10' : 'bg-card'
+                          } ${getPriorityColor(quotation?.priority)}`}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-medium text-sm text-foreground line-clamp-2">
@@ -343,11 +343,11 @@ const QuotationDevelopmentCenter = () => {
                           </h4>
                           <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(quotation?.status)}`}>
                             {quotation?.status === 'development' ? 'Desarrollo' :
-                             quotation?.status === 'review' ? 'Revisión' :
-                             quotation?.status === 'approved' ? 'Aprobada' :
-                             quotation?.status === 'rejected' ? 'Rechazada' :
-                             quotation?.status === 'sent' ? 'Enviada' :
-                             quotation?.status || 'Sin estado'}
+                              quotation?.status === 'review' ? 'Revisión' :
+                                quotation?.status === 'approved' ? 'Aprobada' :
+                                  quotation?.status === 'rejected' ? 'Rechazada' :
+                                    quotation?.status === 'sent' ? 'Enviada' :
+                                      quotation?.status || 'Sin estado'}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mb-2">{quotation?.clientName || 'Sin cliente'}</p>
@@ -355,7 +355,7 @@ const QuotationDevelopmentCenter = () => {
                           <Icon name="User" size={12} className="text-muted-foreground" />
                           <span className="text-xs text-muted-foreground">{quotation?.assignedTo || 'Sin responsable'}</span>
                         </div>
-                          {/* Solo mostrar el folio, nunca el id de Cosmos */}
+                        {/* Solo mostrar el folio, nunca el id de Cosmos */}
                         <p className="text-xs text-muted-foreground mb-2">{quotation?.folio || 'Sin folio'}</p>
                         {/* El id de Cosmos no se muestra */}
                         <div className="flex items-center justify-between">
@@ -384,6 +384,7 @@ const QuotationDevelopmentCenter = () => {
                       <div className="flex space-x-1 p-1">
                         {[
                           { id: 'builder', label: 'Constructor', icon: 'Settings' },
+                          { id: 'unit_prices', label: 'Precios Unitarios', icon: 'DollarSign' },
                           { id: 'materials', label: 'Materiales', icon: 'Package' },
                           { id: 'preview', label: 'Vista Previa', icon: 'Eye' },
                           { id: 'communication', label: 'Comunicación', icon: 'MessageSquare' },
@@ -393,11 +394,10 @@ const QuotationDevelopmentCenter = () => {
                           <button
                             key={tab?.id}
                             onClick={() => setActiveTab(tab?.id)}
-                            className={`flex items-center space-x-2 px-4 py-2 text-sm rounded-lg transition-all ${
-                              activeTab === tab?.id
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            }`}
+                            className={`flex items-center space-x-2 px-4 py-2 text-sm rounded-lg transition-all ${activeTab === tab?.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                              }`}
                           >
                             <Icon name={tab?.icon} size={16} />
                             <span>{tab?.label}</span>
@@ -418,6 +418,13 @@ const QuotationDevelopmentCenter = () => {
 
                       {activeTab === 'materials' && (
                         <MaterialRiskChecklist
+                          quotation={selectedQuotation}
+                          onUpdate={(updates) => handleQuotationUpdate(selectedQuotation?.id, updates)}
+                        />
+                      )}
+
+                      {activeTab === 'unit_prices' && (
+                        <ViewUnitPrices
                           quotation={selectedQuotation}
                           onUpdate={(updates) => handleQuotationUpdate(selectedQuotation?.id, updates)}
                         />
