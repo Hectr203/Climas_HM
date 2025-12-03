@@ -1,10 +1,12 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import useQuotation from '../../../hooks/useQuotation';
 import usePrecio from '../../../hooks/usePrecio';
 import { useNotifications } from '../../../context/NotificationContext';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const CATEGORY_CONFIG = [
   { code: 1, name: 'EQUIPO' },
@@ -15,6 +17,23 @@ const CATEGORY_CONFIG = [
 ];
 
 const UNIT_OPTIONS = ['Pza', 'kg', 'Jgo', 'm', 'h', '%', 'ton', 'ml', 'l', 'caja'];
+
+const formatCurrency = (amount) => {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return '$0.00';
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+  }).format(Number(amount));
+};
+
+const getCurrentDate = () => {
+  const today = new Date();
+  return today.toLocaleDateString('es-MX', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
 
 const ViewUnitPrices = ({ quotation, onUpdate }) => {
   const {
@@ -50,17 +69,24 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
   });
 
   const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [showUnitView, setShowUnitView] = useState(false);
 
-  /* ================== CARGAR MATERIALES / PRECIOS DESDE BACK ================== */
+  // Logo con fallback
+  const [logoIndex, setLogoIndex] = useState(0);
+  const [logoLoadError, setLogoLoadError] = useState(false);
+  const logoCandidates = [
+    '/assets/images/climas-hm-logo.png',
+    '/assets/images/logodeclimas.jpg',
+    '/assets/images/WhatsApp_Image_2025-09-24_at_8.13.50_PM-1759346787603.jpeg',
+    '/assets/images/no_image.png',
+  ];
+
+  // Ref para PDF
+  const previewRef = useRef(null);
+
+  /* ================== CARGA ================== */
   useEffect(() => {
     async function fetchMateriales() {
-      setMaterials([]);
-      setRiskAssessment({
-        overall: 'low',
-        factors: [],
-        extraCostsPrevention: true,
-      });
-
       if (!quotation?.id) return;
 
       setLoadingMaterials(true);
@@ -85,9 +111,6 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
         }
       } catch (error) {
         console.error('Error al cargar materiales:', error);
-
-        if (quotation?.materials) setMaterials(quotation.materials);
-        if (quotation?.riskAssessment) setRiskAssessment(quotation.riskAssessment);
       } finally {
         setLoadingMaterials(false);
       }
@@ -98,12 +121,8 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
 
   /* ================== HELPERS ================== */
 
-  const computeImporte = (m) => {
-    if (m?.importe != null && !Number.isNaN(Number(m.importe))) {
-      return Number(m.importe);
-    }
-    return ((parseFloat(m?.quantity) || 0) * (parseFloat(m?.cost) || 0)) || 0;
-  };
+  const computeImporte = (m) =>
+    ((parseFloat(m?.quantity) || 0) * (parseFloat(m?.cost) || 0)) || 0;
 
   const subtotalByCategory = (code) =>
     materials
@@ -111,6 +130,65 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
       .reduce((sum, m) => sum + computeImporte(m), 0);
 
   const totalCost = materials.reduce((sum, m) => sum + computeImporte(m), 0);
+
+  // Ordenar SOLO para la vista documento
+  const materialsForDoc = [...materials].sort((a, b) => {
+    const ca = a?.categoryCode ?? 0;
+    const cb = b?.categoryCode ?? 0;
+    return ca - cb;
+  });
+
+  // Datos de cliente / proyecto para el documento
+  const clientName =
+    quotation?.clientName ||
+    quotation?.cliente?.nombre ||
+    quotation?.cliente ||
+    'Cliente no especificado';
+
+  const clientRFC =
+    quotation?.clientRFC ||
+    quotation?.cliente?.rfc ||
+    'No disponible';
+
+  const clientAddress =
+    quotation?.clientAddress ||
+    quotation?.cliente?.direccion ||
+    quotation?.direccionProyecto ||
+    'Dirección no disponible';
+
+  const clientContact =
+    quotation?.clientContact ||
+    quotation?.cliente?.contacto ||
+    'No especificado';
+
+  const clientPhone =
+    quotation?.clientPhone ||
+    quotation?.cliente?.telefono ||
+    'No disponible';
+
+  const clientEmail =
+    quotation?.clientEmail ||
+    quotation?.cliente?.email ||
+    'No disponible';
+
+  const projectName =
+    quotation?.projectName ||
+    quotation?.proyecto?.nombre ||
+    'Proyecto sin nombre';
+
+  const projectDescription =
+    quotation?.projectDescription ||
+    quotation?.proyecto?.descripcion ||
+    quotation?.descripcionProyecto ||
+    'Sin descripción disponible';
+
+  const projectLocation =
+    quotation?.projectLocation ||
+    quotation?.ubicacionProyecto ||
+    'Ubicación no especificada';
+
+  const projectType =
+    (quotation?.projectType || quotation?.tipoProyecto || 'No especificado').toUpperCase();
 
   /* ================== HANDLERS ================== */
 
@@ -183,7 +261,6 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
     }
 
     try {
-      // 1) Sincronizar todos los materiales con la tabla de precios
       await Promise.all(
         materials.map((m) => {
           const id = m.id ?? m._id;
@@ -197,14 +274,11 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
             risk: m.risk ?? 'low',
           };
 
-          if (!id) {
-            return createPrecio(payload);
-          }
+          if (!id) return createPrecio(payload);
           return updatePrecio(id, payload);
         }),
       );
 
-      // 2) Adaptar materiales al formato que espera el endpoint de cotización
       const materialesParaCotizacion = materials.map((m) => ({
         ...m,
         quantity:
@@ -221,7 +295,6 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
             : m.cost,
       }));
 
-      // 3) Actualizar materiales y riesgos en la cotización
       await updateMaterialesYRiesgos(quotation.id, {
         materiales: materialesParaCotizacion,
         riskAssessment,
@@ -236,6 +309,49 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
     } catch (error) {
       console.error(error);
       showError('Error al guardar');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!previewRef.current) {
+      showError('No se encontró el contenido para exportar');
+      return;
+    }
+
+    try {
+      const element = previewRef.current;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+
+      let ratio = pdfWidth / imgWidth;
+      let imgHeightScaled = imgHeight * ratio;
+
+      if (imgHeightScaled > pdfHeight) {
+        ratio = pdfHeight / imgHeight;
+        imgHeightScaled = pdfHeight;
+      }
+
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 0;
+
+      pdf.addImage(imgData, 'JPEG', imgX, imgY, imgWidth * ratio, imgHeightScaled);
+      pdf.save(`PreciosUnitarios-${quotation?.id || 'cotizacion'}.pdf`);
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      showError('Error al generar el PDF de precios unitarios');
     }
   };
 
@@ -258,22 +374,44 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
       <div className="flex items-center justify-between">
         <h3 className="text-xl font-semibold">Checklist de Precios Unitarios</h3>
 
-        <Button
-          onClick={handleSave}
-          iconName="Save"
-          iconPosition="left"
-          disabled={quotationLoading || preciosLoading}
-        >
-          Guardar Checklist
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            iconName={showUnitView ? 'EyeOff' : 'Eye'}
+            iconPosition="left"
+            variant="secondary"
+            onClick={() => setShowUnitView((prev) => !prev)}
+          >
+            {showUnitView ? 'Ocultar Vista Documento' : 'Vista Precio Unitario'}
+          </Button>
+
+          {showUnitView && (
+            <Button
+              iconName="Download"
+              iconPosition="left"
+              variant="outline"
+              onClick={handleExportPDF}
+            >
+              Descargar PDF
+            </Button>
+          )}
+
+          <Button
+            onClick={handleSave}
+            iconName="Save"
+            iconPosition="left"
+            disabled={quotationLoading || preciosLoading}
+          >
+            Guardar Checklist
+          </Button>
+        </div>
       </div>
 
       {/* TOTAL */}
       <div className="text-sm text-muted-foreground">
-        Total estimado: <strong>${totalCost.toLocaleString('es-MX')}</strong>
+        Total estimado: <strong>{formatCurrency(totalCost)}</strong>
       </div>
 
-      {/* TABLA PRINCIPAL */}
+      {/* TABLA PRINCIPAL (EDICIÓN) */}
       <div className="bg-card border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -391,7 +529,7 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
 
                           {/* Importe */}
                           <td className="px-4 py-2 font-medium">
-                            ${computeImporte(m).toLocaleString('es-MX')}
+                            {formatCurrency(computeImporte(m))}
                           </td>
 
                           {/* Acciones */}
@@ -408,7 +546,7 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
                       );
                     })}
 
-                    {/* SUBTOTAL */}
+                    {/* SUBTOTAL (MISMO ESTILO QUE TENÍAS) */}
                     <tr className="bg-muted/40 border-t border-border">
                       <td />
                       <td
@@ -418,7 +556,7 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
                         Subtotal {cat.name.toLowerCase()}:
                       </td>
                       <td className="font-semibold px-4 py-2">
-                        ${subtotalByCategory(cat.code).toLocaleString('es-MX')}
+                        {formatCurrency(subtotalByCategory(cat.code))}
                       </td>
                       <td />
                     </tr>
@@ -518,10 +656,10 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
 
                 {/* IMPORTE */}
                 <td className="px-4 py-3 font-medium">
-                  {`$${(
+                  {formatCurrency(
                     (parseFloat(newMaterial.quantity) || 0) *
-                    (parseFloat(newMaterial.cost) || 0)
-                  ).toLocaleString('es-MX')}`}
+                      (parseFloat(newMaterial.cost) || 0),
+                  )}
                 </td>
 
                 {/* BOTÓN AGREGAR */}
@@ -540,6 +678,239 @@ const ViewUnitPrices = ({ quotation, onUpdate }) => {
           </table>
         </div>
       </div>
+
+      {/* ================== VISTA DOCUMENTO PRECIO UNITARIO ================== */}
+      {showUnitView && (
+        <div className="flex justify-center">
+          <div
+            ref={previewRef}
+            className="bg-white border rounded-lg p-8 shadow-sm w-[794px] min-h-[1123px] flex flex-col"
+          >
+            {/* Encabezado empresa */}
+            <div className="flex items-center justify-between pb-4 border-b">
+              <div className="flex items-center space-x-4">
+                {!logoLoadError ? (
+                  <img
+                    src={logoCandidates[logoIndex]}
+                    alt="Climas H.M."
+                    className="h-24 w-auto object-contain"
+                    onError={() => {
+                      if (logoIndex < logoCandidates.length - 1) {
+                        setLogoIndex((i) => i + 1);
+                      } else {
+                        setLogoLoadError(true);
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="h-20 w-20 bg-primary rounded flex items-center justify-center">
+                    <Icon name="Wind" size={40} color="white" />
+                  </div>
+                )}
+              </div>
+              <div className="text-right text-xs text-slate-600">
+                <p>RFC: AFP123456789</p>
+                <p>Tel: +52 55 1234 5678</p>
+                <p>info@aireflowpro.com</p>
+              </div>
+            </div>
+
+            {/* Contenido principal */}
+            <div className="flex-1 mt-6 space-y-8">
+              {/* Cabecera de la cotización y cliente */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h2 className="text-lg font-semibold mb-3 tracking-wide">
+                    COTIZACIÓN DE PRECIOS UNITARIOS
+                  </h2>
+                  <div className="space-y-1 text-sm text-slate-700">
+                    <p>
+                      <span className="font-medium">No. Cotización: </span>
+                      {quotation?.folio || `COT-${quotation?.id || 'SIN-FOLIO'}`}
+                    </p>
+                    <p>
+                      <span className="font-medium">Fecha: </span>
+                      {getCurrentDate()}
+                    </p>
+                    <p>
+                      <span className="font-medium">Vendedor: </span>
+                      {quotation?.assignedTo || 'No asignado'}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold mb-2 tracking-wide">
+                    CLIENTE
+                  </h3>
+                  <div className="text-sm text-slate-700 space-y-1">
+                    <p className="font-semibold">{clientName}</p>
+                    <p>
+                      <span className="font-medium">RFC: </span>
+                      {clientRFC}
+                    </p>
+                    <p>
+                      <span className="font-medium">Dirección: </span>
+                      {clientAddress}
+                    </p>
+                    <p>
+                      <span className="font-medium">Contacto: </span>
+                      {clientContact}
+                    </p>
+                    <p>
+                      <span className="font-medium">Email: </span>
+                      {clientEmail}
+                    </p>
+                    <p>
+                      <span className="font-medium">Teléfono: </span>
+                      {clientPhone}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* INFORMACIÓN DEL PROYECTO (COMO EN TU CAPTURA) */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-blue-700 tracking-wide">
+                  INFORMACIÓN DEL PROYECTO
+                </h3>
+                <div className="bg-slate-50 rounded-lg p-4 text-sm text-slate-800 space-y-1">
+                  <p className="font-semibold">{projectName}</p>
+                  <p>{projectDescription}</p>
+                  <p>
+                    <span className="font-bold">Ubicación: </span>
+                    {projectLocation}
+                  </p>
+                  <p>
+                    <span className="font-bold">Tipo de proyecto: </span>
+                    {projectType}
+                  </p>
+                </div>
+              </div>
+
+              {/* PRECIOS UNITARIOS (TABLA COMPACTA, ORDENADA POR CÓDIGO) */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-blue-700 tracking-wide">
+                  PRECIOS UNITARIOS
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border border-slate-300">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="px-2 py-2 text-left border border-slate-300">
+                          Categoría
+                        </th>
+                        <th className="px-2 py-2 text-left border border-slate-300">
+                          Descripción
+                        </th>
+                        <th className="px-2 py-2 text-center border border-slate-300">
+                          Unidad
+                        </th>
+                        <th className="px-2 py-2 text-right border border-slate-300">
+                          Cantidad
+                        </th>
+                        <th className="px-2 py-2 text-right border border-slate-300">
+                          Precio Unit.
+                        </th>
+                        <th className="px-2 py-2 text-right border border-slate-300">
+                          Importe
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {materialsForDoc.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-4 text-center text-slate-500"
+                          >
+                            No hay materiales capturados.
+                          </td>
+                        </tr>
+                      )}
+
+                      {materialsForDoc.map((m, index) => {
+                        const qty = Number(m?.quantity) || 0;
+                        const importe = computeImporte(m);
+                        const unit =
+                          qty > 0
+                            ? importe / qty
+                            : m?.cost != null
+                            ? Number(m.cost) || 0
+                            : importe;
+
+                        const catName =
+                          CATEGORY_CONFIG.find((c) => c.code === m.categoryCode)
+                            ?.name || '-';
+
+                        return (
+                          <tr key={m.id ?? m._id ?? index}>
+                            <td className="px-2 py-2 border border-slate-300">
+                              {catName}
+                            </td>
+                            <td className="px-2 py-2 border border-slate-300">
+                              {m?.item || '-'}
+                            </td>
+                            <td className="px-2 py-2 text-center border border-slate-300">
+                              {m?.unit || '-'}
+                            </td>
+                            <td className="px-2 py-2 text-right border border-slate-300">
+                              {qty || '-'}
+                            </td>
+                            <td className="px-2 py-2 text-right border border-slate-300">
+                              {formatCurrency(unit)}
+                            </td>
+                            <td className="px-2 py-2 text-right border border-slate-300">
+                              {formatCurrency(importe)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {materialsForDoc.length > 0 && (
+                        <tr className="bg-slate-100 font-semibold">
+                          <td
+                            colSpan={5}
+                            className="px-2 py-2 text-right border border-slate-300"
+                          >
+                            TOTAL
+                          </td>
+                          <td className="px-2 py-2 text-right border border-slate-300">
+                            {formatCurrency(totalCost)}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer: condiciones + total grande */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-blue-700 tracking-wide">
+                  CONDICIONES COMERCIALES
+                </h3>
+                <div className="bg-slate-50 rounded-lg p-4 text-xs md:text-sm text-slate-800 space-y-1">
+                  <p>• Precio sujeto a cambios sin previo aviso.</p>
+                  <p>• Forma de pago: 50% anticipo, 50% contra entrega.</p>
+                  <p>• Tiempo de entrega: según cronograma acordado.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end justify-center">
+                <h3 className="text-sm font-semibold mb-2 text-blue-700 tracking-wide">
+                  INVERSIÓN TOTAL
+                </h3>
+                <div className="text-3xl md:text-4xl font-bold text-blue-700">
+                  {formatCurrency(totalCost)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
