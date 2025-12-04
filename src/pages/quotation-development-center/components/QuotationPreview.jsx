@@ -55,9 +55,10 @@ const QuotationPreview = ({ quotation = {} }) => {
 
   const { getClients } = useClient();
   const { getProyectos, getProyectoById } = useProyecto();
-  const { getCotizacionById } = useQuotation();
+  const { getCotizacionById, getConstructorByCotizacionId } = useQuotation();
   const { showError, showWarning } = useNotifications();
   const [proyectoData, setProyectoData] = useState(null);
+  const [constructorData, setConstructorData] = useState(null);
 
   // Función defensiva para extraer id/nombre de arrays heterogéneos
   const safeFindIdAndName = (arr = [], idFields = ['id', 'id_cliente', 'id_proyecto'], nameFields = ['nombre', 'nombre_cliente', 'nombre_proyecto', 'empresa']) => {
@@ -82,46 +83,48 @@ const QuotationPreview = ({ quotation = {} }) => {
     return { id, name };
   };
 
-  // Debug ligero (opcional)
+  // Efecto unificado para obtener datos de cotización y constructor
   useEffect(() => {
     let isMounted = true;
     
-    const fetchCotizacion = async () => {
-      if (!quotation?.id || cotizacionCompleta) return;
+    const fetchQuotationData = async () => {
+      if (!quotation?.id) return;
       
       try {
-        const cotizacionDetallada = await getCotizacionById(quotation.id);
-        if (isMounted) {
-          console.log('Cotización obtenida completa:', cotizacionDetallada);
-          // Extraer data de la respuesta si viene encapsulada
-          const dataContent = cotizacionDetallada?.data || cotizacionDetallada;
-          console.log('Data content:', dataContent);
-          console.log('Fecha creación:', dataContent.fechaCreacion);
-          console.log('Fecha actualización:', dataContent.fechaActualizacion);
-          console.log('Ultima modificación:', dataContent.ultimaModificacion);
-          
-          // Preservar las fechas originales en formato ISO
-          const cotizacionConFechas = {
-            ...dataContent,
-            fechaCreacion: dataContent.fechaCreacion,
-            fechaActualizacion: dataContent.fechaActualizacion || dataContent.ultimaModificacion
-          };
-          console.log('Cotización con fechas:', cotizacionConFechas);
-          setCotizacionCompleta(cotizacionConFechas);
+        // Solo hacer llamadas si no tenemos los datos
+        if (!cotizacionCompleta) {
+          const cotizacionDetallada = await getCotizacionById(quotation.id);
+          if (isMounted) {
+            const dataContent = cotizacionDetallada?.data || cotizacionDetallada;
+            const cotizacionConFechas = {
+              ...dataContent,
+              fechaCreacion: dataContent.fechaCreacion,
+              fechaActualizacion: dataContent.fechaActualizacion || dataContent.ultimaModificacion
+            };
+            setCotizacionCompleta(cotizacionConFechas);
+          }
+        }
+
+        // Obtener datos del constructor
+        if (!constructorData) {
+          const constructorDetallado = await getConstructorByCotizacionId(quotation.id);
+          if (isMounted && constructorDetallado) {
+            setConstructorData(constructorDetallado);
+          }
         }
       } catch (error) {
-        console.error('Error al obtener la cotización:', error);
+        console.error('Error al obtener datos:', error);
         if (isMounted) {
-          showError('Error al cargar los detalles de la cotización');
+          showError('Error al cargar los datos');
         }
       }
     };
 
-    fetchCotizacion();
+    fetchQuotationData();
     return () => {
       isMounted = false;
     };
-  }, [quotation?.id, getCotizacionById, showError]);
+  }, [quotation?.id]);
 
   // Efecto para obtener datos del proyecto cuando tengamos la cotización
   useEffect(() => {
@@ -596,15 +599,38 @@ const QuotationPreview = ({ quotation = {} }) => {
 
         {/* Total */}
         <div className="bg-primary/10 rounded-lg p-6 mb-8">
-          <div className="flex items-center justify-between">
-            <div><h3 className="text-xl font-semibold text-primary">INVERSIÓN TOTAL</h3></div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-primary">{formatCurrency(
-                (projectData?.data?.totalPresupuesto || projectData?.totalPresupuesto || cotizacionCompleta?.quotationData?.totalAmount || 0) +
-                (quotation?.materials?.reduce((sum, m) => sum + (Number(m?.cost) || 0), 0) || 0)
-              )}</div>
-            </div>
-          </div>
+          {(() => {
+            // Priorizar datos del quotation actual, luego constructor, luego proyecto
+            const baseAmount = quotation?.quotationData?.totalAmount || 
+              constructorData?.monto_total || 
+              (projectData?.data?.totalPresupuesto || projectData?.totalPresupuesto || 0) +
+              (quotation?.materials?.reduce((sum, m) => sum + (Number(m?.cost) || 0), 0) || 0);
+            
+            const discountPercentage = quotation?.quotationData?.discountPercentage || 
+              constructorData?.porcentaje_descuento || 0;
+            
+            const discountAmount = (baseAmount * discountPercentage) / 100;
+            const finalAmount = baseAmount - discountAmount;
+            
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div><h3 className="text-xl font-semibold text-primary">INVERSIÓN TOTAL</h3></div>
+                  <div className="text-right">
+                    {discountPercentage > 0 ? (
+                      <div className="space-y-1">
+                        <div className="text-lg text-gray-600 line-through">{formatCurrency(baseAmount)}</div>
+                        <div className="text-sm text-orange-600">Descuento {discountPercentage}%: -{formatCurrency(discountAmount)}</div>
+                        <div className="text-3xl font-bold text-primary">{formatCurrency(finalAmount)}</div>
+                      </div>
+                    ) : (
+                      <div className="text-3xl font-bold text-primary">{formatCurrency(baseAmount)}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Footer */}
