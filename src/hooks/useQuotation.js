@@ -148,6 +148,63 @@ const useQuotation = () => {
     }
   };
 
+  // Gestión de versiones
+  const createVersion = async (idCotizacion, versionData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.createVersion(idCotizacion, versionData);
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getQuotationVersions = async (idCotizacion) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getQuotationVersions(idCotizacion);
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getVersionById = async (idCotizacion, versionId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getVersionById(idCotizacion, versionId);
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const restoreVersion = async (idCotizacion, versionId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.restoreVersion(idCotizacion, versionId);
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     createQuotation,
     getCotizaciones,
@@ -159,6 +216,11 @@ const useQuotation = () => {
     getRevision,
     updateMateriales,
     updateMaterialesYRiesgos,
+    // Métodos de versionado
+    createVersion,
+    getQuotationVersions,
+    getVersionById,
+    restoreVersion,
     loading,
     error,
   };

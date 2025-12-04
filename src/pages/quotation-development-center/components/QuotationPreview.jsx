@@ -7,6 +7,8 @@ import useClient from '../../../hooks/useClient';
 import useProyecto from '../../../hooks/useProyect';
 import useQuotation from '../../../hooks/useQuotation';
 import { useNotifications } from '../../../context/NotificationContext';
+import QuotationVersionHistory from './QuotationVersionHistory';
+import NewVersionModal from './NewVersionModal';
 
 // Utilidades de formateo
 const formatCurrency = (amount) => {
@@ -53,10 +55,17 @@ const QuotationPreview = ({ quotation = {} }) => {
     '/assets/images/no_image.png'
   ];
 
+  // Estados para el sistema de versiones
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showNewVersionModal, setShowNewVersionModal] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(null);
+  const [selectedVersionData, setSelectedVersionData] = useState(null);
+  const [savingVersion, setSavingVersion] = useState(false);
+
   const { getClients } = useClient();
   const { getProyectos, getProyectoById } = useProyecto();
-  const { getCotizacionById, getConstructorByCotizacionId } = useQuotation();
-  const { showError, showWarning } = useNotifications();
+  const { getCotizacionById, getVersionById, createVersion, getConstructorByCotizacionId } = useQuotation();
+  const { showError, showWarning, showSuccess } = useNotifications();
   const [proyectoData, setProyectoData] = useState(null);
   const [constructorData, setConstructorData] = useState(null);
 
@@ -90,6 +99,9 @@ const QuotationPreview = ({ quotation = {} }) => {
     const fetchQuotationData = async () => {
       if (!quotation?.id) return;
       
+      // Evitar llamadas duplicadas
+      if (cotizacionCompleta && constructorData) return;
+      
       try {
         // Solo hacer llamadas si no tenemos los datos
         if (!cotizacionCompleta) {
@@ -105,16 +117,22 @@ const QuotationPreview = ({ quotation = {} }) => {
           }
         }
 
-        // Obtener datos del constructor
+        // Obtener datos del constructor - manejar error silenciosamente si no existe
         if (!constructorData) {
-          const constructorDetallado = await getConstructorByCotizacionId(quotation.id);
-          if (isMounted && constructorDetallado) {
-            setConstructorData(constructorDetallado);
+          try {
+            const constructorDetallado = await getConstructorByCotizacionId(quotation.id);
+            if (isMounted && constructorDetallado) {
+              setConstructorData(constructorDetallado);
+            }
+          } catch (constructorError) {
+            // Ignorar error si el constructor no existe aún
+            if (isMounted) {
+              setConstructorData(null);
+            }
           }
         }
       } catch (error) {
-        console.error('Error al obtener datos:', error);
-        if (isMounted) {
+        if (isMounted && error?.message !== 'Network Error') {
           showError('Error al cargar los datos');
         }
       }
@@ -124,6 +142,7 @@ const QuotationPreview = ({ quotation = {} }) => {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotation?.id]);
 
   // Efecto para obtener datos del proyecto cuando tengamos la cotización
@@ -131,7 +150,10 @@ const QuotationPreview = ({ quotation = {} }) => {
     let isMounted = true;
 
     const fetchProyecto = async () => {
-      console.log('Estado actual de cotizacionCompleta:', cotizacionCompleta);
+      if (!cotizacionCompleta) return;
+      
+      // Si ya tenemos projectData, no hacer nada
+      if (projectData) return;
       
       // Buscar el ID del proyecto en la estructura actualizada
       const proyectoId = cotizacionCompleta?.projectId || 
@@ -139,50 +161,40 @@ const QuotationPreview = ({ quotation = {} }) => {
                         cotizacionCompleta?.informacion_basica?.id_proyecto;
 
       if (!proyectoId) {
-        console.log('No se encontró el ID del proyecto en la cotización');
         // Si tenemos el nombre del proyecto pero no el ID, intentamos buscarlo en la lista de proyectos
         if (cotizacionCompleta?.projectName) {
           try {
             const proyectos = await getProyectos();
             const proyecto = proyectos?.find(p => p.nombre === cotizacionCompleta.projectName);
-            if (proyecto?.id) {
-              console.log('Se encontró el proyecto por nombre:', proyecto);
-              if (isMounted) {
-                setProjectData({ data: proyecto });
-              }
+            if (proyecto?.id && isMounted) {
+              setProjectData({ data: proyecto });
             }
           } catch (error) {
-            console.error('Error al buscar proyecto por nombre:', error);
+            // Error silencioso al buscar proyecto
           }
         }
         return;
       }
 
       try {
-        console.log('ID del proyecto encontrado:', proyectoId);
         const proyectoDetallado = await getProyectoById(proyectoId);
-        console.log('Respuesta del servidor (proyecto):', proyectoDetallado);
-        
         if (isMounted) {
           setProjectData(proyectoDetallado);
-          console.log('ProjectData actualizado:', proyectoDetallado);
         }
       } catch (error) {
-        console.error('Error al obtener el proyecto:', error);
-        if (isMounted) {
+        if (isMounted && error?.message !== 'Network Error') {
           showWarning('No se pudieron cargar los detalles del proyecto');
         }
       }
     };
 
-    if (cotizacionCompleta) {
-      fetchProyecto();
-    }
+    fetchProyecto();
     
     return () => {
       isMounted = false;
     };
-  }, [cotizacionCompleta, getProyectoById, getProyectos, showWarning]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cotizacionCompleta?.projectId, cotizacionCompleta?.projectName]);
 
   useEffect(() => {
     let isMounted = true;
@@ -196,9 +208,8 @@ const QuotationPreview = ({ quotation = {} }) => {
     };
 
     const fetchData = async () => {
-      if (!quotation?.id) {
-        console.warn('QuotationPreview: no hay ID de cotización, usando datos mínimos');
-      }
+      // Solo cargar datos de cliente si aún no los tenemos
+      if (clientData || !quotation?.id) return;
 
       try {
         setLoading(true);
@@ -305,7 +316,6 @@ const QuotationPreview = ({ quotation = {} }) => {
           showWarning && showWarning('Faltan datos de cliente o proyecto en la cotización. Se usó la información disponible.');
         }
       } catch (err) {
-        console.error('QuotationPreview - error al cargar datos:', err);
         showError && showError(err?.message || 'Error al cargar los datos de la cotización');
       } finally {
         if (isMounted) setLoading(false);
@@ -317,7 +327,8 @@ const QuotationPreview = ({ quotation = {} }) => {
     return () => {
       isMounted = false;
     };
-  }, [quotation, getProyectos, getClients, showError, showWarning]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotation?.id, clientData]);
 
   // Resolver la ubicación que debe mostrarse: preferir la ubicación de la cotización
   const resolvedUbicacionObj = (cotizacionCompleta && (
@@ -338,6 +349,10 @@ const QuotationPreview = ({ quotation = {} }) => {
   const handleExportPDF = async () => {
     if (!quotationRef.current) return;
     try {
+      // Ocultar elementos de versión temporalmente
+      const versionElements = quotationRef.current.querySelectorAll('.version-watermark, .version-badge, .version-info');
+      versionElements.forEach(el => el.style.display = 'none');
+      
       const content = quotationRef.current;
       const canvas = await html2canvas(content, {
         scale: 2,
@@ -345,6 +360,10 @@ const QuotationPreview = ({ quotation = {} }) => {
         logging: false,
         backgroundColor: '#ffffff'
       });
+      
+      // Restaurar elementos de versión
+      versionElements.forEach(el => el.style.display = '');
+      
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -355,9 +374,15 @@ const QuotationPreview = ({ quotation = {} }) => {
       const imgX = (pdfWidth - imgWidth * ratio) / 2;
       const imgY = 0;
       pdf.addImage(imgData, 'JPEG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-      pdf.save(`Cotizacion-${quotation?.id || 'nueva'}.pdf`);
+      
+      // Nombre del archivo incluye la versión si está activa
+      const versionSuffix = selectedVersionData ? `-v${selectedVersionData.version}` : '';
+      pdf.save(`Cotizacion-${quotation?.id || 'nueva'}${versionSuffix}.pdf`);
+      
+      if (selectedVersionData) {
+        showSuccess(`PDF de versión ${selectedVersionData.version} exportado correctamente`);
+      }
     } catch (error) {
-      console.error('Error al generar PDF:', error);
       showError && showError('Error al generar PDF');
     }
   };
@@ -401,6 +426,13 @@ const QuotationPreview = ({ quotation = {} }) => {
           .space-y-6 > .bg-muted\\/30:last-child {
             display: none !important;
           }
+          
+          /* Ocultar elementos de versión al imprimir */
+          .version-watermark,
+          .version-badge,
+          .version-info {
+            display: none !important;
+          }
         }
       `;
       
@@ -431,16 +463,252 @@ const QuotationPreview = ({ quotation = {} }) => {
       }, 100);
       
     } catch (error) {
-      console.error('Error al imprimir:', error);
       showError && showError('Hubo un problema al imprimir el documento');
+    }
+  };
+
+  // Función para manejar la selección de versión
+  const handleSelectVersion = async (version) => {
+    try {
+      setLoading(true);
+      
+      // Obtener los datos completos de la versión seleccionada
+      const versionData = await getVersionById(quotation.id, version.id);
+      const versionContent = versionData?.data || versionData;
+      
+      // Guardar la versión actual antes de cambiar
+      if (!currentVersion) {
+        setCurrentVersion(cotizacionCompleta?.version || 'actual');
+      }
+      
+      // Aplicar el snapshot de la versión
+      if (versionContent?.snapshot) {
+        setSelectedVersionData(versionContent);
+        
+        // Restaurar constructorData del snapshot si existe
+        if (versionContent.snapshot.constructor) {
+          setConstructorData(versionContent.snapshot.constructor);
+        }
+        
+        setCotizacionCompleta({
+          ...cotizacionCompleta,
+          ...versionContent.snapshot,
+          _versionInfo: {
+            version: version.version,
+            id: version.id,
+            fechaCreacion: version.fechaCreacion,
+            modificadoPor: version.modificadoPor,
+            notas: version.notas
+          }
+        });
+        showSuccess(`Visualizando versión ${version.version}`);
+      }
+    } catch (error) {
+      showError('Error al cargar la versión seleccionada');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para restaurar la versión actual
+  const handleRestoreCurrentVersion = async () => {
+    try {
+      setLoading(true);
+      const cotizacionActual = await getCotizacionById(quotation.id);
+      const dataContent = cotizacionActual?.data || cotizacionActual;
+      
+      // También recargar el constructor actual
+      try {
+        const constructorActual = await getConstructorByCotizacionId(quotation.id);
+        if (constructorActual) {
+          setConstructorData(constructorActual);
+        }
+      } catch (constructorError) {
+        // Constructor no disponible
+      }
+      
+      setCotizacionCompleta(dataContent);
+      setSelectedVersionData(null);
+      setCurrentVersion(null);
+      showSuccess('Versión actual restaurada');
+    } catch (error) {
+      showError('Error al restaurar la versión actual');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para crear snapshot completo de la cotización
+  const createCompleteSnapshot = () => {
+    // Calcular totales
+    const subtotalMateriales = quotation?.materials?.reduce(
+      (sum, m) => sum + (Number(m?.cost) || 0), 
+      0
+    ) || 0;
+    
+    const totalPresupuesto = projectData?.data?.totalPresupuesto || 
+                            projectData?.totalPresupuesto || 
+                            cotizacionCompleta?.quotationData?.totalAmount || 
+                            0;
+    
+    const totalGeneral = totalPresupuesto + subtotalMateriales;
+
+    // Crear el snapshot completo con TODA la información visible en el PDF
+    const snapshot = {
+      // Información básica de la cotización
+      id: quotation?.id || cotizacionCompleta?.id,
+      folio: quotation?.folio || cotizacionCompleta?.folio,
+      fechaCreacion: cotizacionCompleta?.fechaCreacion,
+      fechaActualizacion: cotizacionCompleta?.fechaActualizacion,
+      assignedTo: quotation?.assignedTo || cotizacionCompleta?.assignedTo,
+      
+      // Información del cliente
+      cliente: {
+        id: clientData?.id,
+        empresa: clientData?.empresa || clientData?.nombre,
+        rfc: clientData?.rfc,
+        contacto: clientData?.contacto,
+        email: clientData?.email,
+        telefono: clientData?.telefono,
+        ubicacion: clientData?.ubicacion
+      },
+      
+      // Información del proyecto
+      proyecto: {
+        id: projectData?.id || projectData?.data?.id,
+        nombre: projectData?.data?.nombre || projectData?.nombre || cotizacionCompleta?.projectName,
+        descripcion: projectData?.data?.descripcion || projectData?.descripcion || cotizacionCompleta?.description,
+        ubicacion: formattedUbicacion,
+        tipoProyecto: projectData?.data?.tipoProyecto || projectData?.tipoProyecto || cotizacionCompleta?.projectType,
+        prioridad: projectData?.data?.prioridad || projectData?.prioridad,
+        cronograma: projectData?.cronograma,
+        totalPresupuesto: totalPresupuesto
+      },
+      
+      // Materiales y equipos
+      materiales: quotation?.materials?.map(material => ({
+        item: material?.item,
+        quantity: Number(material?.quantity) || 0,
+        cost: Number(material?.cost) || 0,
+        unitPrice: material?.quantity > 0 ? (material?.cost / material?.quantity) : material?.cost
+      })) || [],
+      
+      // Datos del constructor (alcance, condiciones, garantía, etc.)
+      constructor: constructorData ? {
+        alcance: constructorData.alcance || constructorData.Alcance,
+        condiciones_pago: constructorData.condiciones_pago || constructorData.Condiciones_pago,
+        supuestos: constructorData.supuestos || constructorData.Supuestos,
+        garantia: constructorData.garantia || constructorData.Garantia,
+        monto_total: constructorData.monto_total || constructorData.Monto_total,
+        tiempo_ejecucion: constructorData.tiempo_ejecucion || constructorData.Tiempo_ejecucion,
+        vigencia: constructorData.vigencia || constructorData.Vigencia,
+        porcentaje_descuento: constructorData.porcentaje_descuento || constructorData.Porcentaje_descuento || 0
+      } : null,
+      
+      // Totales y cálculos
+      totales: {
+        subtotalMateriales,
+        totalPresupuesto,
+        totalGeneral,
+        // Calcular con descuento si existe
+        montoTotal: constructorData?.monto_total || totalGeneral,
+        descuento: constructorData?.porcentaje_descuento || 0,
+        montoFinal: constructorData?.monto_total 
+          ? constructorData.monto_total - (constructorData.monto_total * (constructorData.porcentaje_descuento || 0) / 100)
+          : totalGeneral
+      },
+      
+      // Información de la cotización completa (datos raw del backend)
+      cotizacionCompleta: cotizacionCompleta,
+      
+      // Información adicional
+      informacion_basica: cotizacionCompleta?.informacion_basica,
+      detalles_proyecto: cotizacionCompleta?.detalles_proyecto,
+      informacion_contacto: cotizacionCompleta?.informacion_contacto,
+      asignacion: cotizacionCompleta?.asignacion
+    };
+
+    return snapshot;
+  };
+
+  // Función para manejar la creación de una nueva versión
+  const handleCreateNewVersion = async ({ notas, cambios }) => {
+    try {
+      setSavingVersion(true);
+      
+      // Crear el snapshot completo
+      const snapshot = createCompleteSnapshot();
+      
+      // Obtener el usuario actual (puedes ajustar esto según tu sistema de autenticación)
+      const usuarioActual = quotation?.assignedTo || cotizacionCompleta?.assignedTo || 'Sistema';
+      
+      // Preparar los datos de la versión
+      const versionData = {
+        snapshot: snapshot,
+        notas: notas || '',
+        cambios: cambios || [],
+        modificadoPor: usuarioActual,
+        totalGeneral: snapshot.totales.totalGeneral,
+        montoFinal: snapshot.totales.montoFinal, // Precio con descuento aplicado
+        montoTotal: snapshot.totales.montoTotal, // Precio base sin descuento
+        porcentajeDescuento: snapshot.totales.descuento, // Porcentaje de descuento
+        // El backend generará automáticamente: version, id, fechaCreacion
+      };
+      
+      // Enviar al backend
+      await createVersion(quotation.id, versionData);
+      
+      showSuccess('Versión guardada exitosamente');
+      setShowNewVersionModal(false);
+      
+      // Opcional: Recargar la cotización actual
+      const cotizacionActualizada = await getCotizacionById(quotation.id);
+      const dataContent = cotizacionActualizada?.data || cotizacionActualizada;
+      setCotizacionCompleta(dataContent);
+      
+    } catch (error) {
+      showError('Error al guardar la versión');
+    } finally {
+      setSavingVersion(false);
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold">Vista Previa de Cotización</h3>
+        <div className="flex items-center gap-4">
+          <h3 className="text-xl font-semibold">Vista Previa de Cotización</h3>
+          {selectedVersionData && (
+            <button
+              onClick={handleRestoreCurrentVersion}
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow"
+            >
+              <Icon name="History" size={16} />
+              <span>Versión {selectedVersionData.version}</span>
+              <div className="w-px h-4 bg-blue-300 mx-1"></div>
+              <Icon name="RotateCcw" size={14} />
+              <span className="text-xs">Volver</span>
+            </button>
+          )}
+        </div>
         <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowNewVersionModal(true)}
+            iconName="Save" 
+            iconPosition="left"
+            disabled={selectedVersionData !== null}
+          >
+            Crear Versión
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setShowVersionHistory(true)} 
+            iconName="History" 
+            iconPosition="left"
+          >
+            Historial
+          </Button>
           <Button variant="outline" onClick={handlePrint} iconName="Printer" iconPosition="left">
             Imprimir
           </Button>
@@ -451,6 +719,19 @@ const QuotationPreview = ({ quotation = {} }) => {
       </div>
 
       <div ref={quotationRef} className="bg-white border rounded-lg p-8 shadow-sm print:shadow-none print:border-none relative">
+        {/* Marca de agua para versión histórica */}
+        {selectedVersionData && (
+          <div className="version-watermark absolute top-4 right-4 px-4 py-2 bg-blue-100 border-2 border-blue-400 rounded-lg shadow-md z-20">
+            <div className="flex items-center gap-2">
+              <Icon name="History" size={20} className="text-blue-600" />
+              <div className="text-right">
+                <p className="text-xs font-semibold text-blue-800 uppercase">Versión Histórica</p>
+                <p className="text-lg font-bold text-blue-600">v{selectedVersionData.version}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {loading && (
           <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-10">
             <div className="flex flex-col items-center space-y-4">
@@ -497,11 +778,26 @@ const QuotationPreview = ({ quotation = {} }) => {
         {/* Cabecera de la cotización */}
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
-            <h2 className="text-xl font-semibold mb-4">COTIZACIÓN</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-xl font-semibold">COTIZACIÓN</h2>
+              {selectedVersionData && (
+                <span className="version-badge px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded">
+                  VERSIÓN {selectedVersionData.version}
+                </span>
+              )}
+            </div>
             <div className="space-y-2 text-sm">
               <p><span className="font-medium">No. Cotización:</span> {quotation?.folio || cotizacionCompleta?.folio || 'No disponible'}</p>
-              <p><span className="font-medium">Fecha:</span> {getCurrentDate()}</p>
+              <p><span className="font-medium">Fecha:</span> {selectedVersionData ? formatDate(selectedVersionData.fechaCreacion) : getCurrentDate()}</p>
               <p><span className="font-medium">Vendedor:</span> {quotation?.assignedTo || cotizacionCompleta?.assignedTo || 'No asignado'}</p>
+              {selectedVersionData && (
+                <div className="version-info">
+                  <p><span className="font-medium">Modificado por:</span> {selectedVersionData.modificadoPor || 'Sistema'}</p>
+                  {selectedVersionData.notas && (
+                    <p className="text-xs text-muted-foreground italic">Nota: {selectedVersionData.notas}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -590,9 +886,22 @@ const QuotationPreview = ({ quotation = {} }) => {
           <div>
             <h3 className="text-lg font-semibold mb-4 text-primary">CONDICIONES COMERCIALES</h3>
             <div className="bg-muted/30 rounded-lg p-4 text-sm">
-              <p>• Precio sujeto a cambios sin previo aviso</p>
-              <p>• Forma de pago: 50% anticipo, 50% contra entrega</p>
-              <p>• Tiempo de entrega: según cronograma</p>
+              {constructorData?.condiciones_pago ? (
+                <>
+                  <p>• {constructorData.condiciones_pago}</p>
+                  <p>• Precio sujeto a cambios sin previo aviso</p>
+                  <p>• Tiempo de entrega: según cronograma</p>
+                </>
+              ) : (
+                <>
+                  <p>• Precio sujeto a cambios sin previo aviso</p>
+                  <p>• Forma de pago: 50% anticipo, 50% contra entrega</p>
+                  <p>• Tiempo de entrega: según cronograma</p>
+                </>
+              )}
+              {constructorData?.garantia && (
+                <p className="mt-2 pt-2 border-t border-border"><span className="font-medium">Garantía:</span> {constructorData.garantia}</p>
+              )}
             </div>
           </div>
         </div>
@@ -600,14 +909,14 @@ const QuotationPreview = ({ quotation = {} }) => {
         {/* Total */}
         <div className="bg-primary/10 rounded-lg p-6 mb-8">
           {(() => {
-            // Priorizar datos del quotation actual, luego constructor, luego proyecto
-            const baseAmount = quotation?.quotationData?.totalAmount || 
-              constructorData?.monto_total || 
+            // PRIORIZAR CONSTRUCTOR (datos más actualizados), luego quotation, luego cálculo manual
+            const baseAmount = constructorData?.monto_total || 
+              quotation?.quotationData?.totalAmount || 
               (projectData?.data?.totalPresupuesto || projectData?.totalPresupuesto || 0) +
               (quotation?.materials?.reduce((sum, m) => sum + (Number(m?.cost) || 0), 0) || 0);
             
-            const discountPercentage = quotation?.quotationData?.discountPercentage || 
-              constructorData?.porcentaje_descuento || 0;
+            const discountPercentage = constructorData?.porcentaje_descuento || 
+              quotation?.quotationData?.discountPercentage || 0;
             
             const discountAmount = (baseAmount * discountPercentage) / 100;
             const finalAmount = baseAmount - discountAmount;
@@ -645,11 +954,77 @@ const QuotationPreview = ({ quotation = {} }) => {
       <div className="bg-muted/30 rounded-lg p-4">
         <h4 className="font-medium mb-2">Estado de la Cotización</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="flex items-center space-x-2"><Icon name="Calendar" size={16} className="text-muted-foreground" /><span>Creada: {cotizacionCompleta?.createdDate || cotizacionCompleta?.fechaCreacion || quotation?.createdDate || 'Fecha no disponible'}</span></div>
-          <div className="flex items-center space-x-2"><Icon name="Clock" size={16} className="text-muted-foreground" /><span>Modificada: {cotizacionCompleta?.lastModified || cotizacionCompleta?.fechaActualizacion || quotation?.lastModified || 'Fecha no disponible'}</span></div>
-          <div className="flex items-center space-x-2"><Icon name="User" size={16} className="text-muted-foreground" /><span>Versión: {quotation?.revisions?.[quotation?.revisions?.length - 1]?.version || '1.0'}</span></div>
+          <div className="flex items-center space-x-2">
+            <Icon name="Calendar" size={16} className="text-muted-foreground" />
+            <span>Creada: {formatDate(cotizacionCompleta?.createdDate || cotizacionCompleta?.fechaCreacion || quotation?.createdDate)}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Icon name="Clock" size={16} className="text-muted-foreground" />
+            <span>Modificada: {formatDate(cotizacionCompleta?.lastModified || cotizacionCompleta?.fechaActualizacion || quotation?.lastModified)}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Icon name={selectedVersionData ? "History" : "User"} size={16} className="text-muted-foreground" />
+            <span>
+              {selectedVersionData ? (
+                <span className="font-semibold text-blue-600">
+                  Versión Histórica: {selectedVersionData.version}
+                </span>
+              ) : (
+                `Versión: ${quotation?.version || quotation?.revisions?.[quotation?.revisions?.length - 1]?.version || '1.0'}`
+              )}
+            </span>
+          </div>
         </div>
+        
+        {/* Información adicional de la versión */}
+        {selectedVersionData && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center space-x-2">
+                <Icon name="User" size={16} className="text-muted-foreground" />
+                <span>Modificado por: <strong>{selectedVersionData.modificadoPor || 'Sistema'}</strong></span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Icon name="FileText" size={16} className="text-muted-foreground" />
+                <span>Fecha de versión: <strong>{formatDate(selectedVersionData.fechaCreacion)}</strong></span>
+              </div>
+            </div>
+            {selectedVersionData.notas && (
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                <strong>Notas de la versión:</strong> {selectedVersionData.notas}
+              </div>
+            )}
+            {selectedVersionData.cambios && selectedVersionData.cambios.length > 0 && (
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                <strong>Cambios:</strong>
+                <ul className="list-disc list-inside mt-1 ml-2">
+                  {selectedVersionData.cambios.map((cambio, idx) => (
+                    <li key={idx}>{cambio}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Modal de Historial de Versiones */}
+      <QuotationVersionHistory
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        quotationId={quotation?.id}
+        currentVersion={cotizacionCompleta?.version || selectedVersionData?.version}
+        onSelectVersion={handleSelectVersion}
+      />
+
+      {/* Modal de Nueva Versión */}
+      <NewVersionModal
+        isOpen={showNewVersionModal}
+        onClose={() => setShowNewVersionModal(false)}
+        onSave={handleCreateNewVersion}
+        loading={savingVersion}
+        currentVersion={currentVersion || cotizacionCompleta?.version || 0}
+      />
     </div>
   );
 };

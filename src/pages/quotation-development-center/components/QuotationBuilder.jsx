@@ -65,7 +65,22 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                   });
                 }
               } catch (err) {
-                setError('Error al cargar constructor');
+                // Solo mostrar error si NO es 404 (constructor no existe aún es normal)
+                if (err?.response?.status !== 404 && err?.message !== 'Request failed with status code 404') {
+                  console.error('Error al cargar constructor:', err);
+                  setError('Error al cargar constructor');
+                }
+                // Si es 404, usar datos por defecto de cotizacion
+                setFormData({
+                  scope: cotizacion?.quotationData?.scope || '',
+                  assumptions: cotizacion?.quotationData?.assumptions || [],
+                  timeline: cotizacion?.quotationData?.timeline || '',
+                  conditions: cotizacion?.quotationData?.conditions || '',
+                  warranty: cotizacion?.quotationData?.warranty || '',
+                  totalAmount: cotizacion?.quotationData?.totalAmount || 0,
+                  validity: cotizacion?.quotationData?.validity || '30 días',
+                  discountPercentage: cotizacion?.quotationData?.discountPercentage || 0
+                });
               } finally {
                 setLoading(false);
               }
@@ -376,11 +391,14 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                     <label className="text-sm font-medium mb-2 block">Descuento</label>
                     <div className="flex items-center space-x-2">
                       <Button
-                        variant="outline"
+                        variant={formData?.discountPercentage > 0 ? "default" : "outline"}
                         size="sm"
                         onClick={handleDiscountModal}
                         iconName={formData?.discountPercentage > 0 ? "Edit" : "Percent"}
                         iconPosition="left"
+                        className={formData?.discountPercentage > 0 
+                          ? "bg-orange-500 hover:bg-orange-600 text-white shadow-md border-orange-600" 
+                          : "border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700"}
                       >
                         {formData?.discountPercentage > 0 ? `${formData?.discountPercentage}% Aplicado` : 'Aplicar Descuento'}
                       </Button>
