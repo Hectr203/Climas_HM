@@ -110,6 +110,47 @@ const quotationService = {
         throw error;
       }
     },
+
+    // Gestión de versiones
+    async createVersion(idCotizacion, versionData) {
+      try {
+        const response = await httpService.post(`cotizacion/${idCotizacion}/version`, versionData);
+        return response.data;
+      } catch (error) {
+        console.error('Error creando versión:', error);
+        throw error;
+      }
+    },
+
+    async getQuotationVersions(idCotizacion) {
+      try {
+        const response = await httpService.get(`cotizacion/${idCotizacion}/versiones`);
+        return response.data;
+      } catch (error) {
+        console.error('Error obteniendo versiones:', error);
+        throw error;
+      }
+    },
+
+    async getVersionById(idCotizacion, versionId) {
+      try {
+        const response = await httpService.get(`cotizacion/${idCotizacion}/version/${versionId}`);
+        return response.data;
+      } catch (error) {
+        console.error('Error obteniendo versión:', error);
+        throw error;
+      }
+    },
+
+    async restoreVersion(idCotizacion, versionId) {
+      try {
+        const response = await httpService.post(`cotizacion/${idCotizacion}/version/${versionId}/restaurar`);
+        return response.data;
+      } catch (error) {
+        console.error('Error restaurando versión:', error);
+        throw error;
+      }
+    },
 };
 
 export default quotationService;

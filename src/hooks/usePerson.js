@@ -33,10 +33,8 @@ const usePerson = () => {
       const response = await personService.getPersons();
       if (response.success && Array.isArray(response.data)) {
         setPersons(response.data);
-        console.log('Responsables/personas cargados:', response.data);
       } else {
         setPersons([]);
-        console.log('No se encontraron responsables/personas.');
       }
     } catch (err) {
       console.error("Error en usePerson.getPersons:", err);
