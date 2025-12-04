@@ -332,7 +332,7 @@ const EditItemModal = ({ isOpen, onClose, item, onUpdateSuccess }) => {
                     />
                     
                     <Input
-                      label="Punto de Reorden"
+                      label="Stock Minimo"
                       type="number"
                       value={formData.reorderPoint}
                       onChange={(e) => handleInputChange('reorderPoint', e.target.value)}

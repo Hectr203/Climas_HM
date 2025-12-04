@@ -89,6 +89,10 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   const [errors, setErrors] = useState({});
   const [serverProject, setServerProject] = useState(null);
 
+  const [otherExpenses, setOtherExpenses] = useState([]);
+  const [newExpense, setNewExpense] = useState({ concept: '', amount: '' });
+  const [editingExpenseIndex, setEditingExpenseIndex] = useState(null);
+
   const { persons, getPersons } = usePerson();
   const [clientOptions, setClientOptions] = useState([]);
 
@@ -174,6 +178,35 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       mounted = false;
     };
   }, [isOpen, project?.id, handleError, project]);
+
+  /* ============= CARGAR OTROS GASTOS DEL PROYECTO ============= */
+  useEffect(() => {
+    if (isOpen && serverProject) {
+      // Buscar desgloseOtrosGastos en el nivel principal del proyecto
+      const desgloseOtrosGastos = serverProject?.desgloseOtrosGastos;
+      
+      // Puede venir como objeto con gastos[] o directamente como array
+      let gastosArray = [];
+      if (desgloseOtrosGastos) {
+        if (Array.isArray(desgloseOtrosGastos)) {
+          gastosArray = desgloseOtrosGastos;
+        } else if (Array.isArray(desgloseOtrosGastos.gastos)) {
+          gastosArray = desgloseOtrosGastos.gastos;
+        }
+      }
+      
+      if (gastosArray.length > 0) {
+        // Mapear concepto/monto del backend a concept/amount del frontend
+        const mappedExpenses = gastosArray.map(item => ({
+          concept: item.concepto || item.concept || '',
+          amount: item.monto || item.amount || 0
+        }));
+        setOtherExpenses(mappedExpenses);
+      } else {
+        setOtherExpenses([]);
+      }
+    }
+  }, [isOpen, serverProject]);
 
   /* ============= NORMALIZACIÓN DEL PROYECTO PARA EL FORM ============= */
   const normalized = useMemo(() => {
@@ -455,6 +488,49 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     }
   }, [isOpen, municipios, loadingMunicipios, formData?.ubicacion?.estado, formData?.ubicacion?.municipio, municipioOriginal]);
 
+  /* ============= MANEJO DE OTROS GASTOS ============= */
+  const handleAddExpense = () => {
+    if (!newExpense.concept.trim()) {
+      showError('Ingrese un concepto para el gasto');
+      return;
+    }
+    const amount = toNumberOrUndef(newExpense.amount);
+    if (!amount || amount <= 0) {
+      showError('Ingrese un monto válido mayor a 0');
+      return;
+    }
+
+    if (editingExpenseIndex !== null) {
+      // Editar gasto existente
+      const updatedExpenses = [...otherExpenses];
+      updatedExpenses[editingExpenseIndex] = { concept: newExpense.concept, amount };
+      setOtherExpenses(updatedExpenses);
+      setEditingExpenseIndex(null);
+    } else {
+      // Agregar nuevo gasto
+      setOtherExpenses([...otherExpenses, { concept: newExpense.concept, amount }]);
+    }
+    setNewExpense({ concept: '', amount: '' });
+  };
+
+  const handleEditExpense = (index) => {
+    const expense = otherExpenses[index];
+    setNewExpense({ concept: expense.concept, amount: formatWithCommas(expense.amount, 2) });
+    setEditingExpenseIndex(index);
+  };
+
+  const handleCancelEdit = () => {
+    setNewExpense({ concept: '', amount: '' });
+    setEditingExpenseIndex(null);
+  };
+
+  const handleRemoveExpense = (index) => {
+    setOtherExpenses(otherExpenses.filter((_, i) => i !== index));
+    if (editingExpenseIndex === index) {
+      handleCancelEdit();
+    }
+  };
+
   /* ============= FX / TIPO DE CAMBIO USD↔MXN ============= */
   const fetchUsdMxnRate = useCallback(async () => {
     try {
@@ -539,6 +615,10 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   }, [persons, formData?.personalAsignado]);
 
   /* ============= TOTAL MXN DEL PRESUPUESTO MOSTRADO ============= */
+  const otherExpensesTotal = useMemo(() => {
+    return otherExpenses.reduce((sum, exp) => sum + (toNumberOrUndef(exp.amount) || 0), 0);
+  }, [otherExpenses]);
+
   const totalMXN = useMemo(() => {
     const b = formData?.presupuesto || {};
     const sum = (...vals) =>
@@ -553,8 +633,8 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       b.materiales,
       b.transporte,
       b.otros
-    );
-  }, [formData]);
+    ) + otherExpensesTotal;
+  }, [formData, otherExpensesTotal]);
 
   /* ============= HANDLERS DEL FORM ============= */
   const handle = (k, v) => {
@@ -678,6 +758,13 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         : [],
       estado: formData.estado,
       presupuesto: pres,
+      // Agregar otros gastos si existen, fuera de presupuesto
+      ...(otherExpenses.length > 0 ? {
+        desgloseOtrosGastos: otherExpenses.map(expense => ({
+          concepto: expense.concept,
+          monto: expense.amount
+        }))
+      } : {}),
     };
   };
 
@@ -1114,8 +1201,120 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
               }
             />
 
+            {/* Desglose de Otros Gastos */}
+            <div className="md:col-span-2 mt-4">
+              <h4 className="text-base font-medium text-foreground mb-3">Desglose de Otros Gastos</h4>
+              
+              <div className="bg-muted border border-border rounded-lg p-4">
+                {/* Lista de gastos agregados */}
+                {otherExpenses.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {otherExpenses.map((expense, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between bg-card p-3 rounded-md border transition-all ${
+                          editingExpenseIndex === index
+                            ? 'border-blue-500 ring-2 ring-blue-200'
+                            : 'border-border'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-foreground">
+                            {expense.concept}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-primary">
+                            ${formatWithCommas(expense.amount, 2)} MXN
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleEditExpense(index)}
+                            className="text-blue-600 hover:text-blue-700 transition-colors"
+                            title="Editar"
+                            disabled={editingExpenseIndex !== null && editingExpenseIndex !== index}
+                          >
+                            <Icon name="Edit" size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExpense(index)}
+                            className="text-destructive hover:text-destructive/80 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Icon name="Trash2" size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-2 border-t border-border mt-3">
+                      <span className="text-sm font-medium text-foreground">Subtotal:</span>
+                      <span className="text-base font-semibold text-primary">
+                        ${formatWithCommas(otherExpensesTotal, 2)} MXN
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulario para agregar/editar gasto */}
+                <div className="space-y-3">
+                  {editingExpenseIndex !== null && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2 flex items-center justify-between">
+                      <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                        Editando gasto
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Concepto
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Viáticos, Hospedaje, Combustible"
+                        value={newExpense.concept}
+                        onChange={(e) => setNewExpense({ ...newExpense, concept: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddExpense())}
+                        className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Monto
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={newExpense.amount}
+                        onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddExpense())}
+                        className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddExpense}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md whitespace-nowrap"
+                    >
+                      <Icon name={editingExpenseIndex !== null ? "Check" : "Plus"} size={18} />
+                      {editingExpenseIndex !== null ? "Guardar" : "Agregar Gasto"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Total */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 mt-4">
               <div className="bg-muted p-4 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-foreground">
