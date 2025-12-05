@@ -27,10 +27,19 @@ const useClient = () => {
     setLoading(true);
     setError(null);
     try {
-  const response = await clientService.getClients();
-  setClients(Array.isArray(response) ? response : response?.data || []);
-  // console.log eliminado
-  return response;
+      const response = await clientService.getClients();
+      const rawList = Array.isArray(response) ? response : response?.data || [];
+
+      // Normalizar para asegurar que todos tengan origenCliente
+      const normalized = rawList.map(c => ({
+        ...c,
+        origenCliente: c.origenCliente || '',
+      }));
+
+      setClients(normalized);
+      clientsRef.current = normalized;
+      hasLoadedRef.current = true;
+      return normalized;
     } catch (err) {
       setError(err);
       setClients([]);
@@ -48,12 +57,24 @@ const useClient = () => {
     setLoading(true);
     setError(null);
     setSuccess(false);
+
+    // Asegurar que siempre se envíe origenCliente aunque venga vacío
+    const payload = {
+      ...clientData,
+      origenCliente: clientData?.origenCliente || '',
+    };
+
     try {
-      const response = await clientService.createClient(clientData);
+      const response = await clientService.createClient(payload);
       setSuccess(true);
       if (response && response.success && response.data) {
+        const created = {
+          ...response.data,
+          origenCliente: response.data.origenCliente || payload.origenCliente || '',
+        };
+
         setClients(prevClients => {
-          const newClients = [...prevClients, response.data];
+          const newClients = [...prevClients, created];
           clientsRef.current = newClients; // Actualizar el ref
           return newClients;
         });
@@ -74,14 +95,27 @@ const useClient = () => {
     setLoading(true);
     setError(null);
     setSuccess(false);
+
+    // Asegurar que siempre se envíe origenCliente aunque venga vacío
+    const payload = {
+      ...clientData,
+      origenCliente: clientData?.origenCliente || '',
+    };
+
     try {
-      const response = await clientService.updateClient(id, clientData);
+      const response = await clientService.updateClient(id, payload);
       setSuccess(true);
+
       if (response && response.success && response.data) {
+        const updatedData = {
+          ...response.data,
+          origenCliente: response.data.origenCliente || payload.origenCliente || '',
+        };
+
         setClients(prevClients => {
           const newClients = prevClients.map(c =>
             (c.id === id || c._id === id)
-              ? { ...c, ...response.data, id: c.id || c._id }
+              ? { ...c, ...updatedData, id: c.id || c._id }
               : c
           );
           clientsRef.current = newClients; // Actualizar el ref
@@ -89,10 +123,15 @@ const useClient = () => {
         });
         showOperationSuccess('Cliente actualizado exitosamente');
       } else if (response && response.success) {
+        const updatedData = {
+          ...payload,
+          origenCliente: payload.origenCliente || '',
+        };
+
         setClients(prevClients => {
           const newClients = prevClients.map(c =>
             (c.id === id || c._id === id)
-              ? { ...c, ...clientData, id: c.id || c._id }
+              ? { ...c, ...updatedData, id: c.id || c._id }
               : c
           );
           clientsRef.current = newClients; // Actualizar el ref
