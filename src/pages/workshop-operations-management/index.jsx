@@ -8,9 +8,6 @@ import useOperacAlt from '../../hooks/useOperacAlt';
 import WorkflowControls from './components/WorkflowControls';
 import MaterialReceptionPanel from './components/MaterialReceptionPanel';
 import SafetyChecklistPanel from './components/SafetyChecklistPanel';
-import AttendancePanel from './components/AttendancePanel';
-import QualityControlPanel from './components/QualityControlPanel';
-import ChangeOrderPanel from './components/ChangeOrderPanel';
 import MaterialConsumptionPanel from './components/MaterialConsumptionPanel';
 import DailyConsumptionList from './components/DailyConsumptionList';
 import ConsumptionHistory from './components/ConsumptionHistory';
@@ -360,13 +357,10 @@ const WorkshopOperationsManagement = () => {
           };
 
           const panelOptions = [
-            { value: 'workflow', label: 'Flujo Taller', icon: 'Workflow' },
-            { value: 'materials', label: 'Recepción Material', icon: 'Package' },
-            { value: 'safety', label: 'Seguridad', icon: 'Shield' },
-            { value: 'attendance', label: 'Asistencia', icon: 'Clock' },
-            { value: 'quality', label: 'Control Calidad', icon: 'CheckCircle' },
-            { value: 'changes', label: 'Órdenes Cambio', icon: 'Edit' },
-            { value: 'consumption', label: 'Consumo Materiales', icon: 'PackageMinus' }
+              { value: 'workflow', label: 'Flujo Taller', icon: 'Workflow' },
+              { value: 'materials', label: 'Recepción Material', icon: 'Package' },
+              { value: 'safety', label: 'Seguridad', icon: 'Shield' },
+              { value: 'consumption', label: 'Consumo Materiales', icon: 'PackageMinus' }
           ];
 
           if (isLoading) {
@@ -580,23 +574,7 @@ const WorkshopOperationsManagement = () => {
                         })()}
 
                         {/* Secondary Panels */}
-                        {activePanel === 'attendance' && (
-                          <AttendancePanel currentShift={currentShift} />
-                        )}
-
-                        {activePanel === 'quality' && (
-                          <QualityControlPanel
-                            workOrders={workOrders?.filter(o => o?.status === 'quality-control')}
-                            onQualityUpdate={handleQualityControl}
-                          />
-                        )}
-
-                        {activePanel === 'changes' && (
-                          <ChangeOrderPanel
-                            workOrders={workOrders}
-                            onChangeOrder={handleChangeOrder}
-                          />
-                        )}
+                        {/* Attendance, Quality and Change panels removed per request */}
                       </>
                     ) : (
                       <div className="space-y-4 md:space-y-6">
