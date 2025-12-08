@@ -11,6 +11,9 @@ import SafetyChecklistPanel from './components/SafetyChecklistPanel';
 import AttendancePanel from './components/AttendancePanel';
 import QualityControlPanel from './components/QualityControlPanel';
 import ChangeOrderPanel from './components/ChangeOrderPanel';
+import MaterialConsumptionPanel from './components/MaterialConsumptionPanel';
+import DailyConsumptionList from './components/DailyConsumptionList';
+import ConsumptionHistory from './components/ConsumptionHistory';
 
 const WorkshopOperationsManagement = () => {
   const [workOrders, setWorkOrders] = useState([]);
@@ -21,7 +24,12 @@ const WorkshopOperationsManagement = () => {
   const [panelMissingByOrder, setPanelMissingByOrder] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [currentShift, setCurrentShift] = useState('morning');
+  const [inventoryRefreshKey, setInventoryRefreshKey] = useState(0);
   const { oportunities, getOportunities, updateWorkOrder: updateWorkOrderRemote, deleteWorkOrder: deleteWorkOrderRemote } = useOperacAlt();
+
+  const handleInventoryUpdate = () => {
+    setInventoryRefreshKey(prev => prev + 1);
+  };
 
   useEffect(() => {
     const loadWorkOrders = async () => {
@@ -357,7 +365,8 @@ const WorkshopOperationsManagement = () => {
             { value: 'safety', label: 'Seguridad', icon: 'Shield' },
             { value: 'attendance', label: 'Asistencia', icon: 'Clock' },
             { value: 'quality', label: 'Control Calidad', icon: 'CheckCircle' },
-            { value: 'changes', label: 'Órdenes Cambio', icon: 'Edit' }
+            { value: 'changes', label: 'Órdenes Cambio', icon: 'Edit' },
+            { value: 'consumption', label: 'Consumo Materiales', icon: 'PackageMinus' }
           ];
 
           if (isLoading) {
@@ -433,7 +442,7 @@ const WorkshopOperationsManagement = () => {
                     </div>
 
                     <div className="flex bg-muted rounded-lg p-1 overflow-x-auto no-scrollbar sticky top-20 z-40">
-                      {panelOptions?.slice(0, 3)?.map((option) => (
+                      {panelOptions?.map((option) => (
                         <button
                           key={option?.value}
                           onClick={() => setActivePanel(option?.value)}
@@ -500,9 +509,9 @@ const WorkshopOperationsManagement = () => {
                 </div>
 
                 {/* Main Content Area */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className={`grid gap-6 md:gap-8 ${activePanel === 'consumption' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`}>
                   {/* Primary Workflow Board */}
-                  <div className="lg:col-span-2">
+                  <div className={activePanel === 'consumption' ? 'lg:col-span-1' : 'lg:col-span-2'}>
                     {activePanel === 'workflow' && (
                       <WorkflowBoard
                         workOrders={workOrders}
@@ -548,43 +557,61 @@ const WorkshopOperationsManagement = () => {
                     })()}
                   </div>
 
-                  {/* Secondary Controls Panel */}
+                  {/* Secondary Controls / Consumption Panel */}
                   <div className="space-y-6">
-                    {(() => {
-                      const cols = ['material-reception','safety-checklist','manufacturing','quality-control','ready-shipment'];
-                      const totalActive = cols.reduce((acc, col) => acc + (workOrders?.filter(o => mapToColumnId(o?.status || o?.estado) === col)?.length || 0), 0);
-                      return (
-                        <WorkflowControls
-                          selectedOrder={selectedOrder}
-                          currentShift={currentShift}
-                          totalOrders={totalActive}
-                          workOrdersIds={(workOrders || []).map(o => o?.id || o?.ordenTrabajo || o?.folio)}
-                          workOrders={workOrders}
-                          onForceRemove={handleForceRemove}
-                          onRevertStatus={handleRevertStatus}
-                          onSafetyComplete={handleSafetyChecklist}
-                          localMissingByOrder={panelMissingByOrder}
+                    {activePanel !== 'consumption' ? (
+                      <>
+                        {(() => {
+                          const cols = ['material-reception','safety-checklist','manufacturing','quality-control','ready-shipment'];
+                          const totalActive = cols.reduce((acc, col) => acc + (workOrders?.filter(o => mapToColumnId(o?.status || o?.estado) === col)?.length || 0), 0);
+                          return (
+                            <WorkflowControls
+                              selectedOrder={selectedOrder}
+                              currentShift={currentShift}
+                              totalOrders={totalActive}
+                              workOrdersIds={(workOrders || []).map(o => o?.id || o?.ordenTrabajo || o?.folio)}
+                              workOrders={workOrders}
+                              onForceRemove={handleForceRemove}
+                              onRevertStatus={handleRevertStatus}
+                              onSafetyComplete={handleSafetyChecklist}
+                              localMissingByOrder={panelMissingByOrder}
+                            />
+                          );
+                        })()}
+
+                        {/* Secondary Panels */}
+                        {activePanel === 'attendance' && (
+                          <AttendancePanel currentShift={currentShift} />
+                        )}
+
+                        {activePanel === 'quality' && (
+                          <QualityControlPanel
+                            workOrders={workOrders?.filter(o => o?.status === 'quality-control')}
+                            onQualityUpdate={handleQualityControl}
+                          />
+                        )}
+
+                        {activePanel === 'changes' && (
+                          <ChangeOrderPanel
+                            workOrders={workOrders}
+                            onChangeOrder={handleChangeOrder}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-4 md:space-y-6">
+                        {/* Panel de Registro de Consumo */}
+                        <MaterialConsumptionPanel 
+                          key={inventoryRefreshKey}
+                          onInventoryUpdate={handleInventoryUpdate}
                         />
-                      );
-                    })()}
-
-                    {/* Secondary Panels */}
-                    {activePanel === 'attendance' && (
-                      <AttendancePanel currentShift={currentShift} />
-                    )}
-
-                    {activePanel === 'quality' && (
-                      <QualityControlPanel
-                        workOrders={workOrders?.filter(o => o?.status === 'quality-control')}
-                        onQualityUpdate={handleQualityControl}
-                      />
-                    )}
-
-                    {activePanel === 'changes' && (
-                      <ChangeOrderPanel
-                        workOrders={workOrders}
-                        onChangeOrder={handleChangeOrder}
-                      />
+                        
+                        {/* Lista de Consumo del Día */}
+                        <DailyConsumptionList />
+                        
+                        {/* Histórico de Consumo */}
+                        <ConsumptionHistory />
+                      </div>
                     )}
                   </div>
                 </div>
