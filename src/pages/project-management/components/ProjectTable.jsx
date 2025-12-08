@@ -920,14 +920,25 @@ const ProjectTable = ({
                         <Button variant="ghost" size="icon" onClick={() => toggleRowExpansion(project?.id)} title="Ver detalles">
                           <Icon name={expandedRows?.includes(project?.id) ? 'ChevronUp' : 'ChevronDown'} size={16} />
                         </Button>
-                        {/* <Button variant="ghost" size="icon" onClick={() => navigate(`/project-detail-gallery/${project?.id}`)} title="Ver galería de imágenes">
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const proyectoId = project?.id || project?._id || project?.projectId;
+                            if (proyectoId) {
+                              console.log('Navegando a galería del proyecto:', proyectoId);
+                              navigate(`/project-detail-gallery/${proyectoId}`);
+                            } else {
+                              console.error('No se encontró ID del proyecto:', project);
+                              alert('Error: No se pudo identificar el proyecto');
+                            }
+                          }} 
+                          title="Ver galería de imágenes"
+                        >
                           <Icon name="Image" size={16} />
                         </Button>
-
-                        <Button variant="ghost" size="icon" onClick={() => handleImageUpload(project)} title="Subir imagen">
-                          <Icon name="Upload" size={16} />
-                        </Button>
- */}
 
                         <Button variant="ghost" size="icon" onClick={() => onProjectSelect?.(project)} title="Editar proyecto">
                           <Icon name="Edit" size={16} />

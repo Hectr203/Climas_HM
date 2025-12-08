@@ -136,7 +136,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item }) => {
                   
                   <div className="bg-background rounded-lg p-2 sm:p-3 text-center">
                     <div className="text-xl sm:text-2xl font-bold text-warning">{item.reorderPoint}</div>
-                    <div className="text-xs text-muted-foreground">Punto de Reorden</div>
+                    <div className="text-xs text-muted-foreground">Stock minimo</div>
                     <div className="text-xs text-muted-foreground">{item.unit}</div>
                   </div>
                   

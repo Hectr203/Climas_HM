@@ -854,20 +854,26 @@ const QuotationPreview = ({ quotation = {} }) => {
                 <tbody>
                   {quotation.materials.map((material, index) => {
                     const qty = Number(material?.quantity) || 0;
-                    const cost = Number(material?.cost) || 0;
-                    const unit = qty > 0 ? cost / qty : cost;
+                    const costUnit = Number(material?.cost) || 0; // Este es el costo unitario
+                    const total = qty * costUnit; // Calcular el total
                     return (
                       <tr key={index}>
                         <td className="px-4 py-2 border border-border">{material?.item || '-'}</td>
                         <td className="px-4 py-2 border border-border">{qty || '-'}</td>
-                        <td className="px-4 py-2 text-right border border-border">{formatCurrency(unit)}</td>
-                        <td className="px-4 py-2 text-right border border-border">{formatCurrency(cost)}</td>
+                        <td className="px-4 py-2 text-right border border-border">{formatCurrency(costUnit)}</td>
+                        <td className="px-4 py-2 text-right border border-border">{formatCurrency(total)}</td>
                       </tr>
                     );
                   })}
                   <tr className="bg-muted/30 font-semibold">
                     <td colSpan="3" className="px-4 py-2 text-right border border-border">SUBTOTAL:</td>
-                    <td className="px-4 py-2 text-right border border-border">{formatCurrency(quotation.materials.reduce((sum, m) => sum + (Number(m?.cost) || 0), 0))}</td>
+                    <td className="px-4 py-2 text-right border border-border">
+                      {formatCurrency(quotation.materials.reduce((sum, m) => {
+                        const qty = Number(m?.quantity) || 0;
+                        const cost = Number(m?.cost) || 0;
+                        return sum + (qty * cost);
+                      }, 0))}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -944,8 +950,8 @@ const QuotationPreview = ({ quotation = {} }) => {
 
         {/* Footer */}
         <div className="border-t pt-4 text-center text-sm text-muted-foreground">
-          <p>Gracias por la confianza en AireFlow Pro</p>
-          <p>Para cualquier consulta, contacte a: {quotation?.assignedTo || quotation?.asignado || '-'}</p>
+          <p>Gracias por la confianza en CLIMAS H.M</p>
+          <p>Para cualquier consulta, contacte a: {quotation?.assignedTo || quotation?.asignado || 'Jose Luis'}</p>
           <p className="mt-2 font-medium">Esta cotización cumple con la normativa mexicana vigente</p>
         </div>
       </div>

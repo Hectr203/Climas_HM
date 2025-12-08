@@ -66,6 +66,14 @@ const Routes = () => {
               } 
             />
             <Route 
+              path="/project-detail-gallery/:projectId" 
+              element={
+                <ProtectedRoute requiredPath="/project-detail-gallery">
+                  <ProjectDetailGallery />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/visor-galeria/:projectId" 
               element={
                 <ProtectedRoute requiredPath="/visor-galeria">
