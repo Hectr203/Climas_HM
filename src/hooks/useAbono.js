@@ -178,7 +178,11 @@ const useAbono = () => {
 
       const cleanPayload = {
         idProyecto: payload.idProyecto?.trim(),
-        montoAbono: Number(payload.montoAbono),
+        // Enviar ambos montos según nueva API
+        montoAbonoSinIva: Number(payload.montoAbonoSinIva),
+        montoAbonoConIva: Number(payload.montoAbonoConIva),
+        montoAbono: Number(payload.montoAbonoConIva),
+        porcentajeIva: Number(payload.porcentajeIva),
         fecha: fechaISO,
         metodoPago: payload.metodoPago || 'Otro',
         descripcion: payload.descripcion?.trim() || 'Abono registrado',
@@ -241,7 +245,11 @@ const useAbono = () => {
 
       const cleanPayload = {
         idProyecto: payload.idProyecto?.trim(),
-        montoAbono: Number(payload.montoAbono),
+        // Alinear con API nueva: enviar montos con y sin IVA y porcentaje
+        montoAbonoSinIva: Number(payload.montoAbonoSinIva),
+        montoAbonoConIva: Number(payload.montoAbonoConIva || payload.montoAbono),
+        montoAbono: Number(payload.montoAbonoConIva || payload.montoAbono),
+        porcentajeIva: Number(payload.porcentajeIva),
         fecha: fechaISO,
         metodoPago: payload.metodoPago || 'Otro',
         descripcion: payload.descripcion?.trim() || 'Abono registrado',
@@ -350,7 +358,7 @@ const useAbono = () => {
   }, [showOperationSuccess, showHttpError]);
 
 
-  
+
   return {
     abonos,
     abonoSeleccionado,

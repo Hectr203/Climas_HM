@@ -40,7 +40,7 @@ const normalizarEstado = (estado) => {
 const obtenerEstadoNormalizado = (status, statusLabel) => {
   const estado = statusLabel || status || '';
   const normalizado = normalizarEstado(estado);
-  
+
   // Mapear a estados canónicos
   if (normalizado.includes('pausa') || normalizado.includes('pause') || normalizado.includes('hold')) {
     return { canonico: 'en pausa', label: 'En Pausa' };
@@ -60,7 +60,7 @@ const obtenerEstadoNormalizado = (status, statusLabel) => {
   if (normalizado.includes('planific') || normalizado.includes('planning') || normalizado.includes('activo') || normalizado.includes('active')) {
     return { canonico: 'planificacion', label: 'Planificación' };
   }
-  
+
   // Si hay un statusLabel, usarlo; si no, usar el status original
   return { canonico: normalizado || 'planificacion', label: statusLabel || status || 'Planificación' };
 };
@@ -120,7 +120,7 @@ const mapProjectDocStrict = (doc, clientsMap = {}) => {
   };
 
   const startDate = doc.cronograma?.fechaInicio ?? doc.startDate ?? null;
-  const endDate   = doc.cronograma?.fechaFin    ?? doc.endDate   ?? null;
+  const endDate = doc.cronograma?.fechaFin ?? doc.endDate ?? null;
 
   const status = doc.status ?? doc.estado ?? null;
   const statusLabel = doc.statusLabel ?? null;
@@ -128,7 +128,7 @@ const mapProjectDocStrict = (doc, clientsMap = {}) => {
   const priorityLabel = doc.priorityLabel ?? null;
 
   const p = doc.presupuesto || {};
-  const budget = doc.totalPresupuesto ?? doc.budget ?? p.total ?? null;
+  const budget = doc.totalPresupuesto ?? null;
 
   // Equipos USD: respeta USD si lo enviaron; si viene MXN convierte por tipoCambio o DEFAULT_USD_RATE
   const equiposUSD = (() => {
@@ -147,9 +147,9 @@ const mapProjectDocStrict = (doc, clientsMap = {}) => {
   })();
 
   const department = doc.departamento ?? doc.department ?? null;
-  const location   = doc.ubicacion ?? doc.location ?? null;
-  const description= doc.descripcion ?? doc.description ?? null;
-  const image      = doc.image ?? null;
+  const location = doc.ubicacion ?? doc.location ?? null;
+  const description = doc.descripcion ?? doc.description ?? null;
+  const image = doc.image ?? null;
 
   let assignedPersonnel = null;
   if (Array.isArray(doc.assignedPersonnel)) {
@@ -212,7 +212,7 @@ const ProjectTable = ({
   getPaidAmount,     // fallback si el backend aún no envía totalRestante
 }) => {
   const navigate = useNavigate();
-  console.log( "navigate", navigate);
+  console.log("navigate", navigate);
 
   // Hook de proyectos
   const {
@@ -556,17 +556,16 @@ const ProjectTable = ({
                   </td>
                   <td className="p-4">
                     {(() => {
-                      // 1) valor directo desde backend si está presente
-                      const fromDB = project?.financialSummary?.totalRestante;
-                      if (typeof fromDB === 'number' && !isNaN(fromDB)) {
-                        return <span className="text-foreground font-medium">{formatCurrency(fromDB)}</span>;
-                      }
-                      // 2) fallback: calcula a partir de pagos locales si el backend aún no lo manda
-                      const paid = typeof getPaidAmount === 'function'
-                        ? Number(getPaidAmount({ id: project?.rawId || project?.id })) || 0
-                        : 0;
                       const budget = Number(project?.budget) || 0;
-                      const remaining = Math.max(budget - paid, 0);
+                      // Preferir total abonado del backend si está disponible
+                      const paidFromDB = project?.financialSummary?.totalAbonado;
+                      let paid = (typeof paidFromDB === 'number' && !isNaN(paidFromDB)) ? Number(paidFromDB) : null;
+                      if (paid == null) {
+                        paid = typeof getPaidAmount === 'function'
+                          ? Number(getPaidAmount({ id: project?.rawId || project?.id })) || 0
+                          : 0;
+                      }
+                      const remaining = Math.max(budget - (Number(paid) || 0), 0);
                       return <span className="text-foreground font-medium">{formatCurrency(remaining)}</span>;
                     })()}
                   </td>

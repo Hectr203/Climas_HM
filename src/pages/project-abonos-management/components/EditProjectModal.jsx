@@ -10,11 +10,11 @@ import usePerson from 'hooks/usePerson';
 /* ===================== ESTADOS ===================== */
 const estadoOptionsBackend = [
   { value: 'planificación', label: 'Planificación' },
-  { value: 'en proceso',    label: 'En Progreso' },
-  { value: 'en pausa',      label: 'En Pausa' },
-  { value: 'en revisión',   label: 'En Revisión' },
-  { value: 'completado',    label: 'Completado' },
-  { value: 'cancelado',     label: 'Cancelado' },
+  { value: 'en proceso', label: 'En Progreso' },
+  { value: 'en pausa', label: 'En Pausa' },
+  { value: 'en revisión', label: 'En Revisión' },
+  { value: 'completado', label: 'Completado' },
+  { value: 'cancelado', label: 'Cancelado' },
 ];
 const ALLOWED_ESTADOS = estadoOptionsBackend.map(o => o.value);
 
@@ -255,6 +255,16 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     return sum(b.manoObra, b.piezas, b.equipos, b.materiales, b.transporte, b.otros);
   }, [formData]);
 
+  // IVA editable y totales con/sin IVA
+  const [porcentajeIva, setPorcentajeIva] = useState(16);
+  const totalSinIva = useMemo(() => Number(totalMXN || 0), [totalMXN]);
+  const totalConIva = useMemo(() => {
+    const rate = Number(porcentajeIva);
+    const multiplicador = 1 + (isNaN(rate) ? 0 : rate / 100);
+    const v = Number(totalSinIva) * multiplicador;
+    return Math.round(v * 100) / 100;
+  }, [totalSinIva, porcentajeIva]);
+
   // Handlers
   const handle = (k, v) => {
     setFormData((s) => ({ ...s, [k]: v }));
@@ -289,6 +299,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     if (!formData.ubicacion) e.ubicacion = 'Requerido';
     if (!ALLOWED_ESTADOS.includes(formData.estado)) e.estado = 'Estado inválido';
     if (isEquipmentInUSD && !(exchangeRate > 0)) e.exchangeRate = 'Tipo de cambio inválido';
+    if (!(porcentajeIva >= 0 && porcentajeIva <= 100)) e.porcentajeIva = 'Porcentaje de IVA inválido';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -297,7 +308,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   const buildPayloadForUpdate = () => {
     const p = formData.presupuesto || {};
     const pres = {};
-    ['manoObra','piezas','equipos','equipoDolares','materiales','transporte','otros'].forEach(k => {
+    ['manoObra', 'piezas', 'equipos', 'equipoDolares', 'materiales', 'transporte', 'otros'].forEach(k => {
       const val = toNumberOrUndef(p[k]);
       if (val != null) pres[k] = val;
     });
@@ -319,6 +330,9 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       personalAsignado: Array.isArray(formData.personalAsignado) ? formData.personalAsignado : [],
       estado: formData.estado,
       presupuesto: pres,
+      totalPresupuestoSinIva: Number(totalSinIva),
+      totalPresupuestoConIva: Number(totalConIva),
+      porcentajeIva: Number(porcentajeIva),
     };
   };
 
@@ -360,7 +374,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
             <h2 className="text-xl font-semibold text-foreground">Editar Proyecto</h2>
             <p className="text-sm text-muted-foreground">Actualice la información permitida</p>
           </div>
-        <Button variant="ghost" size="icon" onClick={onClose}><Icon name="X" size={20} /></Button>
+          <Button variant="ghost" size="icon" onClick={onClose}><Icon name="X" size={20} /></Button>
         </div>
 
         {/* Form */}
@@ -371,9 +385,9 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
               <h3 className="text-lg font-medium text-foreground mb-4">Información Básica</h3>
             </div>
 
-            <Input label="Código (solo lectura)" value={asStr(formData?.codigo, '—')} onChange={() => {}} disabled />
-            <Input label="Tipo de Proyecto (solo lectura)" value={asStr(formData?.tipoProyecto, '—')} onChange={() => {}} disabled />
-            <Input label="Cliente (solo lectura)" value={asStr(clientLabel, '—')} onChange={() => {}} disabled />
+            <Input label="Código (solo lectura)" value={asStr(formData?.codigo, '—')} onChange={() => { }} disabled />
+            <Input label="Tipo de Proyecto (solo lectura)" value={asStr(formData?.tipoProyecto, '—')} onChange={() => { }} disabled />
+            <Input label="Cliente (solo lectura)" value={asStr(clientLabel, '—')} onChange={() => { }} disabled />
 
             <Input
               label="Nombre"
@@ -481,7 +495,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
                       type="text"
                       inputMode="decimal"
                       value={formatWithCommas(exchangeRate, 4)}
-                      onChange={() => {}}
+                      onChange={() => { }}
                       readOnly
                       disabled
                     />
@@ -526,6 +540,33 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
                     ${formatWithCommas(totalMXN, 2)} MXN
                   </span>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                  <div className="flex flex-col">
+                    <label className="text-xs text-muted-foreground">Porcentaje de IVA (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={porcentajeIva}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setPorcentajeIva(isNaN(v) ? 16 : Math.max(0, Math.min(100, v)));
+                        if (errors?.porcentajeIva) setErrors((prev) => ({ ...prev, porcentajeIva: undefined }));
+                      }}
+                      className="w-full px-3 py-2 border border-border rounded-md"
+                    />
+                    {errors?.porcentajeIva && (<span className="text-xs text-destructive mt-1">{errors.porcentajeIva}</span>)}
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs text-muted-foreground">Total sin IVA (MXN)</label>
+                    <div className="w-full px-3 py-2 border border-border rounded-md bg-muted">${formatWithCommas(totalSinIva, 2)}</div>
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs text-muted-foreground">Total con IVA (MXN)</label>
+                    <div className="w-full px-3 py-2 border border-border rounded-md bg-muted">${formatWithCommas(totalConIva, 2)}</div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -534,8 +575,8 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
               <h3 className="text-lg font-medium text-foreground mb-4">Cronograma</h3>
             </div>
 
-            <Input label="Fecha de Inicio (solo lectura)" type="date" value={asStr(formData?.cronograma?.fechaInicio, '')} onChange={() => {}} disabled />
-            <Input label="Fecha de Finalización (solo lectura)" type="date" value={asStr(formData?.cronograma?.fechaFin, '')} onChange={() => {}} disabled />
+            <Input label="Fecha de Inicio (solo lectura)" type="date" value={asStr(formData?.cronograma?.fechaInicio, '')} onChange={() => { }} disabled />
+            <Input label="Fecha de Finalización (solo lectura)" type="date" value={asStr(formData?.cronograma?.fechaFin, '')} onChange={() => { }} disabled />
 
             {/* Asignación de Personal */}
             <div className="md:col-span-2 mt-6">
