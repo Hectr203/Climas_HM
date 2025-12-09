@@ -1,8 +1,36 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
+import useClientArchivo from '../../../hooks/useClientArchivo';
+import clientesArchivosService from '../../../services/clientesArchivosService';
+import { useNotification } from '../../../context/NotificationContext';
 
-const DocumentStatus = ({ documents, onUploadDocument, onViewDocument, onDownloadDocument }) => {
+const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocumentsChange, onViewDocument, onDownloadDocument }) => {
+  const { documents: rawDocuments, loading, error, uploadFiles, refresh, downloadDocument } = useClientArchivo(clientId);
+  const { showSuccess, showError } = useNotification();
+  const [downloadState, setDownloadState] = useState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 });
+
+  useEffect(() => {
+    if (error) showError(error?.message || 'Error al obtener documentos');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
+  // Normalizar la forma de los documentos para la UI
+  const documents = useMemo(() => {
+    const docs = Array.isArray(rawDocuments) ? rawDocuments : (Array.isArray(propDocuments) ? propDocuments : []);
+    return docs.map(d => ({
+      id: d.id || d.documentoId || d._id || d?.data?.id,
+      name: d.nombreOriginal || d.nombreAsignado || d.name || d?.data?.nombreOriginal || 'Archivo',
+      type: d.tipoDocumento || (d.mimeType && typeof d.mimeType === 'string' && d.mimeType.includes('pdf') ? 'Facturación' : 'Documento'),
+      status: d.status || d.estado || 'Completo',
+      uploadDate: d.createdAt || d.uploadDate || d?.data?.createdAt || new Date().toISOString(),
+      expirationDate: d.expirationDate || null,
+      notes: d.notes || d.nombreOriginal || '',
+      url: d.urlBase || d.url || d?.data?.urlBase || null,
+      containerName: d.containerName,
+      blobName: d.blobName,
+    }));
+  }, [rawDocuments, propDocuments]);
   const getStatusColor = (status) => {
     switch (status) {
       case 'Completo':
@@ -61,19 +89,160 @@ const DocumentStatus = ({ documents, onUploadDocument, onViewDocument, onDownloa
     return expiry < today;
   };
 
+  const handleUploadClick = async (existingDocument = null) => {
+    if (!clientId) return showError('Seleccione un cliente antes de subir archivos');
+    try {
+      const files = await new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = '.jpg,.jpeg,.png,.gif,.webp,.pdf';
+        input.onchange = () => resolve(input.files ? Array.from(input.files) : []);
+        input.click();
+      });
+      if (!files || files.length === 0) return;
+      const resp = await uploadFiles(files);
+      // después de subir, forzamos refrescar la lista desde el backend
+      await refresh();
+      showSuccess('Archivo(s) subidos correctamente');
+      const uploaded = Array.isArray(resp) ? resp : [resp];
+      const normalized = uploaded.map(d => ({
+        id: d.id || d.documentoId || d._id || String(Date.now()),
+        name: d.nombreOriginal || d.nombreAsignado || d.name || 'Archivo',
+        type: d.tipoDocumento || (d.mimeType && typeof d.mimeType === 'string' && d.mimeType.includes('pdf') ? 'Facturación' : 'Documento'),
+        status: d.status || d.estado || 'Completo',
+        uploadDate: d.createdAt || d.uploadDate || new Date().toISOString(),
+        expirationDate: d.expirationDate || null,
+        notes: d.notes || d.nombreOriginal || '',
+        url: d.urlBase || d.url || null,
+        containerName: d.containerName,
+        blobName: d.blobName,
+      }));
+      if (onDocumentsChange) onDocumentsChange(normalized.concat(documents));
+    } catch (error) {
+      console.error('Error subiendo documento:', error);
+      showError(error?.message || 'Error al subir archivo');
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (!documents || documents.length === 0) return showError('No hay archivos para descargar');
+    // Intentar descargar secuencialmente para evitar popups múltiples.
+    const totalFiles = documents.length;
+    setDownloadState({ active: true, fileName: 'Descargando archivos', percent: 0, loaded: 0, total: 0, index: 0, totalFiles });
+    for (let i = 0; i < documents.length; i++) {
+      const d = documents[i];
+      try {
+        if (downloadDocument) {
+          setDownloadState(prev => ({ ...prev, fileName: d?.name || `archivo_${i + 1}`, percent: 0, index: i + 1 }));
+          await downloadDocument(d, 60, (loaded, total) => {
+            const percent = total ? Math.round((loaded / total) * 100) : Math.min(99, Math.round((loaded / (1024 * 1024)) * 10));
+            setDownloadState(prev => ({ ...prev, loaded, total: total || prev.total, percent }));
+          });
+        } else if (d?.url) {
+          const a = document.createElement('a');
+          a.href = d.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } else if (d?.id) {
+          const url = `/api/clientes/archivos/descargar/${encodeURIComponent(d.id)}`;
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+      } catch (e) {
+        console.error('Error descargando documento:', e);
+      }
+      // Pequeña pausa entre descargas para evitar saturar el navegador
+      /* eslint-disable no-await-in-loop */
+      await new Promise(res => setTimeout(res, 350));
+      /* eslint-enable no-await-in-loop */
+    }
+    setTimeout(() => setDownloadState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 }), 500);
+    showSuccess('Descargas iniciadas');
+  };
+
+  const handleDelete = async (doc) => {
+    if (!doc?.id) return showError('Documento sin ID');
+    const confirm = window.confirm('¿Eliminar este documento? Esta acción no se puede deshacer.');
+    if (!confirm) return;
+    try {
+      const res = await clientesArchivosService.deleteClienteArchivo(doc.id, clientId);
+      if (res && res.ok) {
+        await refresh();
+        showSuccess('Documento eliminado');
+        return;
+      }
+      showError(res?.message || res?.data?.message || 'No se pudo eliminar el documento');
+    } catch (e) {
+      console.error('Error eliminando documento:', e);
+      showError(e?.message || 'No se pudo eliminar el documento');
+    }
+  };
+
+  const handleView = (doc) => {
+    if (onViewDocument) return onViewDocument(doc);
+    try {
+      if (doc?.url) window.open(doc.url, '_blank');
+      else if (doc?.id) window.open(`/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}`, '_blank');
+      else throw new Error('Documento sin URL o ID');
+    } catch (err) {
+      showError(err?.message || 'No se pudo abrir el documento');
+    }
+  };
+
+  const handleDownload = (doc) => {
+    if (onDownloadDocument) return onDownloadDocument(doc);
+    if (!doc?.id) return showError('Documento sin ID');
+    try {
+      window.open(`/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}`, '_blank');
+    } catch (err) {
+      showError('No se pudo descargar el archivo');
+    }
+  };
+
   return (
     <div className="bg-card border border-border rounded-lg p-6 card-shadow">
+      {downloadState.active && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-card border border-border rounded-lg p-4 shadow-lg pointer-events-auto" style={{minWidth: 320}}>
+            <div className="text-sm font-medium mb-2">{downloadState.fileName}</div>
+            <div className="w-72 h-3 bg-muted rounded overflow-hidden">
+              <div style={{ width: `${downloadState.percent}%` }} className="h-full bg-primary transition-all" />
+            </div>
+            <div className="text-xs text-muted-foreground mt-2">{downloadState.index > 0 ? `${downloadState.index}/${downloadState.totalFiles}` : ''} {downloadState.percent ? `${downloadState.percent}%` : 'Preparando...'}</div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-foreground">Estado de Documentos</h3>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onUploadDocument}
-          iconName="Upload"
-          iconPosition="left"
-        >
-          Subir Documento
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => handleUploadClick(null)}
+            iconName="Upload"
+            iconPosition="left"
+          >
+            Subir Documento
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadAll}
+            iconName="Download"
+            iconPosition="left"
+          >
+            Descargar Todos
+          </Button>
+        </div>
       </div>
   <div className="space-y-4 max-h-[400px] overflow-y-auto overflow-x-hidden">
         {documents?.length === 0 ? (
@@ -83,7 +252,7 @@ const DocumentStatus = ({ documents, onUploadDocument, onViewDocument, onDownloa
             <Button
               variant="outline"
               size="sm"
-              onClick={onUploadDocument}
+              onClick={() => handleUploadClick(null)}
               className="mt-4"
               iconName="Upload"
               iconPosition="left"
@@ -137,15 +306,27 @@ const DocumentStatus = ({ documents, onUploadDocument, onViewDocument, onDownloa
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onViewDocument(doc)}
-                  title="Ver documento"
-                >
-                  <Icon name="Eye" size={16} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDownloadDocument(doc)}
+                  onClick={async () => {
+                    // Si el hook provee una función de descarga mejorada, la usamos y mostramos progreso.
+                    if (downloadDocument) {
+                      try {
+                        setDownloadState({ active: true, fileName: doc?.name || 'Descargando', percent: 0, loaded: 0, total: 0, index: 1, totalFiles: 1 });
+                        await downloadDocument(doc, 60, (loaded, total) => {
+                          const percent = total ? Math.round((loaded / total) * 100) : Math.min(99, Math.round((loaded / (1024 * 1024)) * 10));
+                          setDownloadState(prev => ({ ...prev, loaded, total: total || prev.total, percent }));
+                        });
+                        setTimeout(() => setDownloadState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 }), 400);
+                        showSuccess('Descarga iniciada');
+                        return;
+                      } catch (err) {
+                        console.error('Error descargando:', err);
+                        setDownloadState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 });
+                        showError(err?.message || 'Error al descargar');
+                        return;
+                      }
+                    }
+                    return handleDownload(doc);
+                  }}
                   title="Descargar documento"
                 >
                   <Icon name="Download" size={16} />
@@ -153,10 +334,10 @@ const DocumentStatus = ({ documents, onUploadDocument, onViewDocument, onDownloa
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onUploadDocument(doc)}
-                  title="Actualizar documento"
+                  onClick={() => handleDelete(doc)}
+                  title="Eliminar documento"
                 >
-                  <Icon name="Upload" size={16} />
+                  <Icon name="Trash" size={16} />
                 </Button>
               </div>
             </div>

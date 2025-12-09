@@ -11,9 +11,7 @@ import Button from '../../components/ui/Button';
 import ClientCard from './components/ClientCard';
 import ClientTable from './components/ClientTable';
 import ClientFilters from './components/ClientFilters';
-import ClientCommunicationPanel from './components/ClientCommunicationPanel';
 import DocumentStatus from './components/DocumentStatus';
-import ContractAlerts from './components/ContractAlerts';
 import NewClientModal from './components/NewClientModal';
 
 const ClientManagement = () => {
@@ -502,7 +500,7 @@ const ClientManagement = () => {
       }`}>
         <div className="flex">
               {/* Main Content */}
-              <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'mr-96' : ''}`}>
+              <div className={`flex-1 transition-all duration-300`}>
                 <div className="p-6">
                   {/* Modals */}
                   <NewClientModal
@@ -693,53 +691,36 @@ const ClientManagement = () => {
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Client details modal (replaces right-side panel) */}
           {showSidebar && (
-            <div className="fixed right-0 top-0 h-full bg-card border-l border-border shadow-lg z-1000 overflow-y-auto" style={{width: '500px', minWidth: '440px'}}>
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {selectedClient?.companyName}
-                  </h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowSidebar(false)}
-                  >
-                    <Icon name="X" size={20} />
-                  </Button>
-                </div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setShowSidebar(false)} />
+              <div className="relative bg-card border border-border rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {selectedClient?.companyName}
+                    </h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowSidebar(false)}
+                    >
+                      <Icon name="X" size={20} />
+                    </Button>
+                  </div>
 
-                <div className="space-y-6">
-                  {/* Communication Panel */}
-                  <ClientCommunicationPanel client={selectedClient} />
-
-                  {/* Document Status */}
-                  <DocumentStatus
-                    documents={mockDocuments}
-                    onUploadDocument={handleUploadDocument}
-                    onViewDocument={handleViewDocument}
-                    onDownloadDocument={handleDownloadDocument}
-                  />
-
-                  {/* Contract Alerts */}
-                  <ContractAlerts
-                    contracts={mockContracts}
-                    onViewContract={handleViewContract}
-                    onRenewContract={handleRenewContract}
-                    onScheduleRenewal={handleScheduleRenewal}
-                  />
+                  <div className="space-y-6">
+                    {/* Solo mostrar Estado de Documento */}
+                    <DocumentStatus
+                      clientId={selectedClient?.id || selectedClient?._id}
+                      onViewDocument={handleViewDocument}
+                      onDownloadDocument={handleDownloadDocument}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          )}
-
-          {/* Sidebar Overlay */}
-          {showSidebar && (
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-999 lg:hidden"
-              onClick={() => setShowSidebar(false)}
-            />
           )}
 
           {/* New Client Modal */}
