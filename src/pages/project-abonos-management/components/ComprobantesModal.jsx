@@ -415,17 +415,15 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const descargarDocumentoHandler = async (documentoId, fallbackUrl) => {
+  const descargarDocumentoHandler = async (documentoId, fallbackUrl, nombreArchivo) => {
     if (!documentoId && fallbackUrl) {
       window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
       return;
     }
-    const url = await descargarDocumento(documentoId);
-    if (!url) {
+    const success = await descargarDocumento(documentoId, nombreArchivo || `documento-${documentoId}`);
+    if (!success) {
       setErrorMsg('No se pudo descargar el documento.');
-      return;
     }
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleEditClick = (documento) => {
@@ -496,7 +494,7 @@ const ComprobantesModal = ({ isOpen, project, onClose }) => {
                   size="sm"
                   iconName="Download"
                   disabled={!tieneArchivo}
-                  onClick={() => tieneArchivo && descargarDocumentoHandler(documentoId, urlLista)}
+                  onClick={() => tieneArchivo && descargarDocumentoHandler(documentoId, urlLista, item?.nombre || item?.nombreArchivo)}
                 >
                   Descargar
                 </Button>

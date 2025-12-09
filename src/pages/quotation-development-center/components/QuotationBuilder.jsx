@@ -15,7 +15,8 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
             conditions: cotizacion?.quotationData?.conditions || '',
             warranty: cotizacion?.quotationData?.warranty || '',
             totalAmount: cotizacion?.quotationData?.totalAmount || 0,
-            validity: cotizacion?.quotationData?.validity || '30 días'
+            validity: cotizacion?.quotationData?.validity || '30 días',
+            discountPercentage: cotizacion?.quotationData?.discountPercentage || 0
           });
           const [loading, setLoading] = useState(false);
           const [error, setError] = useState('');
@@ -30,7 +31,8 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                 conditions: '',
                 warranty: '',
                 totalAmount: 0,
-                validity: '30 días'
+                validity: '30 días',
+                discountPercentage: 0
               });
               if (!cotizacion?.id) return;
               setLoading(true);
@@ -48,6 +50,7 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                     warranty: existing.garantia || '',
                     totalAmount: existing.monto_total || 0,
                     validity: existing.vigencia || '30 días',
+                    discountPercentage: existing.porcentaje_descuento || 0
                   });
                 } else {
                   setFormData({
@@ -57,11 +60,27 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                     conditions: cotizacion?.quotationData?.conditions || '',
                     warranty: cotizacion?.quotationData?.warranty || '',
                     totalAmount: cotizacion?.quotationData?.totalAmount || 0,
-                    validity: cotizacion?.quotationData?.validity || '30 días'
+                    validity: cotizacion?.quotationData?.validity || '30 días',
+                    discountPercentage: cotizacion?.quotationData?.discountPercentage || 0
                   });
                 }
               } catch (err) {
-                setError('Error al cargar constructor');
+                // Solo mostrar error si NO es 404 (constructor no existe aún es normal)
+                if (err?.response?.status !== 404 && err?.message !== 'Request failed with status code 404') {
+                  console.error('Error al cargar constructor:', err);
+                  setError('Error al cargar constructor');
+                }
+                // Si es 404, usar datos por defecto de cotizacion
+                setFormData({
+                  scope: cotizacion?.quotationData?.scope || '',
+                  assumptions: cotizacion?.quotationData?.assumptions || [],
+                  timeline: cotizacion?.quotationData?.timeline || '',
+                  conditions: cotizacion?.quotationData?.conditions || '',
+                  warranty: cotizacion?.quotationData?.warranty || '',
+                  totalAmount: cotizacion?.quotationData?.totalAmount || 0,
+                  validity: cotizacion?.quotationData?.validity || '30 días',
+                  discountPercentage: cotizacion?.quotationData?.discountPercentage || 0
+                });
               } finally {
                 setLoading(false);
               }
@@ -71,6 +90,8 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
 
           const [newAssumption, setNewAssumption] = useState('');
           const [hasChanges, setHasChanges] = useState(false);
+          const [showDiscountModal, setShowDiscountModal] = useState(false);
+          const [tempDiscountPercentage, setTempDiscountPercentage] = useState(0);
 
           const handleInputChange = (field, value) => {
             setFormData(prev => ({ ...prev, [field]: value }));
@@ -91,6 +112,35 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
             setHasChanges(true);
           };
 
+          // Funciones para manejar descuento
+          const calculateDiscountedTotal = () => {
+            const baseAmount = formData?.totalAmount || 0;
+            const discount = (baseAmount * (formData?.discountPercentage || 0)) / 100;
+            return baseAmount - discount;
+          };
+
+          const calculateDiscountAmount = () => {
+            const baseAmount = formData?.totalAmount || 0;
+            return (baseAmount * (formData?.discountPercentage || 0)) / 100;
+          };
+
+          const handleDiscountModal = () => {
+            setTempDiscountPercentage(formData?.discountPercentage || 0);
+            setShowDiscountModal(true);
+          };
+
+          const applyDiscount = () => {
+            if (tempDiscountPercentage >= 0 && tempDiscountPercentage <= 100) {
+              handleInputChange('discountPercentage', tempDiscountPercentage);
+              setShowDiscountModal(false);
+            }
+          };
+
+          const removeDiscount = () => {
+            handleInputChange('discountPercentage', 0);
+            setShowDiscountModal(false);
+          };
+
   const handleSave = async () => {
     onUpdate?.({ quotationData: formData });
     const payload = {
@@ -103,7 +153,8 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
         garantia: formData?.warranty,
         monto_total: formData?.totalAmount,
         tiempo_ejecucion: formData?.timeline,
-        vigencia: formData?.validity
+        vigencia: formData?.validity,
+        porcentaje_descuento: formData?.discountPercentage
       }
     };
     try {
@@ -135,7 +186,8 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                 garantia: formData?.warranty,
                 monto_total: formData?.totalAmount,
                 tiempo_ejecucion: formData?.timeline,
-                vigencia: formData?.validity
+                vigencia: formData?.validity,
+                porcentaje_descuento: formData?.discountPercentage
               }
             };
             try {
@@ -241,49 +293,8 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                       />
                     </div>
                   </div>
-                </div>
 
-                {/* Right Column */}
-                <div className="space-y-4">
-                  {/* Payment Conditions */}
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Condiciones de Pago</label>
-                    <textarea
-                      value={formData?.conditions}
-                      onChange={(e) => handleInputChange('conditions', e?.target?.value)}
-                      placeholder="ej: 50% anticipo, 25% avance 50%, 25% finalización"
-                      rows={3}
-                      className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background resize-none"
-                    />
-                  </div>
-
-                  {/* Warranty */}
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Garantía</label>
-                    <Input
-                      value={formData?.warranty}
-                      onChange={(e) => handleInputChange('warranty', e?.target?.value)}
-                      placeholder="ej: 24 meses en equipos, 12 meses en instalación"
-                    />
-                  </div>
-
-                  {/* Total Amount */}
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Monto Total (MXN)</label>
-                    <Input
-                      type="number"
-                      value={formData?.totalAmount}
-                      onChange={(e) => handleInputChange('totalAmount', parseFloat(e?.target?.value) || 0)}
-                      placeholder="0.00"
-                    />
-                    {formData?.totalAmount > 0 && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        ${formData?.totalAmount?.toLocaleString('es-MX')} MXN
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Quick Actions */}
+                  {/* Quick Actions - Positioned after Timeline and Validity */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Plantillas Rápidas</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -322,6 +333,91 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                     </div>
                   </div>
                 </div>
+
+                {/* Right Column */}
+                <div className="space-y-4">
+                  {/* Payment Conditions */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Condiciones de Pago</label>
+                    <textarea
+                      value={formData?.conditions}
+                      onChange={(e) => handleInputChange('conditions', e?.target?.value)}
+                      placeholder="ej: 50% anticipo, 25% avance 50%, 25% finalización"
+                      rows={3}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background resize-none"
+                    />
+                  </div>
+
+                  {/* Warranty */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Garantía</label>
+                    <Input
+                      value={formData?.warranty}
+                      onChange={(e) => handleInputChange('warranty', e?.target?.value)}
+                      placeholder="ej: 24 meses en equipos, 12 meses en instalación"
+                    />
+                  </div>
+
+                  {/* Total Amount */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Monto Total (MXN)</label>
+                    <Input
+                      type="number"
+                      value={formData?.totalAmount}
+                      onChange={(e) => handleInputChange('totalAmount', parseFloat(e?.target?.value) || 0)}
+                      placeholder="0.00"
+                    />
+                    {formData?.totalAmount > 0 && (
+                      <div className="text-sm mt-1 space-y-1">
+                        <p className="text-muted-foreground">
+                          ${formData?.totalAmount?.toLocaleString('es-MX')} MXN
+                        </p>
+                        {formData?.discountPercentage > 0 && (
+                          <>
+                            <p className="text-orange-600">
+                              Descuento ({formData?.discountPercentage}%): -${calculateDiscountAmount()?.toLocaleString('es-MX')} MXN
+                            </p>
+                            <p className="text-green-600 font-medium">
+                              Total final: ${calculateDiscountedTotal()?.toLocaleString('es-MX')} MXN
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Discount Section */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Descuento</label>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant={formData?.discountPercentage > 0 ? "default" : "outline"}
+                        size="sm"
+                        onClick={handleDiscountModal}
+                        iconName={formData?.discountPercentage > 0 ? "Edit" : "Percent"}
+                        iconPosition="left"
+                        className={formData?.discountPercentage > 0 
+                          ? "bg-orange-500 hover:bg-orange-600 text-white shadow-md border-orange-600" 
+                          : "border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700"}
+                      >
+                        {formData?.discountPercentage > 0 ? `${formData?.discountPercentage}% Aplicado` : 'Aplicar Descuento'}
+                      </Button>
+                      {formData?.discountPercentage > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={removeDiscount}
+                          iconName="X"
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Quitar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -356,6 +452,62 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                   {/* Eliminar el botón azul de Guardar aquí */}
                 </div>
               </div>
+
+              {/* Modal de Descuento */}
+              {showDiscountModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                    <h3 className="text-lg font-semibold mb-4">Aplicar Descuento</h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Porcentaje de Descuento (%)</label>
+                        <Input
+                          type="number"
+                          value={tempDiscountPercentage}
+                          onChange={(e) => setTempDiscountPercentage(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                          placeholder="0"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                        />
+                      </div>
+                      
+                      {formData?.totalAmount > 0 && tempDiscountPercentage > 0 && (
+                        <div className="bg-gray-50 p-3 rounded space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span>${formData?.totalAmount?.toLocaleString('es-MX')}</span>
+                          </div>
+                          <div className="flex justify-between text-orange-600">
+                            <span>Descuento ({tempDiscountPercentage}%):</span>
+                            <span>-${((formData?.totalAmount * tempDiscountPercentage) / 100)?.toLocaleString('es-MX')}</span>
+                          </div>
+                          <div className="flex justify-between font-medium text-green-600 border-t pt-1">
+                            <span>Total:</span>
+                            <span>${(formData?.totalAmount - (formData?.totalAmount * tempDiscountPercentage) / 100)?.toLocaleString('es-MX')}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-end space-x-2 mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowDiscountModal(false)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={applyDiscount}
+                        disabled={tempDiscountPercentage < 0 || tempDiscountPercentage > 100}
+                      >
+                        Aplicar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         };

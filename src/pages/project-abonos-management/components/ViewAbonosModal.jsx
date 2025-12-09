@@ -172,16 +172,13 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
     }
   };
 
-  const descargarDocumentoHandler = async (documentoId, fallbackUrl) => {
+  const descargarDocumentoHandler = async (documentoId, fallbackUrl, nombreArchivo) => {
     if (!documentoId && fallbackUrl) {
       window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     try {
-      const url = await descargarDocumento(documentoId);
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
+      await descargarDocumento(documentoId, nombreArchivo || `documento-${documentoId}`);
     } catch (err) {
       console.error('Error al descargar documento:', err);
       setError('No se pudo descargar el documento.');
@@ -412,7 +409,7 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => descargarDocumentoHandler(documentoId, urlDoc)}
+                                  onClick={() => descargarDocumentoHandler(documentoId, urlDoc, documento?.nombre || documento?.nombreArchivo)}
                                   title="Descargar"
                                   className="h-7 w-7"
                                 >
@@ -515,7 +512,7 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => descargarDocumentoHandler(documentoId, urlDoc)}
+                                    onClick={() => descargarDocumentoHandler(documentoId, urlDoc, documento?.nombre || documento?.nombreArchivo)}
                                     className="text-xs h-7"
                                   >
                                     <Icon name="Download" size={12} className="mr-1" />
