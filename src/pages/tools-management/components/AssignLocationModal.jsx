@@ -139,9 +139,6 @@ const AssignLocationModal = ({ tool, onClose, onConfirm, getProyectosParaAsignar
       // Buscar el proyecto en la lista para obtener su personal asignado
       const proyecto = proyectos.find(p => p.id === proyectoId || p.id === parseInt(proyectoId));
       
-      console.log('📋 Proyecto encontrado:', proyecto);
-      console.log('📋 Personal asignado al proyecto:', proyecto?.personalAsignado);
-      
       if (proyecto && proyecto.personalAsignado && Array.isArray(proyecto.personalAsignado)) {
         // Convertir el array de strings a objetos
         // Formato: "NOMBRE — puesto" → {id: nombre, nombreCompleto: nombre, puesto: puesto}
@@ -157,7 +154,6 @@ const AssignLocationModal = ({ tool, onClose, onConfirm, getProyectosParaAsignar
           };
         });
         
-        console.log('📋 Personal formateado del proyecto:', personalFormateado);
         setPersonal(personalFormateado);
       } else {
         console.warn('Proyecto sin personal asignado');
@@ -252,8 +248,6 @@ const AssignLocationModal = ({ tool, onClose, onConfirm, getProyectosParaAsignar
         if (empleadoSeleccionado) {
           // Si viene del proyecto (solo tiene nombre), buscar el empleado real por nombre
           if (empleadoSeleccionado._esDelProyecto) {
-            console.log('🔍 Buscando empleado real por nombre:', empleadoSeleccionado.nombreCompleto);
-            
             try {
               // Obtener TODOS los empleados sin filtrar por departamento
               const responseEmpleados = await personService.getPersons();
@@ -267,11 +261,9 @@ const AssignLocationModal = ({ tool, onClose, onConfirm, getProyectosParaAsignar
               });
               
               if (empleadoReal) {
-                console.log('✅ Empleado real encontrado:', empleadoReal);
                 payload.empleado_id = empleadoReal.id;
                 payload.ubicacion_nombre = empleadoReal.nombreCompleto;
               } else {
-                console.warn('⚠️ No se encontró empleado real, usando solo el nombre');
                 payload.empleado_id = null;
                 payload.ubicacion_nombre = empleadoSeleccionado.nombreCompleto;
               }
@@ -288,7 +280,6 @@ const AssignLocationModal = ({ tool, onClose, onConfirm, getProyectosParaAsignar
         }
       }
       
-      console.log('📤 Enviando payload:', payload);
       await onConfirm(payload);
     } finally {
       setIsSaving(false);

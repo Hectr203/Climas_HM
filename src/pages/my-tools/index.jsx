@@ -71,8 +71,6 @@ const MyToolsPage = () => {
       const decoded = jwtDecode(token);
       const empleadoId = decoded.id;
 
-      console.log('🔍 Filtrando herramientas para empleado:', empleadoId);
-      
       // Obtener herramientas usando sin_filtro_automatico porque el backend
       // todavía no tiene el campo empleado_id_asignado correctamente mapeado
       const response = await getHerramientas({ 
@@ -125,23 +123,12 @@ const MyToolsPage = () => {
     setReturning(herramientaADevolver.id);
 
     try {
-      // IMPORTANTE: Verificar datos de la herramienta ANTES de devolver
-      console.log('🔍 DATOS COMPLETOS DE LA HERRAMIENTA:', herramientaADevolver);
-      console.log('📋 empleado_id en herramienta:', herramientaADevolver.empleado_id);
-      console.log('📋 ubicacion_nombre en herramienta:', herramientaADevolver.ubicacion_nombre);
-      console.log('📋 ubicacion_tipo en herramienta:', herramientaADevolver.ubicacion_tipo);
-      
       const payload = {
         ubicacion_tipo: 'taller',
         ubicacion_id: null,
         ubicacion_nombre: personal.nombreCompleto,
         observaciones: `Devuelto por ${empleadoData.nombre}`
       };
-      
-      console.log('📤 Enviando devolución:', payload);
-      console.log('🔧 Herramienta ID:', herramientaADevolver.id);
-      console.log('👤 Empleado ID del JWT:', empleadoData.id);
-      console.log('👤 Personal taller destino:', personal.nombreCompleto);
       
       await asignarUbicacion(herramientaADevolver.id, payload);
 
@@ -150,11 +137,7 @@ const MyToolsPage = () => {
       
       showSuccess(`Herramienta devuelta a ${personal.nombreCompleto} en el taller`);
     } catch (error) {
-      console.error('❌ Error al devolver herramienta:', error);
-      console.error('❌ Respuesta completa del backend:', error.response);
-      console.error('❌ Data del error:', error.response?.data);
-      console.error('❌ Mensaje del error:', error.response?.data?.message);
-      console.error('❌ Status:', error.response?.status);
+      console.error('Error al devolver herramienta:', error);
       
       const errorMsg = error.response?.data?.message || error.message || 'Error al devolver herramienta';
       showError(`${errorMsg} - Contacta al administrador si el problema persiste`);
