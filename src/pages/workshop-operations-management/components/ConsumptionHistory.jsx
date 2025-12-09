@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import useConsumoMateriales from '../../../hooks/useConsumoMateriales';
 import { useNotifications } from '../../../context/NotificationContext';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const ConsumptionHistory = () => {
-  const { showError } = useNotifications();
+  const { showError, showSuccess } = useNotifications();
   const { historico, getHistoricoConsumo, loading } = useConsumoMateriales();
   
   const [fechaInicio, setFechaInicio] = useState(() => {
@@ -20,6 +22,27 @@ const ConsumptionHistory = () => {
   });
 
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
+  const [mostrarMenuExportar, setMostrarMenuExportar] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  
+  const menuExportarRef = useRef(null);
+
+  // Cerrar menú al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuExportarRef.current && !menuExportarRef.current.contains(event.target)) {
+        setMostrarMenuExportar(false);
+      }
+    };
+
+    if (mostrarMenuExportar) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [mostrarMenuExportar]);
 
   const handleBuscar = async () => {
     if (!fechaInicio || !fechaFin) {
@@ -37,6 +60,196 @@ const ConsumptionHistory = () => {
     } catch (error) {
       console.error('Error al obtener histórico:', error);
       showError('Error al obtener el histórico de consumo');
+    }
+  };
+
+  // Funciones de exportación
+  const exportarAPDF = (datos, inicio, fin) => {
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: 'A4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // ENCABEZADO
+    doc.setFillColor(10, 74, 138);
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('HISTÓRICO DE CONSUMO DE MATERIALES', pageWidth / 2, 25, { align: 'center' });
+
+    // FECHA DE GENERACIÓN
+    const fechaActual = new Date().toLocaleDateString('es-MX', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Generado el ${fechaActual}`, pageWidth - 120, 25);
+
+    // Calcular estadísticas
+    const materialesUnicos = new Set();
+    let totalMaterialesConsumidos = 0;
+
+    datos.forEach(registro => {
+      if (registro.materiales && Array.isArray(registro.materiales)) {
+        registro.materiales.forEach(m => {
+          materialesUnicos.add(m.articuloId || m.articuloNombre);
+          totalMaterialesConsumidos += parseFloat(m.cantidad) || 0;
+        });
+      } else {
+        materialesUnicos.add(registro.articuloId || registro.articuloNombre);
+        totalMaterialesConsumidos += parseFloat(registro.cantidad) || 0;
+      }
+    });
+
+    // RESUMEN GENERAL
+    let startY = 60;
+    const gray = '#333333';
+    doc.setTextColor(gray);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('Resumen General', pageWidth / 2, startY, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    startY += 20;
+    const resumenTexto = `Total de Registros: ${datos.length}   |   Materiales Únicos: ${materialesUnicos.size}   |   Total Consumido: ${totalMaterialesConsumidos.toFixed(2)} unidades`;
+    doc.text(resumenTexto, pageWidth / 2, startY, { align: 'center' });
+
+    // Preparar datos para la tabla
+    const datosMateriales = [];
+    datos.forEach(registro => {
+      const fecha = registro.fecha || registro.fechaRegistro?.split('T')[0] || 'Sin fecha';
+      
+      if (registro.materiales && Array.isArray(registro.materiales)) {
+        registro.materiales.forEach(material => {
+          // Filtrar nota automática "Consumo desde recepción"
+          let notasLimpias = material.notas || '';
+          if (notasLimpias.includes('Consumo desde recepción')) {
+            notasLimpias = '';
+          }
+          
+          datosMateriales.push([
+            new Date(fecha).toLocaleDateString('es-MX'),
+            material.articuloNombre || material.nombre || 'Sin nombre',
+            material.ordenTrabajo || material.ordenTrabajoId || registro.ordenTrabajo || 'N/A',
+            `${material.cantidad} ${material.unidad || 'pcs'}`,
+            notasLimpias || '—'
+          ]);
+        });
+      } else {
+        // Filtrar nota automática "Consumo desde recepción"
+        let notasLimpias = registro.notas || '';
+        if (notasLimpias.includes('Consumo desde recepción')) {
+          notasLimpias = '';
+        }
+        
+        datosMateriales.push([
+          new Date(fecha).toLocaleDateString('es-MX'),
+          registro.articuloNombre || registro.nombre || 'Sin nombre',
+          registro.ordenTrabajo || registro.ordenTrabajoId || 'N/A',
+          `${registro.cantidad} ${registro.unidad || 'pcs'}`,
+          notasLimpias || '—'
+        ]);
+      }
+    });
+
+    // TABLA
+    const tableColumn = ['Fecha', 'Material', 'Orden de Trabajo', 'Cantidad', 'Notas'];
+
+    doc.autoTable({
+      startY: startY + 25,
+      head: [tableColumn],
+      body: datosMateriales,
+      theme: 'grid',
+      styles: { fontSize: 9, cellPadding: 5 },
+      headStyles: {
+        fillColor: [10, 74, 138],
+        textColor: 255,
+        halign: 'center',
+        fontStyle: 'bold'
+      },
+      bodyStyles: { textColor: [50, 50, 50] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { left: 30, right: 30 }
+    });
+
+    // GUARDAR PDF
+    doc.save(`HISTORICO_CONSUMO_${inicio}_${fin}.pdf`);
+  };
+
+  const handleExportarRangoPersonalizado = () => {
+    if (!historico || historico.length === 0) {
+      showError('No hay datos para exportar');
+      return;
+    }
+
+    try {
+      setExportando(true);
+      exportarAPDF(historico, fechaInicio, fechaFin);
+      showSuccess('PDF generado exitosamente');
+      setMostrarMenuExportar(false);
+    } catch (error) {
+      console.error('Error al exportar PDF:', error);
+      showError('Error al generar el PDF');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleExportarSemana = async () => {
+    try {
+      setExportando(true);
+      const hoy = new Date();
+      const haceSemana = new Date(hoy);
+      haceSemana.setDate(hoy.getDate() - 7);
+      
+      const inicio = haceSemana.toISOString().split('T')[0];
+      const fin = hoy.toISOString().split('T')[0];
+      
+      const datos = await getHistoricoConsumo(inicio, fin);
+      if (datos && datos.length > 0) {
+        exportarAPDF(datos, inicio, fin);
+        showSuccess('PDF de la última semana generado exitosamente');
+      } else {
+        showError('No hay datos de consumo en la última semana');
+      }
+      setMostrarMenuExportar(false);
+    } catch (error) {
+      console.error('Error al exportar semana:', error);
+      showError('Error al generar el PDF de la semana');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleExportarMes = async () => {
+    try {
+      setExportando(true);
+      const hoy = new Date();
+      const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      
+      const inicio = primerDia.toISOString().split('T')[0];
+      const fin = hoy.toISOString().split('T')[0];
+      
+      const datos = await getHistoricoConsumo(inicio, fin);
+      if (datos && datos.length > 0) {
+        exportarAPDF(datos, inicio, fin);
+        showSuccess('PDF del mes generado exitosamente');
+      } else {
+        showError('No hay datos de consumo en este mes');
+      }
+      setMostrarMenuExportar(false);
+    } catch (error) {
+      console.error('Error al exportar mes:', error);
+      showError('Error al generar el PDF del mes');
+    } finally {
+      setExportando(false);
     }
   };
 
@@ -170,16 +383,62 @@ const ConsumptionHistory = () => {
                 className="w-full text-sm"
               />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button
                 onClick={handleBuscar}
                 iconName="Search"
                 iconPosition="left"
                 disabled={loading}
-                className="w-full text-xs md:text-sm"
+                className="flex-1 text-xs md:text-sm"
               >
                 {loading ? 'Buscando...' : 'Buscar'}
               </Button>
+              
+              {/* Botón de Exportar con menú */}
+              <div className="relative" ref={menuExportarRef}>
+                <Button
+                  onClick={() => setMostrarMenuExportar(!mostrarMenuExportar)}
+                  iconName="FileDown"
+                  iconPosition="left"
+                  disabled={loading || exportando || !historico || historico.length === 0}
+                  variant="outline"
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50 hover:text-blue-700 text-xs md:text-sm"
+                >
+                  {exportando ? 'Exportando...' : 'Exportar'}
+                </Button>
+                
+                {/* Menú desplegable de opciones */}
+                {mostrarMenuExportar && (
+                  <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-lg z-50">
+                    <div className="py-1">
+                      <button
+                        onClick={handleExportarRangoPersonalizado}
+                        disabled={exportando}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2 text-foreground"
+                      >
+                        <Icon name="Calendar" className="h-4 w-4" />
+                        <span>Rango personalizado</span>
+                      </button>
+                      <button
+                        onClick={handleExportarSemana}
+                        disabled={exportando}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2 text-foreground"
+                      >
+                        <Icon name="TrendingUp" className="h-4 w-4" />
+                        <span>Última semana</span>
+                      </button>
+                      <button
+                        onClick={handleExportarMes}
+                        disabled={exportando}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2 text-foreground"
+                      >
+                        <Icon name="Package" className="h-4 w-4" />
+                        <span>Este mes</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

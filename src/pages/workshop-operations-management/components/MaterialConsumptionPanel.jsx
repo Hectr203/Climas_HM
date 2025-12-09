@@ -107,7 +107,13 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
     }
 
     try {
-      await registrarConsumo(materiales, null, () => {
+      // Agregar ordenTrabajo a cada material si está disponible en origen
+      const materialesConOrden = materiales.map(m => ({
+        ...m,
+        ordenTrabajo: m.origen?.ordenTrabajo || m.origen?.numeroOrdenTrabajo || null
+      }));
+      
+      await registrarConsumo(materialesConOrden, null, () => {
         // Recargar inventario del taller después del consumo
         getInventarioTaller(true);
         // Notificar al componente padre si existe el callback
