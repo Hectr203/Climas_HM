@@ -104,7 +104,15 @@ const useProyecto = () => {
       setLoadingSave(true);
       setError(null);
       try {
-        const resp = await proyectoService.updateProyecto(id, payload, {
+        // Incluir totales con/sin IVA si vinieron del modal
+        const nextPayload = { ...payload };
+        if (payload.totalPresupuestoSinIva != null || payload.totalPresupuestoConIva != null || payload.porcentajeIva != null) {
+          nextPayload.totalPresupuestoSinIva = Number(payload.totalPresupuestoSinIva);
+          nextPayload.totalPresupuestoConIva = Number(payload.totalPresupuestoConIva);
+          nextPayload.porcentajeIva = Number(payload.porcentajeIva);
+        }
+
+        const resp = await proyectoService.updateProyecto(id, nextPayload, {
           signal,
         });
         const updated = unwrap(resp);
