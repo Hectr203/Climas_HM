@@ -265,13 +265,17 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
       } else {
         const msg = 'No llegó una tasa válida.';
         setFxError(msg);
-        handleError(e, 'Tipo de cambio');
+        showError(msg);
         return null;
-      } finally {
-        setLoadingFx(false);
       }
-    },
-    [handleError, showError]
+    } catch (e) {
+      handleError(e, 'Tipo de cambio');
+      return null;
+    } finally {
+      setLoadingFx(false);
+    }
+  },
+  [handleError, showError]
   );
 
   const toggleEquipmentUSD = (checked) => {

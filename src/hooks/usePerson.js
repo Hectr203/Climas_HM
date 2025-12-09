@@ -13,12 +13,15 @@ const usePerson = () => {
       const response = await personService.getPersonsByDepartment(department);
       if (response.success && Array.isArray(response.data)) {
         setDepartmentPersons(response.data);
+        return response.data; // Retornar los datos para uso directo
       } else {
         setDepartmentPersons([]);
+        return [];
       }
     } catch (err) {
       setError(err);
-      // No mostrar notificación, solo actualizar el estado de error
+      console.error("Error en getPersonsByDepartment:", err);
+      return []; // Retornar array vacío en caso de error
     } finally {
       setLoading(false);
     }
@@ -111,6 +114,42 @@ const usePerson = () => {
     }
   };
 
+  // 🔹 FUNCIÓN PARA OBTENER EMPLEADOS SIN USUARIO ASIGNADO
+  const getPersonsWithoutUser = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Intentar primero el endpoint específico
+      try {
+        const response = await personService.getPersonsWithoutUser();
+        if (response.success && Array.isArray(response.data)) {
+          return response.data;
+        } else if (Array.isArray(response)) {
+          return response;
+        }
+      } catch (endpointError) {
+        // Si el endpoint no existe (404), usar fallback
+        if (endpointError.response?.status === 404) {
+          console.warn('⚠️ Endpoint /empleados/sin-usuario no existe, usando todos los empleados');
+          // Obtener todos los empleados como fallback
+          const allResponse = await personService.getPersons();
+          if (allResponse.success && Array.isArray(allResponse.data)) {
+            return allResponse.data;
+          }
+        } else {
+          throw endpointError;
+        }
+      }
+      return [];
+    } catch (err) {
+      console.error("Error en usePerson.getPersonsWithoutUser:", err);
+      setError(err);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     persons,
     departmentPersons,
@@ -121,6 +160,7 @@ const usePerson = () => {
     getPersonById,
     createPerson,
     updatePersonById,
+    getPersonsWithoutUser,
   };
 };
 
