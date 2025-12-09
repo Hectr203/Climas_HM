@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Image from '../../../components/AppImage';
@@ -13,11 +13,17 @@ import {
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE, hasActiveFilters, filters, onClearFilters }) => {
-  const { persons, loading, error, getPersons } = usePerson();
+  const { persons, loading, error, getPersons, getEmployeeImageUrl, verifyEmployeeImagesBatch } = usePerson();
 
   const [sortConfig, setSortConfig] = useState({ key: 'nombreCompleto', direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const [employeeImages, setEmployeeImages] = useState({});
+  
+  // Usar useRef para trackear qué imágenes están siendo cargadas sin causar re-renders
+  const loadingImagesRef = useRef({});
+  // Trackear empleados que NO tienen imagen para evitar intentos repetidos
+  const noImageEmployeesRef = useRef(new Set());
 
   // 🔹 Cargar empleados al montar
   useEffect(() => {
@@ -64,6 +70,98 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
     if (currentPage > totalPages) setCurrentPage(totalPages);
     if (currentPage < 1) setCurrentPage(1);
   }, [currentPage, totalPages]);
+
+  // 🔹 Crear una clave estable basada en los IDs de empleados visibles
+  const visibleEmployeeIds = useMemo(() => {
+    return paginatedPersonnel.map(emp => emp.id || emp._id).join(',');
+  }, [paginatedPersonnel]);
+
+  // 🔹 Cargar imágenes de los empleados visibles en la página actual (OPTIMIZADO CON BATCH)
+  useEffect(() => {
+    const loadEmployeeImages = async () => {
+      if (!paginatedPersonnel || paginatedPersonnel.length === 0) return;
+
+      // Extraer IDs de empleados que necesitamos verificar
+      const empleadosToCheck = [];
+      
+      for (const emp of paginatedPersonnel) {
+        const empId = emp.id || emp._id;
+        // Solo verificar si no está en caché y no sabemos que no tiene imagen
+        if (empId && 
+            !employeeImages[empId] && 
+            !loadingImagesRef.current[empId] &&
+            !noImageEmployeesRef.current.has(empId)) {
+          empleadosToCheck.push(empId);
+          loadingImagesRef.current[empId] = true;
+        }
+      }
+
+      // Si no hay nada que verificar, salir
+      if (empleadosToCheck.length === 0) return;
+
+      try {
+        // 🚀 PASO 1: Verificar batch qué empleados tienen imagen (sin logs 404)
+        const { conImagen, sinImagen } = await verifyEmployeeImagesBatch(empleadosToCheck);
+
+        // Actualizar cache de empleados sin imagen
+        if (sinImagen && sinImagen.length > 0) {
+          sinImagen.forEach(empId => {
+            noImageEmployeesRef.current.add(empId);
+            delete loadingImagesRef.current[empId];
+          });
+        }
+
+        // 🖼️ PASO 2: Cargar SOLO las imágenes de empleados que SÍ tienen
+        if (conImagen && conImagen.length > 0) {
+          const imagePromises = conImagen.map(async (empId) => {
+            try {
+              const imageData = await getEmployeeImageUrl(empId, 120);
+              if (imageData?.sasUrl) {
+                return { empId, url: imageData.sasUrl };
+              }
+            } catch (error) {
+              console.error(`Error cargando imagen de ${empId}:`, error);
+            } finally {
+              delete loadingImagesRef.current[empId];
+            }
+            return null;
+          });
+
+          const results = await Promise.allSettled(imagePromises);
+          
+          // Actualizar estado con las imágenes cargadas
+          const newImages = {};
+          let hasNewImages = false;
+          
+          results.forEach(result => {
+            if (result.status === 'fulfilled' && result.value) {
+              const { empId, url } = result.value;
+              if (url) {
+                newImages[empId] = url;
+                hasNewImages = true;
+              }
+            }
+          });
+
+          // Solo actualizar si hay nuevas imágenes
+          if (hasNewImages) {
+            setEmployeeImages(prev => ({ ...prev, ...newImages }));
+          }
+        }
+      } catch (error) {
+        console.error('Error en carga optimizada de imágenes:', error);
+        // Limpiar flags de carga en caso de error
+        empleadosToCheck.forEach(empId => {
+          delete loadingImagesRef.current[empId];
+        });
+      }
+    };
+
+    loadEmployeeImages();
+    // Nota: Usamos visibleEmployeeIds (string estable) en lugar de paginatedPersonnel (array)
+    // para evitar que el efecto se ejecute innecesariamente en cada render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleEmployeeIds]);
 
   const handleChangePageSize = (e) => {
     const v = Number(e?.target?.value) || PAGE_SIZE_OPTIONS[0];
@@ -322,16 +420,24 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
           </thead>
 
           <tbody className="bg-card divide-y divide-border">
-            {paginatedPersonnel.map((emp) => (
+            {paginatedPersonnel.map((emp) => {
+              const empId = emp.id || emp._id;
+              const imageUrl = employeeImages[empId];
+              
+              return (
               <tr key={emp.id} className="hover:bg-muted/50 transition-smooth">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
-                      <Image
-                        src={emp.foto || '/default-avatar.png'}
-                        alt={emp.nombreCompleto}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                      {imageUrl ? (
+                        <Image
+                          src={imageUrl}
+                          alt={emp.nombreCompleto}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Icon name="User" size={20} className="text-muted-foreground" />
+                      )}
                     </div>
                     <div>
                       <div className="text-sm font-medium text-foreground">{emp.nombreCompleto}</div>
@@ -434,7 +540,8 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
 
@@ -467,16 +574,24 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
       </div>
 
       {/* Vista Móvil */}
-      <div className="lg:hidden space-y-4 p-4">{paginatedPersonnel.map((emp) => (
+      <div className="lg:hidden space-y-4 p-4">{paginatedPersonnel.map((emp) => {
+        const empId = emp.id || emp._id;
+        const imageUrl = employeeImages[empId];
+        
+        return (
           <div key={emp.id} className="bg-card border border-border rounded-lg p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-muted">
-                  <Image
-                    src={emp.foto || '/default-avatar.png'}
-                    alt={emp.nombreCompleto}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                  {imageUrl ? (
+                    <Image
+                      src={imageUrl}
+                      alt={emp.nombreCompleto}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Icon name="User" size={24} className="text-muted-foreground" />
+                  )}
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-foreground">{emp.nombreCompleto}</h3>
@@ -587,7 +702,8 @@ const PersonnelTable = ({ personnel, onViewProfile, onEditPersonnel, onAssignPPE
               </Button>
             </div>
           </div>
-        ))}
+        );
+        })}
 
         {/* 🔹 Paginación móvil */}
         <div className="flex flex-col gap-3 pt-4">
