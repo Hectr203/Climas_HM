@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
@@ -140,7 +140,6 @@ const resolveProjectStatus = (project) => {
 const formatLocation = (loc) => {
   if (!loc) return '—';
   
-  // Si es string, intentar parsear si es JSON
   if (typeof loc === 'string') {
     const trimmed = loc.trim();
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -149,24 +148,21 @@ const formatLocation = (loc) => {
         if (parsed && typeof parsed === 'object') {
           loc = parsed;
         } else {
-          return trimmed; // Si no se puede parsear, retornar el string original
+          return trimmed;
         }
       } catch {
-        return trimmed; // Si falla el parse, retornar el string original
+        return trimmed;
       }
     } else {
-      return trimmed; // String simple, retornar tal cual
+      return trimmed;
     }
   }
   
-  // Si es un array, tomar el primer elemento
   if (Array.isArray(loc) && loc.length > 0) {
     loc = loc[0];
   }
   
-  // Si ahora es objeto (y no array), extraer los campos en el orden: Dirección, Municipio, Estado
   if (typeof loc === 'object' && !Array.isArray(loc)) {
-    // Extraer dirección (varias variaciones posibles)
     const direccion = 
       loc.direccion || 
       loc.dirección || 
@@ -174,29 +170,24 @@ const formatLocation = (loc) => {
       loc.address || 
       '';
     
-    // Extraer municipio
     const municipio = 
       loc.municipio || 
       loc.municipioNombre || 
       loc.city || 
       '';
     
-    // Extraer estado
     const estado = 
       loc.estado || 
       loc.estadoCode || 
       loc.state || 
       '';
     
-    // Construir array en el orden: Dirección, Municipio, Estado
     const parts = [direccion, municipio, estado].filter(Boolean);
     
-    // Si hay al menos un campo, retornar formateado
     if (parts.length > 0) {
       return parts.join(', ');
     }
     
-    // Si no hay campos válidos, retornar vacío en lugar de JSON.stringify
     return '—';
   }
   
@@ -319,7 +310,6 @@ const mapProjectDocStrict = (doc) => {
         : null,
     workOrders: Array.isArray(doc.workOrders) ? doc.workOrders : undefined,
     equiposUSD,
-    // 🔵 Abonos originales quedan en raw (el cálculo se comenta más abajo)
     abonos: Array.isArray(doc.abonos) ? doc.abonos : [],
     createdAt: doc.createdAt ?? null,
     updatedAt: doc.updatedAt ?? null,
@@ -365,10 +355,8 @@ const ProjectTable = ({
 }) => {
   const navigate = useNavigate();
 
-  //Notificaciones
   const { showConfirm, showSuccess, showError } = useNotifications();
 
-  //Shadow list para props y lista remota para fetch
   const [localDocs, setLocalDocs] = useState(null);
   const [remoteDocs, setRemoteDocs] = useState([]);
 
@@ -378,13 +366,19 @@ const ProjectTable = ({
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [expandedRows, setExpandedRows] = useState([]);
   const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
-  // 🔵 Estado de borrador de abonos (COMENTADO)
-  // const [newAbonoDraft, setNewAbonoDraft] = useState({});
   const [clientCache, setClientCache] = useState({});
   const [clientsLoaded, setClientsLoaded] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+
+  // ✅ NUEVO: control por proyecto para mostrar total en USD debajo del precio total
+  const [showUSDByProject, setShowUSDByProject] = useState({});
+
+  // ✅ NUEVO: tipo de cambio USD→MXN dinámico
+  const [usdRate, setUsdRate] = useState(DEFAULT_USD_RATE);
+  const [fxLoading, setFxLoading] = useState(false);
+  const [fxError, setFxError] = useState('');
 
   /* Sincronizar shadow con props */
   useEffect(() => {
@@ -450,18 +444,38 @@ const ProjectTable = ({
     return baseSourceDocs.map(mapProjectDocStrict);
   }, [baseSourceDocs]);
 
-  // 🔵 Inicialización de borradores de abono (COMENTADO)
-  /*
-  useEffect(() => {
-    setNewAbonoDraft((prev) => {
-      const clone = { ...prev };
-      normalizedProjects.forEach((p) => {
-        if (!clone[p.id]) clone[p.id] = { fecha: '', monto: '', nota: '' };
+  // ✅ NUEVO: traer tipo de cambio real
+  const fetchUsdRate = useCallback(async () => {
+    try {
+      setFxError('');
+      setFxLoading(true);
+      const resp = await proyectoService.getCurrencyRates({
+        base: 'USD',
+        currencies: ['MXN'],
       });
-      return clone;
-    });
-  }, [normalizedProjects]);
-  */
+      const mxnInfo = resp?.data?.MXN || resp?.MXN;
+      const rate = Number(mxnInfo?.value ?? mxnInfo ?? 0);
+      if (rate > 0) {
+        setUsdRate(rate);
+      } else {
+        const msg = 'No se recibió una tasa válida.';
+        setFxError(msg);
+        showError(msg);
+      }
+    } catch (e) {
+      console.error('Error obteniendo tipo de cambio:', e);
+      const msg = e?.message || 'Error llamando currencyapi';
+      setFxError(msg);
+      showError('No se pudo actualizar el tipo de cambio.');
+    } finally {
+      setFxLoading(false);
+    }
+  }, [showError]);
+
+  // Pre-cargar tipo de cambio al montar
+  useEffect(() => {
+    fetchUsdRate();
+  }, [fetchUsdRate]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -595,8 +609,6 @@ const ProjectTable = ({
 
   const usingLocalShadow = Array.isArray(localDocs);
 
-  //Eliminar (optimista, sin refresh) —>>> MENSAJE EDITADO
-  // 🔴 Eliminar (optimista, sin refresh)
   const handleDelete = (project) => {
     if (!project?.id) return;
 
@@ -642,7 +654,6 @@ const ProjectTable = ({
     });
   };
 
-  //Eliminación masiva (optimista)
   const handleBulkDelete = () => {
     if (!selectedProjects?.length) return;
 
@@ -688,7 +699,6 @@ const ProjectTable = ({
     });
   };
 
-  /* Imagen demo */
   const handleImageUpload = async (project) => {
     try {
       const input = document.createElement('input');
@@ -708,78 +718,53 @@ const ProjectTable = ({
     }
   };
 
-  /* ====== ABONOS: helpers COMENTADOS ====== */
-  /*
-  const getProjectLiveSnapshot = (projectId) => {
-    const source = usingLocalShadow ? localDocs : remoteDocs;
-    const inSource = source?.find((d) => (d.id || d._id) === projectId);
-    if (inSource) return inSource;
-    if (Array.isArray(projects)) {
-      const inProps = projects.find((d) => (d.id || d._id) === projectId);
-      if (inProps) return inProps;
-    }
-    return undefined;
-  };
-  const getAbonosForProject = (id) => {
-    const snap = getProjectLiveSnapshot(id);
-    return Array.isArray(snap?.abonos) ? snap.abonos : [];
-  };
-  const getTotalsForProject = (project) => {
-    const snap = getProjectLiveSnapshot(project.id) || {};
-    const presupuestoTotal = Number(
-      snap.totalPresupuesto ?? snap.budget ?? snap.presupuesto?.total ?? project.budget ?? 0
-    );
-    const abonos = getAbonosForProject(project.id);
-    const totalAbonado = abonos.reduce((s, a) => s + (Number(a?.monto) || 0), 0);
-    const restante = presupuestoTotal - totalAbonado;
-    const percent = Math.min(Math.max(presupuestoTotal > 0 ? (totalAbonado / presupuestoTotal) * 100 : 0, 0), 100);
-    return { presupuestoTotal, abonosList: abonos, totalAbonado, restante, percent };
-  };
-  const handleDraftChange = (pid, f, v) =>
-    setNewAbonoDraft((prev) => ({ ...prev, [pid]: { ...(prev[pid] || {}), [f]: v } }));
-  const handleAddAbono = (project) => {
-    const { restante } = getTotalsForProject(project);
-    if (restante <= 0) return alert('Este proyecto ya está pagado en su totalidad.');
-    const draft = newAbonoDraft[project.id] || {};
-    const monto = Number(draft.monto);
-    if (!draft.fecha) return alert('Falta la fecha del abono');
-    if (!monto || monto <= 0) return alert('Monto inválido');
-    if (monto > restante) return alert('El abono excede el restante pendiente.');
-    const nuevo = { fecha: draft.fecha, monto, nota: draft.nota?.trim() || '', _tmpId: safeUUID() };
-    const snap = getProjectLiveSnapshot(project.id);
-    const updated = { ...(snap || {}), id: snap?.id ?? project.id, abonos: [...(snap?.abonos || []), nuevo] };
-
-    if (usingLocalShadow) {
-      setLocalDocs((prev) => {
-        const exists = prev?.some((p) => (p.id || p._id) === project.id);
-        return exists ? prev.map((p) => ((p.id || p._id) === project.id ? updated : p)) : [...(prev || []), updated];
-      });
-    } else {
-      setRemoteDocs((prev) => {
-        const exists = prev.some((p) => (p.id || p._id) === project.id);
-        return exists ? prev.map((p) => ((p.id || p._id) === project.id ? updated : p)) : [...prev, updated];
-      });
-    }
-    setNewAbonoDraft((prev) => ({ ...prev, [project.id]: { fecha: '', monto: '', nota: '' } }));
-  };
-  */
-
   /* ===== Render ===== */
   return (
     <div className="bg-card border border-border rounded-lg overflow-visible">
       {loading && <div className="p-4 border-b border-border text-sm text-muted-foreground">Cargando proyectos…</div>}
       {!!errorMsg && <div className="p-4 border-b border-border text-sm text-red-600">{errorMsg}</div>}
 
-      {selectedProjects?.length > 0 && (
-        <div className="bg-primary/5 border-b border-border p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground">{selectedProjects?.length} proyecto(s) seleccionado(s)</span>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" iconName="Trash2" iconPosition="left" onClick={handleBulkDelete}>Eliminar</Button>
+      {/* Barra superior: selección + tipo de cambio */}
+      {selectedProjects?.length > 0 || fxError || usdRate !== DEFAULT_USD_RATE ? (
+        <div className="border-b border-border px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-primary/5">
+          <div className="flex items-center gap-2">
+            {selectedProjects?.length > 0 && (
+              <span className="text-sm text-foreground">
+                {selectedProjects?.length} proyecto(s) seleccionado(s)
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="text-xs text-muted-foreground">
+              Tipo de cambio actual (USD → MXN):{' '}
+              <span className="font-semibold">
+                {usdRate ? usdRate.toFixed(4) : DEFAULT_USD_RATE.toFixed(4)}
+              </span>
             </div>
+            <Button
+              variant="outline"
+              size="xs"
+              iconName="RefreshCcw"
+              iconPosition="left"
+              onClick={fetchUsdRate}
+              loading={fxLoading}
+            >
+              {fxLoading ? 'Actualizando…' : 'Actualizar tipo de cambio'}
+            </Button>
+            {selectedProjects?.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                iconName="Trash2"
+                iconPosition="left"
+                onClick={handleBulkDelete}
+              >
+                Eliminar seleccionados
+              </Button>
+            )}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Desktop */}
       <div className="hidden lg:block overflow-x-auto">
@@ -836,14 +821,16 @@ const ProjectTable = ({
 
           <tbody>
             {pageItems?.map((project) => {
-              // 🔵 Totales de abonos por proyecto (COMENTADO)
-              // const { presupuestoTotal, abonosList, totalAbonado, restante, percent } = getTotalsForProject(project);
-              // const draft = newAbonoDraft[project.id] || { fecha: '', monto: '', nota: '' };
-              // const isPagado = restante <= 0;
-
               const nameToShow = resolveClientName(project);
               const emailToShow = resolveClientEmailOrContact(project);
               const statusUI = resolveProjectStatus(project);
+
+              const showUSD = !!showUSDByProject[project.id];
+              const effectiveRate = usdRate && usdRate > 0 ? usdRate : DEFAULT_USD_RATE;
+              const usdFromTotal =
+                project?.budget && effectiveRate > 0
+                  ? Number(project.budget) / effectiveRate
+                  : null;
 
               return (
                 <React.Fragment key={project?.id}>
@@ -902,13 +889,41 @@ const ProjectTable = ({
                       </div>
                     </td>
 
+                    {/* Presupuesto + USD abajo del total */}
                     <td className="p-4">
                       <div className="text-foreground font-medium">{formatCurrency(project?.budget)}</div>
+
                       {Number(project?.equiposUSD) > 0 && (
                         <div className="text-xs text-muted-foreground mt-1">
                           Equipos: <span className="font-medium">{formatUSD(project?.equiposUSD)}</span>
                         </div>
                       )}
+
+                      {/* check tipo "equipos" pero debajo del total */}
+                      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
+                        <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="h-3 w-3 accent-primary cursor-pointer"
+                            checked={showUSD}
+                            onChange={(e) =>
+                              setShowUSDByProject((prev) => ({
+                                ...prev,
+                                [project.id]: e.target.checked,
+                              }))
+                            }
+                          />
+                          <span>Mostrar total en USD</span>
+                        </label>
+
+                        {showUSD && (
+                          <span className="font-medium text-foreground">
+                            {usdFromTotal != null ? formatUSD(usdFromTotal) : '—'}
+                          </span>
+                        )}
+                      </div>
+
+                      
                     </td>
 
                     <td className="p-4">
@@ -954,7 +969,6 @@ const ProjectTable = ({
                   {expandedRows?.includes(project?.id) && (
                     <tr className="bg-muted/20">
                       <td colSpan={9} className="p-4">
-                        {/* Detalles + (ANTES ABONOS) */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                           <div>
                             <h4 className="font-medium text-foreground mb-2">Detalles del Proyecto</h4>
@@ -1001,148 +1015,7 @@ const ProjectTable = ({
                               onToggle={toggleDescriptionExpansion}
                             />
                           </div>
-                          {/*
-                          <div>
-                            <h4 className="font-medium text-foreground mb-2">Acciones Rápidas</h4>
-                            <div className="space-y-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                iconName="Image"
-                                iconPosition="left"
-                                onClick={() => navigate(`/project-gallery-viewer/${project?.id}`)}
-                                className="w-full justify-start"
-                              >
-                                Ver Galería
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                iconName="Calendar"
-                                iconPosition="left"
-                                className="w-full justify-start"
-                                onClick={() => navigate(`/project-timeline/${project?.id}`)}
-                              >
-                                Ver Cronograma
-                              </Button>
-                            </div>
-                          </div>
-                           */}
                         </div>
-
-                        {/*
-                        <div className="mt-6 border-t border-border pt-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <Icon name="DollarSign" size={16} className="text-green-600" />
-                              <h4 className="font-semibold text-foreground text-sm">Abonos</h4>
-                            </div>
-                            <span className="text-[11px] text-muted-foreground">Seguimiento de pagos del proyecto</span>
-                          </div>
-
-                          {abonosList.length > 0 ? (
-                            <div className="mb-3 rounded-md border border-border bg-white/40 dark:bg-muted/20 divide-y divide-border text-[12px]">
-                              {abonosList.map((abono, idx) => (
-                                <div key={abono._tmpId || idx} className="flex flex-wrap justify-between items-center px-3 py-1.5">
-                                  <div className="text-foreground flex items-center gap-1">
-                                    <span className="text-muted-foreground">📅</span>
-                                    <span>{formatDate(abono.fecha)}</span>
-                                  </div>
-                                  <div className="font-medium text-green-700">{formatCurrency(abono.monto)}</div>
-                                  <div className="text-muted-foreground italic truncate max-w-[200px]">
-                                    {abono.nota || 'Sin nota'}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-[12px] text-muted-foreground mb-3">No hay abonos registrados</p>
-                          )}
-
-                          <div className="border border-border rounded-md bg-background/50 p-3 mb-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <span className="text-[12px] font-medium text-foreground">Agregar abono (modo prueba)</span>
-                              <button
-                                className={`flex items-center gap-1 text-[11px] ${
-                                  isPagado ? 'text-muted-foreground cursor-not-allowed' : 'text-primary hover:underline'
-                                }`}
-                                onClick={() => {
-                                  if (!isPagado) handleAddAbono(project);
-                                }}
-                                disabled={isPagado}
-                              >
-                                <Icon name="Plus" size={12} />
-                                <span>{isPagado ? 'Pagado' : 'Agregar'}</span>
-                              </button>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 text:[11px] text-[11px]">
-                              <input
-                                type="date"
-                                value={draft.fecha || ''}
-                                onChange={(e) => handleDraftChange(project.id, 'fecha', e.target.value)}
-                                className="border border-border rounded px-2 py-1 bg-background text-foreground min-w-[150px]"
-                                disabled={isPagado}
-                              />
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={draft.monto || ''}
-                                onChange={(e) => handleDraftChange(project.id, 'monto', e.target.value)}
-                                className="border border-border rounded px-2 py-1 bg-background text-foreground w-[120px]"
-                                disabled={isPagado}
-                              />
-                              <input
-                                type="text"
-                                placeholder="ej. anticipo"
-                                value={draft.nota || ''}
-                                onChange={(e) => handleDraftChange(project.id, 'nota', e.target.value)}
-                                className="border border-border rounded px-2 py-1 bg-background text-foreground flex-1 min-w-[200px]"
-                                disabled={isPagado}
-                              />
-                            </div>
-
-                            {isPagado && (
-                              <div className="text-[11px] text-green-700 font-medium mt-2">
-                                Proyecto pagado en su totalidad ✅
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex flex-wrap gap-x-4 text-[12px] mb-2">
-                              <span>
-                                <span className="text-muted-foreground">Presupuesto total: </span>
-                                <span className="font-semibold">{formatCurrency(presupuestoTotal)}</span>
-                              </span>
-                              <span>
-                                <span className="text-muted-foreground">Total abonado: </span>
-                                <span className="font-semibold text-green-700">{formatCurrency(totalAbonado)}</span>
-                              </span>
-                              <span>
-                                <span className="text-muted-foreground">Restante: </span>
-                                <span className={`font-semibold ${restante < 0 ? 'text-red-600' : 'text-foreground'}`}>
-                                  {formatCurrency(restante)}
-                                </span>
-                              </span>
-                            </div>
-
-                            <div className="relative w-full h-3 bg-muted rounded overflow-hidden border border-border">
-                              <div
-                                className={`h-full transition-all duration-500 ${
-                                  percent >= 100 ? 'bg-green-600' : 'bg-green-500'
-                                }`}
-                                style={{ width: `${percent}%` }}
-                              />
-                              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white">
-                                {percent.toFixed(0)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        */}
                       </td>
                     </tr>
                   )}
