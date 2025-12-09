@@ -34,7 +34,7 @@ const QuotationDevelopmentCenter = () => {
     }
   }, []);
 
-  const { getCotizaciones, getCotizacionById } = useQuotation();
+  const { getCotizaciones, getCotizacionById, getConstructorByCotizacionId } = useQuotation();
 
   useEffect(() => {
     const fetchQuotations = async () => {
@@ -44,29 +44,43 @@ const QuotationDevelopmentCenter = () => {
         // console.log eliminado
         const cotizaciones = Array.isArray(response.data?.data) ? response.data.data : [];
         // console.log eliminado
-        // Mapeo adaptado a la estructura real del backend
-        const mapped = cotizaciones.map(cotizacion => ({
-          id: cotizacion.id || '', // id de Cosmos
-          folio: cotizacion.folio || '', // folio
-          clientId: cotizacion.informacion_basica?.cliente?.find?.(c => 'id_cliente' in c)?.id_cliente || '',
-          clientName: cotizacion.informacion_basica?.cliente?.find?.(c => c?.nombre_cliente)?.nombre_cliente || '',
-          projectId: cotizacion.informacion_basica?.proyecto?.find?.(p => 'id_proyecto' in p)?.id_proyecto || '',
-          projectName: cotizacion.informacion_basica?.proyecto?.find?.(p => p?.nombre_proyecto)?.nombre_proyecto || '',
-          projectType: cotizacion.informacion_basica?.tipo_proyecto || '',
-          description: cotizacion.detalles_proyecto?.descripcion_proyecto || '',
-          location: cotizacion.detalles_proyecto?.ubicacion_proyecto?.[0] || {},
-          executionTime: cotizacion.detalles_proyecto?.tiempo_ejecucion || '',
-          contactInfo: cotizacion.informacion_contacto?.[0]?.persona_contacto1?.[0] || {},
-          additionalNotes: cotizacion.asignacion?.notas_adicionales || '',
-          status: 'development',
-          createdDate: cotizacion.fechaCreacion ? new Date(cotizacion.fechaCreacion).toLocaleDateString('es-MX') : '',
-          lastModified: cotizacion.fechaActualizacion ? new Date(cotizacion.fechaActualizacion).toLocaleDateString('es-MX') : '',
-          assignedTo: cotizacion.asignacion?.responsables?.[0]?.nombre_responsable || '',
-          assignedToId: cotizacion.asignacion?.responsables?.[0]?.id_responsable || '',
-          priority: cotizacion.informacion_basica?.prioridad || 'media',
-          quotationData: {
-            totalAmount: cotizacion.detalles_proyecto?.presupuesto_estimado_mxn || 0
+        // Mapeo adaptado a la estructura real del backend con datos del constructor
+        const mapped = await Promise.all(cotizaciones.map(async (cotizacion) => {
+          let constructorData = null;
+          
+          // Intentar obtener datos del constructor para cada cotización
+          try {
+            constructorData = await getConstructorByCotizacionId(cotizacion.id);
+          } catch (err) {
+            // Si no existe constructor, usar datos por defecto
+            constructorData = null;
           }
+
+          return {
+            id: cotizacion.id || '', // id de Cosmos
+            folio: cotizacion.folio || '', // folio
+            clientId: cotizacion.informacion_basica?.cliente?.find?.(c => 'id_cliente' in c)?.id_cliente || '',
+            clientName: cotizacion.informacion_basica?.cliente?.find?.(c => c?.nombre_cliente)?.nombre_cliente || '',
+            projectId: cotizacion.informacion_basica?.proyecto?.find?.(p => 'id_proyecto' in p)?.id_proyecto || '',
+            projectName: cotizacion.informacion_basica?.proyecto?.find?.(p => p?.nombre_proyecto)?.nombre_proyecto || '',
+            projectType: cotizacion.informacion_basica?.tipo_proyecto || '',
+            description: cotizacion.detalles_proyecto?.descripcion_proyecto || '',
+            location: cotizacion.detalles_proyecto?.ubicacion_proyecto?.[0] || {},
+            executionTime: cotizacion.detalles_proyecto?.tiempo_ejecucion || '',
+            contactInfo: cotizacion.informacion_contacto?.[0]?.persona_contacto1?.[0] || {},
+            additionalNotes: cotizacion.asignacion?.notas_adicionales || '',
+            status: 'development',
+            createdDate: cotizacion.fechaCreacion ? new Date(cotizacion.fechaCreacion).toLocaleDateString('es-MX') : '',
+            lastModified: cotizacion.fechaActualizacion ? new Date(cotizacion.fechaActualizacion).toLocaleDateString('es-MX') : '',
+            assignedTo: cotizacion.asignacion?.responsables?.[0]?.nombre_responsable || '',
+            assignedToId: cotizacion.asignacion?.responsables?.[0]?.id_responsable || '',
+            priority: cotizacion.informacion_basica?.prioridad || 'media',
+            quotationData: {
+              // Usar monto del constructor si existe, sino usar el presupuesto estimado
+              totalAmount: constructorData?.monto_total || cotizacion.detalles_proyecto?.presupuesto_estimado_mxn || 0,
+              discountPercentage: constructorData?.porcentaje_descuento || 0
+            }
+          };
         }));
         setQuotations(mapped);
       } catch (err) {
@@ -366,7 +380,12 @@ const QuotationDevelopmentCenter = () => {
                             </span>
                           </div>
                           <div className="text-xs font-medium text-foreground">
-                            ${quotation?.quotationData?.totalAmount?.toLocaleString('es-MX') || '0'}
+                            ${(() => {
+                              const totalAmount = quotation?.quotationData?.totalAmount || 0;
+                              const discountPercentage = quotation?.quotationData?.discountPercentage || 0;
+                              const finalAmount = totalAmount - (totalAmount * (discountPercentage / 100));
+                              return finalAmount.toLocaleString('es-MX');
+                            })()}
                           </div>
                         </div>
                       </div>
