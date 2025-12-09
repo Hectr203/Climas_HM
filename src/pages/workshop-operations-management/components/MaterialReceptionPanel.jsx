@@ -5,6 +5,8 @@
   import requisiService from '../../../services/requisiService';
   import useGastos from '../../../hooks/useGastos';
   import useOperacAlt from '../../../hooks/useOperacAlt';
+  import useInventarioTaller from '../../../hooks/useInventarioTaller';
+  import { useNotifications } from '../../../context/NotificationContext';
 
   const MaterialReceptionPanel = ({ workOrders = [], onMaterialReception, selectedOrder: propSelectedOrder }) => {
     const [selectedOrder, setSelectedOrder] = useState(null);
@@ -14,8 +16,11 @@
     const [approvedSource, setApprovedSource] = useState('');
     const [materialsReception, setMaterialsReception] = useState([]);
     const [orderMaterialsCache, setOrderMaterialsCache] = useState({});
+    const [transferringToTaller, setTransferringToTaller] = useState(false);
     const { getGastos } = useGastos();
     const { updateWorkOrder } = useOperacAlt();
+    const { transferirMaterialesTaller } = useInventarioTaller();
+    const { showSuccess, showError } = useNotifications();
 
     // Persist approved materials per-order to localStorage (taller) so previews survive reloads
     const TALLER_PREFIX = 'wb_taller_approved_';
@@ -534,6 +539,98 @@
 
     const handleRemoveIssue = (index) => {
       setReceptionData(prev => ({ ...prev, issues: prev?.issues?.filter((_, i) => i !== index) }));
+    };
+
+    const handleTransferirATaller = async () => {
+      if (!selectedOrder) return;
+      
+      const orderKey = selectedOrder?.ordenTrabajo || selectedOrder?.id || selectedOrder?.folio || '';
+      
+      console.log('[MaterialReceptionPanel] Iniciando transferencia al taller para:', orderKey);
+      console.log('[MaterialReceptionPanel] selectedOrder:', selectedOrder);
+      console.log('[MaterialReceptionPanel] materialsReception:', materialsReception);
+      
+      // Verificar que hay materiales recibidos
+      const materialesRecibidos = materialsReception.filter(m => m.received > 0);
+      
+      console.log('[MaterialReceptionPanel] Materiales recibidos (filtrados):', materialesRecibidos);
+      
+      if (materialesRecibidos.length === 0) {
+        showError('No hay materiales recibidos para transferir al taller');
+        return;
+      }
+      
+      try {
+        setTransferringToTaller(true);
+        
+        // Preparar materiales para transferir (solo los recibidos)
+        const materialesParaTransferir = materialesRecibidos.map(m => ({
+          articuloId: m.codigo || m.key,
+          nombreMaterial: m.descripcion || 'Sin descripción',
+          cantidad: m.received,
+          unidad: m.raw?.unidad || 'pcs'
+        }));
+        
+        console.log('[MaterialReceptionPanel] Materiales preparados para transferir:', materialesParaTransferir);
+        
+        // Buscar la requisición asociada
+        let requisicionId = null;
+        try {
+          console.log('[MaterialReceptionPanel] Buscando requisición para orden:', orderKey);
+          const resp = await requisiService.getRequisitions({ numeroOrdenTrabajo: orderKey });
+          console.log('[MaterialReceptionPanel] Respuesta de requisiciones:', resp);
+          
+          if (resp?.success && Array.isArray(resp.data) && resp.data.length > 0) {
+            requisicionId = resp.data[0].id;
+            console.log('[MaterialReceptionPanel] Requisición encontrada:', requisicionId);
+            console.log('[MaterialReceptionPanel] Datos completos de requisición:', resp.data[0]);
+          }
+        } catch (err) {
+          console.warn('[MaterialReceptionPanel] No se pudo encontrar requisición asociada:', err);
+        }
+        
+        if (!requisicionId) {
+          showError('No se encontró una requisición asociada a esta orden de trabajo');
+          return;
+        }
+        
+        console.log('[MaterialReceptionPanel] Llamando a transferirMaterialesTaller con:', {
+          requisicionId,
+          materiales: materialesParaTransferir
+        });
+        
+        // Transferir al taller
+        await transferirMaterialesTaller(requisicionId, materialesParaTransferir);
+        
+        showSuccess(`${materialesParaTransferir.length} materiales transferidos al inventario del taller exitosamente`);
+        
+        // Opcional: actualizar la orden con información de transferencia
+        try {
+          if (selectedOrder?.id) {
+            await updateWorkOrder(selectedOrder.id, {
+              'recepcionMateriales.transferenciaAlTaller': {
+                fecha: new Date().toISOString(),
+                requisicionId,
+                materiales: materialesParaTransferir.length
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('[MaterialReceptionPanel] Error al actualizar orden con info de transferencia:', e);
+        }
+        
+      } catch (error) {
+        console.error('[MaterialReceptionPanel] Error al transferir materiales al taller:', error);
+        console.error('[MaterialReceptionPanel] Error detallado:', {
+          message: error.message,
+          status: error.status,
+          data: error.data,
+          response: error.response
+        });
+        showError(error.message || error.data?.message || 'Error al transferir materiales al taller');
+      } finally {
+        setTransferringToTaller(false);
+      }
     };
 
     const handleSubmitReception = async () => {
@@ -1110,11 +1207,38 @@
                 </div>
 
                 {/* Actions */}
-                <div className="flex space-x-2 pt-4">
-                  <Button onClick={handleSubmitReception} className="flex-1" iconName="Check">
-                    {loadReceptionFromTaller(selectedOrder?.ordenTrabajo || selectedOrder?.id || selectedOrder?.folio || '') ? 'Actualizar Recepción' : 'Registrar Recepción'}
-                  </Button>
-                  <Button variant="outline" onClick={() => { setSelectedOrder(null); }}>Cancelar</Button>
+                <div className="space-y-3 pt-4">
+                  <div className="flex space-x-2">
+                    <Button onClick={handleSubmitReception} className="flex-1" iconName="Check">
+                      {loadReceptionFromTaller(selectedOrder?.ordenTrabajo || selectedOrder?.id || selectedOrder?.folio || '') ? 'Actualizar Recepción' : 'Registrar Recepción'}
+                    </Button>
+                    <Button variant="outline" onClick={() => { setSelectedOrder(null); }}>Cancelar</Button>
+                  </div>
+                  
+                  {/* Botón de transferir al taller */}
+                  {materialsReception.some(m => m.received > 0) && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-blue-900 mb-1">
+                            📦 Transferir al Inventario del Taller
+                          </div>
+                          <p className="text-xs text-blue-700">
+                            Mueve los materiales recibidos al inventario del taller para su posterior consumo en operaciones.
+                          </p>
+                        </div>
+                        <Button 
+                          onClick={handleTransferirATaller}
+                          disabled={transferringToTaller}
+                          variant="default"
+                          iconName={transferringToTaller ? "Loader" : "ArrowRight"}
+                          className="bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0"
+                        >
+                          {transferringToTaller ? 'Transfiriendo...' : 'Transferir'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Status Alert */}
