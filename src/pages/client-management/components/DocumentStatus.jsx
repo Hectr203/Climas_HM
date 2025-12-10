@@ -198,15 +198,51 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
     }
   };
 
-  const handleDownload = (doc) => {
-    if (onDownloadDocument) return onDownloadDocument(doc);
-    if (!doc?.id) return showError('Documento sin ID');
-    try {
-      window.open(`/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}`, '_blank');
-    } catch (err) {
-      showError('No se pudo descargar el archivo');
-    }
-  };
+  const handleDownload = async (doc) => {
+  if (!doc?.id) return showError("Documento sin ID");
+
+  try {
+    setDownloadState({
+      active: true,
+      fileName: doc.name,
+      percent: 0,
+      loaded: 0,
+      total: 0,
+      index: 1,
+      totalFiles: 1,
+    });
+
+    // ⬅️ AQUÍ USAMOS TU HOOK REAL
+    await downloadDocument(doc, 60, (loaded, total) => {
+      const percent = total
+        ? Math.round((loaded / total) * 100)
+        : Math.min(99, Math.round((loaded / (1024 * 1024)) * 10));
+
+      setDownloadState((prev) => ({
+        ...prev,
+        loaded,
+        total,
+        percent,
+      }));
+    });
+
+    showSuccess("Descarga completada");
+  } catch (err) {
+    console.error("Error descargando documento:", err);
+    showError("No se pudo descargar el documento");
+  } finally {
+    setDownloadState({
+      active: false,
+      fileName: "",
+      percent: 0,
+      loaded: 0,
+      total: 0,
+      index: 0,
+      totalFiles: 0
+    });
+  }
+};
+
 
   return (
     <div className="bg-card border border-border rounded-lg p-6 card-shadow">
@@ -304,33 +340,13 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
               
               <div className="flex items-center space-x-2">
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    // Si el hook provee una función de descarga mejorada, la usamos y mostramos progreso.
-                    if (downloadDocument) {
-                      try {
-                        setDownloadState({ active: true, fileName: doc?.name || 'Descargando', percent: 0, loaded: 0, total: 0, index: 1, totalFiles: 1 });
-                        await downloadDocument(doc, 60, (loaded, total) => {
-                          const percent = total ? Math.round((loaded / total) * 100) : Math.min(99, Math.round((loaded / (1024 * 1024)) * 10));
-                          setDownloadState(prev => ({ ...prev, loaded, total: total || prev.total, percent }));
-                        });
-                        setTimeout(() => setDownloadState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 }), 400);
-                        showSuccess('Descarga iniciada');
-                        return;
-                      } catch (err) {
-                        console.error('Error descargando:', err);
-                        setDownloadState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 });
-                        showError(err?.message || 'Error al descargar');
-                        return;
-                      }
-                    }
-                    return handleDownload(doc);
-                  }}
-                  title="Descargar documento"
-                >
-                  <Icon name="Download" size={16} />
-                </Button>
+  variant="ghost"
+  size="sm"
+  onClick={() => handleDownload(doc)}
+>
+  <Icon name="Download" size={16} />
+</Button>
+
                 <Button
                   variant="ghost"
                   size="sm"

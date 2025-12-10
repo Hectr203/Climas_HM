@@ -84,10 +84,18 @@ class HttpService {
   }
 
   // Métodos HTTP
-  async get(url, config = {}) {
-    const res = await this.api.get(url, config);
-    return res.data;
+async get(url, config = {}) {
+  const res = await this.api.get(url, config);
+
+  // Si es blob, regresamos el response COMPLETO
+  if (config.responseType === "blob") {
+    return res;
   }
+
+  return res.data;
+}
+
+  
 
   async post(url, data = {}, config = {}) {
     const res = await this.api.post(url, data, config);

@@ -1,23 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import clientesArchivosService from '../services/clientesArchivosService';
+import { useCallback, useEffect, useRef, useState } from "react";
+import clientesArchivosService from "../services/clientesArchivosService";
+import { useNotification } from "../context/NotificationContext";
+import { saveAs } from "file-saver";
 
-/**
- * useClientArchivo
- * Hook para manejar los documentos de un cliente (listado, subida, vista y descarga).
- * - Llama al servicio `clientesArchivosService` para comunicarse con el backend
- * - Mantiene estado local de `documents`, `loading` y `error`
- *
- * @param {string|number|null} clientId - id del cliente para filtrar documentos
- */
 export default function useClientArchivo(clientId) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const mountedRef = useRef(false);
 
+  const { showConfirm, showSuccess, showError } = useNotification();
+
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadDocuments = useCallback(async () => {
@@ -27,15 +25,20 @@ export default function useClientArchivo(clientId) {
     }
     setLoading(true);
     setError(null);
+
     try {
-      // Forzar refresco en cada carga para evitar cache stale en el cliente
-      const docs = await clientesArchivosService.getDocumentosByCliente(clientId, { force: true });
+      const resp = await clientesArchivosService.getDocumentosByCliente(
+        clientId
+      );
+
+      const docs = resp?.data || [];
+
       if (!mountedRef.current) return [];
+
       setDocuments(Array.isArray(docs) ? docs : []);
       return docs;
     } catch (err) {
-      if (!mountedRef.current) return [];
-      setError(err);
+      if (mountedRef.current) setError(err);
       return [];
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -43,141 +46,353 @@ export default function useClientArchivo(clientId) {
   }, [clientId]);
 
   useEffect(() => {
-    // Cargar documentos cada vez que cambia el clientId
     loadDocuments();
   }, [clientId, loadDocuments]);
 
   const refresh = useCallback(() => loadDocuments(), [loadDocuments]);
+  
+  //        SUBIR ARCHIVO
+  const uploadFiles = useCallback(
+    async (files) => {
+      if (!clientId) throw new Error("clientId es requerido para subir archivos");
+      if (!files || files.length === 0) return [];
 
-  const uploadFiles = useCallback(async (files) => {
-    if (!clientId) throw new Error('clientId es requerido para subir archivos');
-    if (!files || files.length === 0) return [];
-    setLoading(true);
-    setError(null);
-    try {
-      const resp = await clientesArchivosService.uploadClienteArchivos(files, clientId);
-      const uploaded = Array.isArray(resp) ? resp : [resp];
+      setLoading(true);
+      setError(null);
 
-      // Intentamos mantener el orden recien subidos al inicio
-      setDocuments(prev => {
-        // Evitar duplicados simples: si el backend devuelve el mismo id ya presente, lo reemplazamos
-        const existingById = new Map((prev || []).map(d => [String(d.id), d]));
-        const normalized = (uploaded || []).map(d => ({ ...d }));
-        normalized.forEach(d => existingById.set(String(d.id), d));
-        // convertir map a array y ordenar: nuevos primero
-        const merged = [...normalized, ...Array.from(existingById.values()).filter(d => !normalized.find(n => String(n.id) === String(d.id)))];
-        return merged;
-      });
-
-      return uploaded;
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [clientId]);
-
-  const viewDocument = useCallback((doc) => {
-    if (!doc) return;
-    if (doc.urlBase || doc.url) {
-      window.open(doc.urlBase || doc.url, '_blank');
-      return;
-    }
-    if (doc.id) {
-      window.open(`/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}`, '_blank');
-      return;
-    }
-    throw new Error('Documento sin URL ni id');
-  }, []);
-
-  const downloadDocument = useCallback((doc, expiresInMinutes = 60) => {
-    if (!doc || !doc.id) throw new Error('Documento sin id');
-    const url = `/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}?expiresIn=${encodeURIComponent(String(expiresInMinutes))}`;
-
-    // onProgress: callback(loadedBytes, totalBytes|null)
-    return (async () => {
       try {
-        const resp = await fetch(url, { credentials: 'same-origin' });
-        if (!resp.ok) throw new Error(`Error al obtener archivo: ${resp.status}`);
+        const uploadedDoc =
+          await clientesArchivosService.uploadClienteArchivos(files, clientId);
 
-        // Si el body es un stream, leer en chunks y reportar progreso
-        const contentLength = resp.headers.get('content-length');
-        const total = contentLength ? parseInt(contentLength, 10) : null;
+        if (!uploadedDoc) throw new Error("Respuesta inválida del backend");
 
-        if (resp.body && typeof resp.body.getReader === 'function') {
-          const reader = resp.body.getReader();
-          const chunks = [];
+        setDocuments((prev) => {
+          if (!Array.isArray(prev)) return [uploadedDoc];
+
+          const exists = prev.find(
+            (d) => String(d.id) === String(uploadedDoc.id)
+          );
+
+          if (exists) {
+            return prev.map((d) => (d.id === uploadedDoc.id ? uploadedDoc : d));
+          }
+
+          return [uploadedDoc, ...prev];
+        });
+
+        return uploadedDoc;
+      } catch (err) {
+        setError(err);
+        throw err;
+      } finally {
+        if (mountedRef.current) setLoading(false);
+      }
+    },
+    [clientId]
+  );
+  
+  //        VER ARCHIVO
+  const viewDocument = useCallback(async (doc) => {
+    if (!doc) return;
+    const publicUrl = doc.urlBase || doc.url;
+    if (publicUrl) {
+      window.open(publicUrl, "_blank");
+      return;
+    }
+
+    try {
+      try {
+        if (clientesArchivosService.downloadBlob) {
+          console.debug('viewDocument: intentando downloadBlob para', doc.id);
+          const blobRes = await clientesArchivosService.downloadBlob(doc.id);
+          const blob = await normalizeToBlob(blobRes);
+if (blob) {
+  const fixedBlob = new Blob([blob], { type: "application/pdf" });
+  const url = URL.createObjectURL(fixedBlob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return;
+}
+
+        }
+      } catch (err) {
+        console.warn('viewDocument: downloadBlob falló, intentando descargarDocumento', err);
+      }
+      try {
+        if (clientesArchivosService.descargarDocumento) {
+          console.debug('viewDocument: intentando descargarDocumento para', doc.id);
+          const blobRes = await clientesArchivosService.descargarDocumento(doc.id);
+          const blob = await normalizeToBlob(blobRes);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('viewDocument: descargarDocumento falló, intentando obtener metadata/SAS', err);
+      }
+
+      try {
+        if (clientesArchivosService.obtenerDocumento) {
+          console.debug('viewDocument: obteniendo metadata para', doc.id);
+          const metaResp = await clientesArchivosService.obtenerDocumento(doc.id);
+          const meta = metaResp?.data ?? metaResp ?? {};
+          const sasUrl = meta?.url || meta?.urlDescarga || meta?.link || meta?.downloadUrl || meta?.data?.url;
+          if (sasUrl) {
+            window.open(sasUrl, '_blank');
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('viewDocument: obtenerDocumento falló, abriré la ruta /api como fallback', err);
+      }
+      window.open(`/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}`, '_blank');
+    } catch (err) {
+      console.error('viewDocument: error al intentar mostrar el documento', err);
+      window.open(`/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}`, '_blank');
+    }
+  }, []);
+  
+  //       DESCARGAR
+  
+  const downloadDocument = useCallback(
+    async (doc, expiresIn = 60, onProgress) => {
+      if (!doc || !doc.id) throw new Error("Documento sin id");
+
+      if (!mountedRef.current) return false;
+      setLoading(true);
+      setError(null);
+      const extractErrorMessage = async (err) => {
+        try {
+          if (!err) return 'Error desconocido';
+          if (err.raw) return String(err.raw).slice(0, 2000);
+          if (err.message && typeof err.message === 'string' && err.message.length > 0) {
+            return err.message;
+          }
+          if (err.userMessage) return err.userMessage;
+
+          const original = err.originalError || err.original || err;
+          const blob = original?.response?.data || err?.response?.data;
+          if (blob && typeof blob.text === 'function') {
+            try {
+              const text = await blob.text();
+              return text || JSON.stringify(err);
+            } catch (e) {
+            }
+          }
+
+          if (err.data && typeof err.data === 'string') return err.data;
+          return JSON.stringify(err);
+        } catch (e) {
+          return 'Error al extraer el mensaje de error';
+        }
+      };
+
+      try {
+     if (doc.urlBase || doc.url) {
+          const publicUrl = doc.urlBase || doc.url;
+          const fileNameFromDoc = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+
+          try {
+            const resPublic = await fetch(publicUrl);
+            if (resPublic && resPublic.ok) {
+              const blobPublic = await resPublic.blob();
+              saveAs(blobPublic, fileNameFromDoc);
+              if (onProgress) onProgress(blobPublic.size || 1, blobPublic.size || 1);
+              return true;
+            }
+          } catch (publicErr) {
+            console.warn('Descarga desde URL pública falló, continuando con otros métodos', publicErr);
+          }
+        }
+
+       try {
+          if (clientesArchivosService.downloadBlob) {
+            console.debug('downloadDocument: intentando clientesArchivosService.downloadBlob', doc.id);
+            const blobSimple = await clientesArchivosService.downloadBlob(doc.id);
+            if (blobSimple && blobSimple instanceof Blob) {
+              console.debug('downloadDocument: downloadBlob devolvió blob size=', blobSimple.size);
+              const fileNameSimple = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+              saveAs(blobSimple, fileNameSimple);
+              if (onProgress) onProgress(blobSimple.size || 1, blobSimple.size || 1);
+              return true;
+            }
+          }
+        } catch (blobErr) {
+          const readable = await extractErrorMessage(blobErr);
+          console.warn('downloadBlob falló, continuando con otros métodos', readable, blobErr);
+        }
+        let resp;
+        try {
+          if (clientesArchivosService.descargarDocumento) {
+            console.debug('downloadDocument: intentando clientesArchivosService.descargarDocumento', doc.id);
+            const blob = await clientesArchivosService.descargarDocumento(doc.id, { expiresIn });
+            if (blob && (blob instanceof Blob || blob.data instanceof Blob)) {
+              const realBlob = blob instanceof Blob ? blob : blob.data;
+              const fileName = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+              const fixedBlob = new Blob([realBlob], { type: "application/pdf" });
+saveAs(fixedBlob, fileName);
+
+              if (onProgress) onProgress(realBlob.size || 1, realBlob.size || 1);
+              return true;
+            }
+          }
+        } catch (firstErr) {
+          const readable = await extractErrorMessage(firstErr);
+          console.warn('descargarDocumento directo falló, intentando obtener metadata SAS', readable, firstErr);
+        }
+        try {
+          if (clientesArchivosService.obtenerDocumento) {
+            resp = await clientesArchivosService.obtenerDocumento(doc.id, { expiresIn });
+          }
+        } catch (svcErr) {
+          console.warn('clientesArchivosService.obtenerDocumento falló, intentando descargarDirecto como fallback', svcErr);
+          try {
+            if (clientesArchivosService.descargarDirecto) {
+              const blob = await clientesArchivosService.descargarDirecto(doc.id, { expiresIn });
+              if (blob && (blob instanceof Blob || blob.data instanceof Blob)) {
+                const realBlob = blob instanceof Blob ? blob : blob.data;
+                const fileName = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+                const fixedBlob = new Blob([realBlob], { type: "application/pdf" });
+saveAs(fixedBlob, fileName);
+
+                if (onProgress) onProgress(realBlob.size || 1, realBlob.size || 1);
+                return true;
+              }
+            }
+          } catch (dErr) {
+            console.warn('descargarDirecto falló, intentando fallback público', dErr);
+          }
+
+          const fallbackUrl = `/api/clientes/archivos/descargar/${encodeURIComponent(doc.id)}${expiresIn ? `?expiresIn=${expiresIn}` : ''}`;
+          const a = document.createElement('a');
+          a.href = fallbackUrl;
+          a.download = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          return true;
+        }
+
+        const meta = resp?.data ?? resp ?? {};
+        if (meta instanceof Blob) {
+          const fileNameBlob = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+          saveAs(meta, fileNameBlob);
+          if (onProgress) onProgress(meta.size || 1, meta.size || 1);
+          return true;
+        }
+
+        const sasUrl = meta?.url || meta?.urlDescarga || meta?.link || meta?.downloadUrl || meta?.data?.url;
+
+        if (!sasUrl) {
+          throw new Error('El backend no devolvió una URL de descarga válida');
+        }
+
+        try {
+          const res = await fetch(sasUrl);
+          if (!res.ok) throw new Error('Error descargando archivo');
+          if (!res.body) {
+            const blob = await res.blob();
+            const fileNameFallback = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+            saveAs(blob, fileNameFallback);
+            if (onProgress) onProgress(blob.size || 1, blob.size || 1);
+            return true;
+          }
+
+          const reader = res.body.getReader();
+          const contentLength = +res.headers.get('Content-Length') || 0;
           let received = 0;
+          const chunks = [];
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             chunks.push(value);
             received += value.length || value.byteLength || 0;
-            if (typeof onProgress === 'function') {
-              try { onProgress(received, total); } catch (e) { /* ignore callback errors */ }
-            }
+            if (onProgress) onProgress(received, contentLength || received);
           }
-          const blob = new Blob(chunks, { type: resp.headers.get('content-type') || 'application/octet-stream' });
 
-          // Obtener filename preferente
-          let filename = doc.nombreOriginal || doc.nombreAsignado || doc.name || `archivo_${Date.now()}`;
+          const blob = new Blob(chunks, { type: res.headers.get('Content-Type') || 'application/octet-stream' });
+          const fileName = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+          saveAs(blob, fileName);
+          if (onProgress) onProgress(received, contentLength || received);
+          return true;
+        } catch (err) {
+          console.warn('Fetch a SAS falló, intentando descargarDirecto desde backend', err, { sasUrl });
           try {
-            const cd = resp.headers.get('content-disposition') || resp.headers.get('Content-Disposition');
-            if (cd) {
-              const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
-              if (match && match[1]) filename = decodeURIComponent(match[1]);
-            }
-          } catch (e) { /* ignore */ }
+            if (clientesArchivosService.descargarDirecto) {
+              const blob = await clientesArchivosService.descargarDirecto(doc.id, { expiresIn });
+              if (blob && (blob instanceof Blob || blob.data instanceof Blob)) {
+                const realBlob = blob instanceof Blob ? blob : blob.data;
+                const fileName = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
+                const fixedBlob = new Blob([realBlob], { type: "application/pdf" });
+saveAs(fixedBlob, fileName);
 
-          const blobUrl = URL.createObjectURL(blob);
+                if (onProgress) onProgress(realBlob.size || 1, realBlob.size || 1);
+                return true;
+              }
+            }
+          } catch (dErr) {
+            console.warn('descargarDirecto también falló, realizando fallback a SAS con <a>:', dErr);
+          }
+
           const a = document.createElement('a');
-          a.href = blobUrl;
-          a.download = filename;
-          a.style.display = 'none';
+          a.href = sasUrl;
+          a.download = doc.name || doc.nombreOriginal || `archivo_${doc.id}.pdf`;
           document.body.appendChild(a);
           a.click();
           a.remove();
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+          if (onProgress) onProgress(1, 1);
           return true;
         }
-
-        // Fallback si no hay stream: obtener blob entero
-        const blob = await resp.blob();
-        if (typeof onProgress === 'function') {
-          try { onProgress(blob.size, blob.size); } catch (e) { /* ignore */ }
-        }
-
-        let filename = doc.nombreOriginal || doc.nombreAsignado || doc.name || `archivo_${Date.now()}`;
-        try {
-          const cd = resp.headers.get('content-disposition') || resp.headers.get('Content-Disposition');
-          if (cd) {
-            const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
-            if (match && match[1]) filename = decodeURIComponent(match[1]);
-          }
-        } catch (e) { /* ignore */ }
-
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
-        return true;
       } catch (err) {
-        // Fallback: abrir la URL (redirige a SAS y normalmente fuerza descarga)
+        const readable = await extractErrorMessage(err);
         try {
-          window.open(url, '_blank', 'noopener');
-          return true;
-        } catch (e) {
-          throw err;
+          showError(typeof readable === 'string' ? readable : 'No se pudo descargar el archivo');
+        } catch (notifyErr) {
         }
+        if (mountedRef.current) setError(err);
+        throw err;
+      } finally {
+        if (mountedRef.current) setLoading(false);
       }
-    })();
-  }, []);
+    },
+    []
+  );
+  
+  //       ELIMINAR CON CONFIRMACIÓN
+  const deleteDocument = useCallback(
+    async (docId) => {
+      if (!docId) return;
+
+      showConfirm("¿Estás segura de eliminar este archivo?", {
+        onConfirm: async () => {
+          setLoading(true);
+          setError(null);
+
+          try {
+            await clientesArchivosService.deleteClienteArchivo(docId);
+
+            setDocuments((prev) =>
+              prev.filter((d) => String(d.id) !== String(docId))
+            );
+
+            showSuccess("Documento eliminado correctamente");
+            return true;
+          } catch (err) {
+            setError(err);
+            showError("No se pudo eliminar el documento");
+            throw err;
+          } finally {
+            if (mountedRef.current) setLoading(false);
+          }
+        },
+      });
+    },
+    [showConfirm, showSuccess, showError]
+  );
 
   return {
     documents,
@@ -187,5 +402,6 @@ export default function useClientArchivo(clientId) {
     uploadFiles,
     viewDocument,
     downloadDocument,
+    deleteDocument,
   };
 }
