@@ -37,7 +37,8 @@ const Breadcrumb = ({ customItems = null }) => {
     '/documentacion-proyectos': { label: 'Centro de Documentación', icon: 'FolderOpen' },
     '/visor-galeria': { label: 'Galería de Proyectos', icon: 'Image' },
     '/galeria-proyecto': { label: 'Detalles de Galería', icon: 'Images' },
-    '/abonos': { label: 'Gestión de Abonos', icon: 'CreditCard' }
+    '/abonos': { label: 'Gestión de Abonos', icon: 'CreditCard' },
+    '/herramientas': { label: 'Gestión de Herramientas', icon: 'Wrench' }
   };
 
   const generateBreadcrumbs = () => {

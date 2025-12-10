@@ -99,16 +99,20 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   const { handleError, handleSuccess } = useErrorHandler();
   const { showError } = useNotifications();
 
+  // FX / equipos
   const [isEquipmentInUSD, setIsEquipmentInUSD] = useState(false);
   const [exchangeRate, setExchangeRate] = useState(18);
   const [uiEquipmentUSD, setUiEquipmentUSD] = useState('');
   const [loadingFx, setLoadingFx] = useState(false);
   const [fxError, setFxError] = useState(null);
 
+  // 🔵 NUEVO: ver total en USD
+  const [showUSD, setShowUSD] = useState(false);
+
   /* ============= ESTADOS/MUNICIPIOS (UBICACIÓN) ============= */
   const { estados, loading: loadingEstados, error: errorEstados } = useEstados();
   const [selectedEstadoCode, setSelectedEstadoCode] = useState('');
-  const [municipioOriginal, setMunicipioOriginal] = useState(null); // Guardar municipio original antes de limpiarlo
+  const [municipioOriginal, setMunicipioOriginal] = useState(null);
   const {
     municipios,
     loading: loadingMunicipios,
@@ -215,11 +219,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     const cron = doc.cronograma || {};
     const id = doc.id || project?.id;
 
-    // ubicacion puede venir:
-    // 1) objeto { estado, municipio, direccion }
-    // 2) string simple
-    // 3) string JSON
-    // 4) array [{ estado, municipio, direccion }]
     let rawUbicacion = doc.ubicacion;
     if (typeof rawUbicacion === 'string') {
       const trimmed = rawUbicacion.trim();
@@ -230,7 +229,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
             rawUbicacion = parsed;
           }
         } catch {
-          // ignorar, se usa como string normal abajo
+          // ignore
         }
       }
     }
@@ -241,7 +240,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       direccion: '',
     };
 
-    // Si rawUbicacion es un array, tomar el primer elemento
     if (Array.isArray(rawUbicacion) && rawUbicacion.length > 0) {
       rawUbicacion = rawUbicacion[0];
     }
@@ -315,27 +313,22 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       const estadoCode = normalized?.ubicacion?.estado || '';
       const municipioValue = normalized?.ubicacion?.municipio || '';
       
-      // Guardar el municipio original antes de actualizar formData
       if (municipioValue && municipioValue !== formData?.ubicacion?.municipio) {
         setMunicipioOriginal(municipioValue);
       }
       
-      // Actualizar formData con los datos normalizados
       setFormData(normalized);
       
-      // Establecer selectedEstadoCode para cargar los municipios del estado
-      // Esto debe hacerse después de actualizar formData
       if (estadoCode) {
         setSelectedEstadoCode(estadoCode);
       }
     } else {
-      // Reset cuando se cierra el modal
       setSelectedEstadoCode('');
       setMunicipioOriginal(null);
+      setShowUSD(false); // reset toggle USD al cerrar
     }
-  }, [normalized, isOpen]);
+  }, [normalized, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sincronizar selectedEstadoCode con formData.ubicacion.estado cuando cambia
   useEffect(() => {
     if (isOpen && formData?.ubicacion?.estado) {
       const estadoCode = formData.ubicacion.estado;
@@ -343,25 +336,20 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         setSelectedEstadoCode(estadoCode);
       }
     } else if (isOpen && !formData?.ubicacion?.estado && selectedEstadoCode) {
-      // Si no hay estado en formData pero selectedEstadoCode tiene valor, limpiarlo
       setSelectedEstadoCode('');
     }
   }, [isOpen, formData?.ubicacion?.estado, selectedEstadoCode]);
 
-  // Paso 1: Resolver código de estado cuando viene como nombre y los estados están cargados
-  // Esto debe hacerse ANTES de cargar los municipios
+  // resolver estado (code) a partir de nombre
   useEffect(() => {
     if (!isOpen || !estados || loadingEstados || !formData?.ubicacion?.estado || !Array.isArray(estados)) {
       return;
     }
     
     const estadoActual = formData.ubicacion.estado;
-    
-    // Verificar si el estado actual ya es un código válido (existe en estados)
     const esCodigoValido = estados.some((e) => e.code === estadoActual);
     
     if (!esCodigoValido) {
-      // Buscar por nombre (case-insensitive)
       const estadoEncontrado = estados.find((e) => {
         const nombreEstado = e.name || '';
         return nombreEstado.toLowerCase() === estadoActual.toLowerCase() ||
@@ -370,78 +358,54 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       
       if (estadoEncontrado) {
         const codigoEncontrado = estadoEncontrado.code;
-        
-        // Guardar el municipio original antes de limpiarlo
         const municipioActual = formData.ubicacion.municipio || '';
         
         if (municipioActual && !municipioOriginal) {
           setMunicipioOriginal(municipioActual);
         }
         
-        // Actualizar formData y selectedEstadoCode con el código encontrado
-        // Esto desencadenará la carga de municipios
         setFormData((prev) => ({
           ...prev,
           ubicacion: {
             ...prev.ubicacion,
             estado: codigoEncontrado,
-            // Limpiar municipio hasta que se carguen los municipios del estado
             municipio: '',
           },
         }));
         setSelectedEstadoCode(codigoEncontrado);
       }
     } else {
-      // Si el estado ya es un código válido, asegurarse de que selectedEstadoCode esté establecido
-      // para cargar los municipios
       if (selectedEstadoCode !== estadoActual) {
         setSelectedEstadoCode(estadoActual);
       }
     }
   }, [isOpen, estados, loadingEstados, formData?.ubicacion?.estado, selectedEstadoCode, municipioOriginal]);
 
-  // Paso 2: Resolver código de municipio SOLO cuando los municipios están completamente cargados
-  // Esto se ejecuta DESPUÉS de que el estado está establecido y los municipios se han cargado
+  // resolver municipio (code) a partir de nombre
   useEffect(() => {
-    // Esperar a que:
-    // 1. El modal esté abierto
-    // 2. Los municipios estén cargados (no loading)
-    // 3. El estado esté establecido y sea válido
     if (!isOpen || loadingMunicipios || !formData?.ubicacion?.estado) {
       return;
     }
     
-    // Si aún no hay municipios cargados, esperar
     if (!municipios || !municipios.municipios) {
       return;
     }
     
-    // Usar municipioOriginal si existe (cuando se limpió durante la resolución del estado)
-    // o el municipio actual de formData
     const municipioParaResolver = municipioOriginal || formData?.ubicacion?.municipio || '';
-    
-    // Si no hay municipio para resolver, no hacer nada
     if (!municipioParaResolver) {
       return;
     }
     
     const municipiosObj = municipios.municipios || {};
-    
-    // Verificar si el municipio actual ya es un código válido (existe como key en municipios)
     const esCodigoValido = municipioParaResolver && municipiosObj[municipioParaResolver];
     
     if (!esCodigoValido) {
-      // Buscar por nombre o alias
       const municipioEncontrado = Object.entries(municipiosObj).find(([code, name]) => {
-        // Comparación exacta del nombre
         if (name === municipioParaResolver) return true;
-        // Comparación case-insensitive
         if (name.toLowerCase() === municipioParaResolver.toLowerCase()) return true;
-        // Buscar en aliases si existen
         const aliases = municipios.aliases || {};
         const aliasEncontrado = Object.entries(aliases).find(([alias, codigoReferenciado]) => {
           if (codigoReferenciado === code) {
-            // El alias apunta a este código, comparar con el alias o su valor decodificado
             return alias === municipioParaResolver || 
                    alias.toLowerCase() === municipioParaResolver.toLowerCase();
           }
@@ -452,8 +416,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       
       if (municipioEncontrado) {
         const [codigoEncontrado] = municipioEncontrado;
-        
-        // Actualizar formData con el código encontrado y limpiar municipioOriginal
         setFormData((prev) => ({
           ...prev,
           ubicacion: {
@@ -463,7 +425,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         }));
         setMunicipioOriginal(null);
       } else {
-        // Si no se encuentra el municipio, limpiarlo y limpiar municipioOriginal
         setFormData((prev) => ({
           ...prev,
           ubicacion: {
@@ -474,7 +435,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         setMunicipioOriginal(null);
       }
     } else {
-      // Si ya es un código válido, asegurarse de que esté en formData y limpiar municipioOriginal
       if (formData?.ubicacion?.municipio !== municipioParaResolver) {
         setFormData((prev) => ({
           ...prev,
@@ -564,6 +524,14 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     }
   }, [handleError, showError]);
 
+  // toggle global de ver total en USD
+  const handleToggleShowUSD = async (checked) => {
+    setShowUSD(checked);
+    if (checked) {
+      await fetchUsdMxnRate();
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     const cap = formData?.presupuesto?._metaEquipos?.capturadoEn;
@@ -635,6 +603,14 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       b.otros
     ) + otherExpensesTotal;
   }, [formData, otherExpensesTotal]);
+
+  // 🔵 total en USD (solo si showUSD y hay rate)
+  const totalUSD = useMemo(() => {
+    if (!showUSD) return null;
+    const rate = rateSafe(exchangeRate);
+    if (!rate) return null;
+    return totalMXN / rate;
+  }, [showUSD, exchangeRate, totalMXN]);
 
   /* ============= HANDLERS DEL FORM ============= */
   const handle = (k, v) => {
@@ -783,14 +759,12 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       uiEstadoCache.set(formData.id, formData.estado);
 
       if (onSubmit) {
-        // Deja que el padre decida si muestra mensaje de éxito
         onSubmit({
           id: formData.id,
           ...payload,
           _uiEstado: formData.estado,
         });
       } else {
-        // Solo mostramos el mensaje aquí si no hay onSubmit
         handleSuccess('update', 'Proyecto');
       }
 
@@ -1324,6 +1298,39 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
                     ${formatWithCommas(totalMXN, 2)} MXN
                   </span>
                 </div>
+
+                {showUSD && (
+                  <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-muted-foreground">
+                    <div>
+                      ≈{' '}
+                      {totalUSD != null ? (
+                        <span className="font-semibold text-primary">
+                          ${formatWithCommas(totalUSD, 2)} USD
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchUsdMxnRate}
+                      loading={loadingFx}
+                      iconName="RefreshCcw"
+                      iconPosition="left"
+                    >
+                      {loadingFx ? 'Actualizar…' : 'Actualizar tipo de cambio'}
+                    </Button>
+
+                    {fxError && (
+                      <span className="text-xs text-destructive">
+                        {fxError}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

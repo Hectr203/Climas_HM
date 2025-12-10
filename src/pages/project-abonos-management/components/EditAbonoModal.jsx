@@ -49,7 +49,7 @@ const deFechaALocalInput = (fecha) => {
   } else {
     fechaObj = fecha;
   }
-  
+
   if (isNaN(fechaObj.getTime())) return '';
   const rellenar = (n) => String(n).padStart(2, '0');
   return `${fechaObj.getFullYear()}-${rellenar(fechaObj.getMonth() + 1)}-${rellenar(fechaObj.getDate())}`;
@@ -61,15 +61,15 @@ const formatearNumeroConSeparadores = (valor) => {
   // Remover cualquier formato previo y obtener solo números y punto decimal
   const numeroLimpio = String(valor).replace(/[^\d.]/g, '');
   if (!numeroLimpio) return '';
-  
+
   // Separar parte entera y decimal
   const partes = numeroLimpio.split('.');
   const parteEntera = partes[0] || '0';
   const parteDecimal = partes[1] ? `.${partes[1]}` : '';
-  
+
   // Formatear parte entera con separadores de miles
   const formateado = parteEntera.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  
+
   return formateado + parteDecimal;
 };
 
@@ -81,19 +81,22 @@ const limpiarNumeroFormateado = (valor) => {
 };
 
 const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
-  const presupuestoProyecto = Number(project?.budget ?? project?.presupuesto?.total ?? project?.totalPresupuesto ?? 0);
-
+  // Homologar con ViewAbonosModal: usar totalPresupuesto con fallback a budget
+  const presupuestoProyecto = Number(project?.totalPresupuesto ?? project?.budget ?? 0);
   // Hook de abonos
-  const { editAbono, loading } = useAbono();
-  
+  const { editAbono, getAbonosByProyecto, loading } = useAbono();
+
   // Hook para obtener información del proyecto
   const { getProyectoById } = useProyecto();
 
   // Campos del formulario
   const [idProyecto, setIdProyecto] = useState('');
   const [fechaLocal, setFechaLocal] = useState('');
-  const [monto, setMonto] = useState(''); // Valor numérico limpio para cálculos
-  const [montoFormateado, setMontoFormateado] = useState(''); // Valor formateado para mostrar
+  const [montoSinIva, setMontoSinIva] = useState('');
+  const [montoSinIvaFmt, setMontoSinIvaFmt] = useState('');
+  const [montoConIva, setMontoConIva] = useState('');
+  const [montoConIvaFmt, setMontoConIvaFmt] = useState('');
+  const [porcentajeIva, setPorcentajeIva] = useState(16);
   const [metodoPago, setMetodoPago] = useState('Transferencia');
   const [descripcion, setDescripcion] = useState('');
   const [descripcionMetodo, setDescripcionMetodo] = useState('');
@@ -101,9 +104,9 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
   const [notas, setNotas] = useState('');
 
   // Información del proyecto obtenida de la API
-  const [infoProyecto, setInfoProyecto] = useState({ id: '', nombre: '', presupuesto: 0, clienteId: '' });
+  const [infoProyecto, setInfoProyecto] = useState({ id: '', nombre: '', totalPresupuesto: abono?.totalPresupuesto ?? 0, clienteId: '' });
   const [totalAbonado, setTotalAbonado] = useState(0);
-  const [montoOriginal, setMontoOriginal] = useState(0);
+  const [montoOriginalConIva, setMontoOriginalConIva] = useState(0);
 
   // Variables auxiliares
   const [saldo, setSaldo] = useState(0);
@@ -111,13 +114,19 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
 
   useEffect(() => {
     if (isOpen && abono) {
+      try {
+        console.log('[EditAbonoModal] Abono recibido:', JSON.stringify(abono, null, 2));
+      } catch (e) {
+        console.log('[EditAbonoModal] Abono recibido (no serializable):', abono);
+      }
       const id = project?.id || project?._id || project?.idProyecto || abono?.idProyecto || '';
-      
+
       // Establecer el ID del proyecto
       setIdProyecto(id);
 
       // Cargar datos del abono en el formulario
-      const montoAbono = Number(abono?.montoAbono ?? abono?.monto ?? 0);
+      const montoAbonoSinIva = Number(abono?.montoAbonoSinIva ?? abono?.montoSinIva ?? 0);
+      const montoAbonoConIva = Number(abono?.montoAbonoConIva ?? abono?.montoAbono ?? abono?.monto ?? 0);
       const fechaAbono = abono?.fecha ?? abono?.createdAt ?? '';
       const metodoPagoAbono = abono?.metodoPago ?? 'Transferencia';
       const descripcionAbono = abono?.descripcion ?? '';
@@ -126,10 +135,13 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
       const notasAbono = abono?.notas ?? '';
 
       // Asegurar que el monto siempre tenga un valor (mínimo 0)
-      const montoFinal = montoAbono > 0 ? montoAbono : 0;
-      setMonto(montoFinal.toString());
-      setMontoFormateado(formatearNumeroConSeparadores(montoFinal.toString()));
-      setMontoOriginal(montoAbono); // Guardar el valor original del abono para cálculos
+      const sinIvaFinal = montoAbonoSinIva > 0 ? montoAbonoSinIva : 0;
+      const conIvaFinal = montoAbonoConIva > 0 ? montoAbonoConIva : 0;
+      setMontoSinIva(sinIvaFinal.toString());
+      setMontoSinIvaFmt(formatearNumeroConSeparadores(sinIvaFinal.toString()));
+      setMontoConIva(conIvaFinal.toString());
+      setMontoConIvaFmt(formatearNumeroConSeparadores(conIvaFinal.toString()));
+      setMontoOriginalConIva(montoAbonoConIva);
       setFechaLocal(deFechaALocalInput(fechaAbono));
       setMetodoPago(metodoPagoAbono);
       setDescripcion(descripcionAbono);
@@ -141,33 +153,38 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
       if (id) {
         getProyectoById(id)
           .then((respuesta) => {
+            try {
+              // console.log('[EditAbonoModal] Respuesta getProyectoById:', JSON.stringify(respuesta, null, 2));
+            } catch (e) {
+              // console.log('[EditAbonoModal] Respuesta getProyectoById (no serializable):', respuesta);
+            }
             const proyectoData = respuesta?.data || respuesta;
             if (proyectoData) {
               const presupuestoTotal = proyectoData.presupuesto?.total || proyectoData.totalPresupuesto || 0;
               const totalAbonadoData = proyectoData.resumenFinanciero?.totalAbonado || 0;
-              
+
               setInfoProyecto({
                 id: proyectoData.id || proyectoData._id || id,
                 nombre: proyectoData.nombre || proyectoData.name || 'Sin nombre',
-                presupuesto: Number(presupuestoTotal),
+                totalPresupuesto: Number(project?.budget || presupuestoTotal || 0),
                 clienteId: proyectoData.cliente?.id || proyectoData.clienteId || proyectoData.cliente_id || ''
               });
-              
-              // Establecer el total abonado desde la API
+
+              // Intentar establecer el total abonado desde la API (si está disponible)
               setTotalAbonado(totalAbonadoData);
-              
+
               // Calcular saldo: presupuesto - (total abonado - monto original + nuevo monto)
-              const nuevoSaldo = Math.max(presupuestoTotal - (totalAbonadoData - montoAbono + montoAbono), 0);
+              const nuevoSaldo = Math.max(project?.budget - (totalAbonadoData - (montoAbonoConIva + montoAbonoConIva)), 0);
               setSaldo(nuevoSaldo);
             } else {
               // Fallback si no se obtienen datos
               setInfoProyecto({
                 id,
                 nombre: project?.name || project?.nombreProyecto || 'Sin nombre',
-                presupuesto: presupuestoProyecto,
+                totalPresupuesto: Number(presupuestoProyecto || 0),
                 clienteId: ''
               });
-              setSaldo(Math.max(presupuestoProyecto - montoAbono, 0));
+              setSaldo(Math.max(presupuestoProyecto - montoAbonoConIva, 0));
             }
           })
           .catch((err) => {
@@ -176,13 +193,37 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
             setInfoProyecto({
               id,
               nombre: project?.name || project?.nombreProyecto || 'Sin nombre',
-              presupuesto: presupuestoProyecto,
+              totalPresupuesto: Number(presupuestoProyecto || 0),
               clienteId: ''
             });
-            setSaldo(Math.max(presupuestoProyecto - montoAbono, 0));
+            setSaldo(Math.max(presupuestoProyecto - montoAbonoConIva, 0));
           });
+
+        // Además, cargar los abonos del proyecto para calcular el total pagado con IVA
+        (async () => {
+          try {
+            const result = await getAbonosByProyecto(id);
+            const items = result?.items || result || [];
+            const totalConIva = Array.isArray(items)
+              ? items.reduce((sum, a) => {
+                const montoCon = Number(
+                  a?.montoAbonoConIva ?? a?.montoAbono ?? a?.monto ?? a?.monto_abono ?? 0
+                );
+                return sum + (isNaN(montoCon) ? 0 : montoCon);
+              }, 0)
+              : 0;
+            setTotalAbonado(totalConIva);
+            // Recalcular saldo con el total real de abonos
+            const importeTotal = Number(infoProyecto.totalPresupuesto || presupuestoProyecto || 0);
+            const diferencia = Number(montoConIva || 0) - Number(montoOriginalConIva || 0);
+            const totalPagadoAcumulado = Number(totalConIva || 0) + diferencia;
+            setSaldo(Math.max(importeTotal - totalPagadoAcumulado, 0));
+          } catch (e) {
+            console.warn('No se pudo cargar abonos para calcular Total pagado:', e);
+          }
+        })();
       } else {
-        setInfoProyecto({ id: '', nombre: 'Sin nombre', presupuesto: 0, clienteId: '' });
+        setInfoProyecto({ id: '', nombre: 'Sin nombre', totalPresupuesto: 0, clienteId: '' });
       }
 
       setError('');
@@ -191,27 +232,27 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
 
   // Vista previa del total pagado (considerando el cambio de monto)
   const totalPagadoPrevio = useMemo(() => {
-    const m = Number(monto) || 0;
-    const diferencia = m - montoOriginal;
+    const mCon = Number(montoConIva) || 0;
+    const diferencia = mCon - montoOriginalConIva;
     return Number(totalAbonado || 0) + diferencia;
-  }, [monto, totalAbonado, montoOriginal]);
+  }, [montoConIva, totalAbonado, montoOriginalConIva]);
 
   // Progreso del pago
   const progreso = useMemo(() => {
-    if (!(infoProyecto?.presupuesto > 0)) return 0;
-    const p = (Number(totalPagadoPrevio) / infoProyecto.presupuesto) * 100;
+    if (!(infoProyecto?.totalPresupuesto > 0)) return 0;
+    const p = (Number(totalPagadoPrevio) / Number(infoProyecto.totalPresupuesto || 0)) * 100;
     return Math.round(limitarRango(p, 0, 100));
-  }, [totalPagadoPrevio, infoProyecto?.presupuesto]);
+  }, [totalPagadoPrevio, infoProyecto?.totalPresupuesto]);
 
-  const manejarCambioMonto = (valor) => {
+  const manejarCambioMontoSinIva = (valor) => {
     // Limpiar el valor ingresado (remover comas y caracteres no numéricos excepto punto decimal)
     const valorLimpio = limpiarNumeroFormateado(valor);
-    
+
     // Si el campo está vacío, usar "0"
     let valorFinal = valorLimpio === '' ? '0' : valorLimpio;
-    
+
     // Si el valor actual es "0" y el usuario está escribiendo algo nuevo
-    if (monto === '0' && valorLimpio !== '' && valorLimpio !== '0') {
+    if (montoSinIva === '0' && valorLimpio !== '' && valorLimpio !== '0') {
       // Si el usuario escribe un punto decimal, permitir "0."
       if (valorLimpio === '.' || valorLimpio === '0.') {
         valorFinal = '0.';
@@ -228,28 +269,34 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
         }
       }
     }
-    
+
     // Permitir solo un punto decimal: si hay múltiples, mantener solo el primero
     const partes = valorFinal.split('.');
     if (partes.length > 2) {
       valorFinal = partes[0] + '.' + partes.slice(1).join('');
     }
-    
+
     // Actualizar el valor numérico limpio para cálculos
-    setMonto(valorFinal);
-    
-    // Actualizar el valor formateado para mostrar
-    setMontoFormateado(formatearNumeroConSeparadores(valorFinal));
-    
+    setMontoSinIva(valorFinal);
+    setMontoSinIvaFmt(formatearNumeroConSeparadores(valorFinal));
+
+    // Calcular con IVA a partir de sin IVA y porcentaje
+    const sinNum = Number(valorFinal);
+    const rate = Number(porcentajeIva);
+    const mult = 1 + (isNaN(rate) ? 0 : rate / 100);
+    const conCalc = !isNaN(sinNum) ? Math.round(sinNum * mult * 100) / 100 : 0;
+    setMontoConIva(conCalc.toString());
+    setMontoConIvaFmt(formatearNumeroConSeparadores(conCalc.toString()));
+
     // Calcular saldo si el valor es numérico válido
-    const num = Number(valorFinal);
+    const num = Number(conCalc);
     if (!isNaN(num)) {
-      const diferencia = num - montoOriginal;
+      const diferencia = num - montoOriginalConIva;
       const totalPagadoAcumulado = Number(totalAbonado || 0) + diferencia;
-      const importeTotal = Number(infoProyecto.presupuesto || 0);
+      const importeTotal = Number(infoProyecto.totalPresupuesto || 0);
       const nuevoSaldo = Math.max(importeTotal - totalPagadoAcumulado, 0);
       setSaldo(nuevoSaldo);
-      
+
       // Limpiar error si el monto es válido
       if (totalPagadoAcumulado <= importeTotal) {
         setError('');
@@ -257,10 +304,58 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
     }
   };
 
+  const manejarCambioPorcentajeIva = (valor) => {
+    const vNum = Number(valor);
+    const clamped = limitarRango(isNaN(vNum) ? 16 : vNum, 0, 100);
+    setPorcentajeIva(clamped);
+    // Recalcular con IVA desde sin IVA
+    const sinNum = Number(montoSinIva) || 0;
+    const mult = 1 + clamped / 100;
+    const conCalc = Math.round(sinNum * mult * 100) / 100;
+    setMontoConIva(conCalc.toString());
+    setMontoConIvaFmt(formatearNumeroConSeparadores(conCalc.toString()));
+
+    // Actualizar saldo/progreso
+    const diferencia = conCalc - montoOriginalConIva;
+    const totalPagadoAcumulado = Number(totalAbonado || 0) + diferencia;
+    const importeTotal = Number(infoProyecto.totalPresupuesto || 0);
+    const nuevoSaldo = Math.max(importeTotal - totalPagadoAcumulado, 0);
+    setSaldo(nuevoSaldo);
+    setError('');
+  };
+
+  const manejarCambioMontoConIva = (valor) => {
+    const valorLimpio = limpiarNumeroFormateado(valor);
+    let valorFinal = valorLimpio === '' ? '0' : valorLimpio;
+    const partes = valorFinal.split('.');
+    if (partes.length > 2) {
+      valorFinal = partes[0] + '.' + partes.slice(1).join('');
+    }
+    setMontoConIva(valorFinal);
+    setMontoConIvaFmt(formatearNumeroConSeparadores(valorFinal));
+
+    // Derivar sin IVA desde con IVA y porcentaje
+    const conNum = Number(valorFinal) || 0;
+    const rate = Number(porcentajeIva);
+    const div = 1 + (isNaN(rate) ? 0 : rate / 100);
+    const sinCalc = div ? Math.round((conNum / div) * 100) / 100 : 0;
+    setMontoSinIva(sinCalc.toString());
+    setMontoSinIvaFmt(formatearNumeroConSeparadores(sinCalc.toString()));
+
+    // Actualizar saldo
+    const diferencia = conNum - montoOriginalConIva;
+    const totalPagadoAcumulado = Number(totalAbonado || 0) + diferencia;
+    const importeTotal = Number(infoProyecto.totalPresupuesto || 0);
+    const nuevoSaldo = Math.max(importeTotal - totalPagadoAcumulado, 0);
+    setSaldo(nuevoSaldo);
+    if (totalPagadoAcumulado <= importeTotal) setError('');
+  };
+
   const manejarEnvio = async (e) => {
     e.preventDefault();
     setError('');
-    const montoNum = Number(monto);
+    const montoConNum = Number(montoConIva);
+    const montoSinNum = Number(montoSinIva);
 
     if (!abono?.id && !abono?._id) {
       setError('El ID del abono es obligatorio.');
@@ -274,7 +369,7 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
       setError('La fecha del abono es obligatoria.');
       return;
     }
-    if (!(montoNum > 0)) {
+    if (!(montoConNum > 0)) {
       setError('El monto abonado debe ser mayor a 0.');
       return;
     }
@@ -295,8 +390,7 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
       return;
     }
     // Validar que el total pagado acumulado no exceda el importe total del proyecto
-    const importeTotal = Number(infoProyecto.presupuesto || 0);
-    
+    const importeTotal = Number(infoProyecto.totalPresupuesto || 0);
     if (totalPagadoPrevio > importeTotal) {
       const excedente = totalPagadoPrevio - importeTotal;
       setError(
@@ -307,7 +401,11 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
 
     const datos = {
       idProyecto: idProyecto.trim(),
-      montoAbono: Number(monto),
+      montoAbonoSinIva: Number(isNaN(montoSinNum) ? 0 : montoSinNum),
+      montoAbonoConIva: Number(isNaN(montoConNum) ? 0 : montoConNum),
+      porcentajeIva: Number(isNaN(Number(porcentajeIva)) ? 0 : Number(porcentajeIva)),
+      // En caso de compatibilidad, se puede incluir montoAbono con el con IVA
+      // montoAbono: Number(isNaN(montoConNum) ? 0 : montoConNum),
       fecha: formatearFechaISOUTC(fechaLocal),
       metodoPago,
       descripcion: descripcion.trim(),
@@ -370,8 +468,8 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground">Importe total</span>
-                <span className="text-foreground font-medium block">{formatearMoneda(infoProyecto?.presupuesto || presupuestoProyecto)}</span>
+                <span className="text-muted-foreground">Presupuesto Total</span>
+                <span className="text-foreground font-medium block">{formatearMoneda(presupuestoProyecto)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Total pagado</span>
@@ -419,24 +517,54 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
                 </p>
               </div>
 
-              {/* Monto */}
+              {/* IVA y montos */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Monto abonado</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Porcentaje de IVA (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={porcentajeIva}
+                  onChange={(e) => manejarCambioPorcentajeIva(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Monto sin IVA</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder="0.00"
-                  value={montoFormateado}
-                  onChange={(e) => manejarCambioMonto(e.target.value) }
-                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${
-                    Number(monto) > 0 && totalPagadoPrevio > Number(infoProyecto.presupuesto || 0)
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-input'
-                  }`}
+                  value={montoSinIvaFmt}
+                  onChange={(e) => manejarCambioMontoSinIva(e.target.value)}
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${Number(montoConIva) > 0 && totalPagadoPrevio > Number(infoProyecto.totalPresupuesto || 0)
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-input'
+                    }`}
                   required
                   disabled={loading}
                 />
-                {Number(monto) > 0 && totalPagadoPrevio > Number(infoProyecto.presupuesto || 0) && (
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Monto con IVA</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={montoConIvaFmt}
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${Number(montoConIva) > 0 && totalPagadoPrevio > Number(infoProyecto.totalPresupuesto || 0)
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-input'
+                    }`}
+                  required
+                  disabled={true}
+                  readOnly
+                />
+                {Number(montoConIva) > 0 && totalPagadoPrevio > Number(infoProyecto.totalPresupuesto || 0) && (
                   <p className="text-xs text-red-600 mt-1">
                     ⚠️ El monto excede el límite disponible. Saldo disponible: {formatearMoneda(saldo)}
                   </p>
@@ -484,11 +612,11 @@ const EditAbonoModal = ({ isOpen, onClose, abono, project, onSave }) => {
                     onChange={(e) => setReferenciaPago(e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     placeholder={
-                      metodoPago === 'Transferencia' 
+                      metodoPago === 'Transferencia'
                         ? 'Número de transferencia o CLABE'
                         : metodoPago === 'Tarjeta'
-                        ? 'Últimos 4 dígitos o número de autorización'
-                        : 'Número de cheque'
+                          ? 'Últimos 4 dígitos o número de autorización'
+                          : 'Número de cheque'
                     }
                     required
                     disabled={loading}

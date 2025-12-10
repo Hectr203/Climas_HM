@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
+import Select from '../../../components/ui/Select';
 import Icon from '../../../components/AppIcon';
 import { cn } from '../../../utils/cn';
 import { useNotification } from '../../../context/NotificationContext';
+import usePerson from '../../../hooks/usePerson';
 
 const UserFormModal = ({ user, onClose, onSave }) => {
+  const { addNotification } = useNotification();
+  const { getPersonsWithoutUser } = usePerson();
+  
   // Estado inicial completamente vacío
   const initialFormState = {
     nombre: '',
@@ -14,13 +19,16 @@ const UserFormModal = ({ user, onClose, onSave }) => {
     rol: '',
     contacto: '',
     direccion: '',
-    imagen: ''
+    imagen: '',
+    empleado_id: '' // ID del empleado para rol obra
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [empleados, setEmpleados] = useState([]);
+  const [loadingEmpleados, setLoadingEmpleados] = useState(false);
 
   useEffect(() => {
     // Solo precargar datos si estamos editando un usuario existente
@@ -32,7 +40,8 @@ const UserFormModal = ({ user, onClose, onSave }) => {
         rol: user.rol || '',
         contacto: user.contacto || '',
         direccion: user.direccion || '',
-        imagen: user.imagen || ''
+        imagen: user.imagen || '',
+        empleado_id: user.empleado_id || ''
       });
     } else {
       // Asegurar que el formulario esté completamente vacío para creación
@@ -41,6 +50,36 @@ const UserFormModal = ({ user, onClose, onSave }) => {
       setShowPassword(false);
     }
   }, [user]);
+
+  // Cargar empleados cuando el rol sea 'obra'
+  useEffect(() => {
+    if (formData.rol === 'obra') {
+      loadEmpleadosObra();
+    } else {
+      setEmpleados([]);
+      setFormData(prev => ({ ...prev, empleado_id: '' }));
+    }
+  }, [formData.rol]);
+
+  const loadEmpleadosObra = async () => {
+    setLoadingEmpleados(true);
+    try {
+      console.log('🔍 Cargando empleados sin usuario asignado...');
+      // Obtener todos los empleados que no tienen usuario
+      const response = await getPersonsWithoutUser();
+      console.log('📦 Respuesta del backend:', response);
+      console.log('📊 Cantidad de empleados disponibles:', response?.length || 0);
+      
+      setEmpleados(response || []);
+    } catch (error) {
+      console.error('❌ Error al cargar empleados:', error);
+      console.error('❌ Error completo:', error.response || error);
+      setEmpleados([]);
+      addNotification('Error al cargar empleados disponibles', 'error');
+    } finally {
+      setLoadingEmpleados(false);
+    }
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -69,6 +108,11 @@ const UserFormModal = ({ user, onClose, onSave }) => {
     // Validar rol
     if (!formData.rol.trim()) {
       newErrors.rol = 'El rol es requerido';
+    }
+    
+    // Validar empleado_id si el rol es 'obra'
+    if (formData.rol === 'obra' && !formData.empleado_id) {
+      newErrors.empleado_id = 'Debe seleccionar un empleado para rol Obra';
     }
     
     // Validar contacto (si se proporciona)
@@ -228,11 +272,54 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 <option value="proyectos">Proyectos - Cotizaciones y Proyectos</option>
                 <option value="ventas">Ventas - Oportunidades y Cotizaciones</option>
                 <option value="taller">Taller - Operaciones, Operaciones de Taller e Inventario</option>
+                <option value="obra">Obra - Trabajador de Campo</option>
               </select>
               {errors.rol && (
                 <p className="text-sm text-destructive">{errors.rol}</p>
               )}
             </div>
+
+            {/* Selector de Empleado - Solo visible cuando rol es 'obra' */}
+            {formData.rol === 'obra' && (
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium leading-none text-foreground block mb-2">
+                  Empleado Asociado <span className="text-destructive ml-1">*</span>
+                </label>
+                {loadingEmpleados ? (
+                  <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg">
+                    <Icon name="Loader2" className="w-5 h-5 animate-spin text-blue-600 mr-2" />
+                    <span className="text-gray-600">Cargando empleados...</span>
+                  </div>
+                ) : empleados.length === 0 ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <Icon name="AlertTriangle" className="w-4 h-4 inline mr-1" />
+                      No hay empleados disponibles en el departamento Obra.
+                    </p>
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.empleado_id || ''}
+                    onChange={(value) => setFormData(prev => ({ ...prev, empleado_id: value }))}
+                    placeholder="Selecciona el empleado"
+                    searchable={true}
+                    options={empleados.map((empleado) => ({
+                      value: empleado.id || empleado._id,
+                      label: empleado.nombreCompleto 
+                        ? `${empleado.nombreCompleto} - ${empleado.puesto || 'Sin puesto'}`
+                        : `${empleado.nombre || ''} ${empleado.apellido || ''}`.trim() || empleado.email
+                    }))}
+                    className={errors.empleado_id ? 'border-red-500' : ''}
+                  />
+                )}
+                {errors.empleado_id && (
+                  <p className="text-sm text-destructive mt-1">{errors.empleado_id}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Este empleado podrá iniciar sesión y ver/devolver sus herramientas asignadas
+                </p>
+              </div>
+            )}
 
             <div>
               <Input

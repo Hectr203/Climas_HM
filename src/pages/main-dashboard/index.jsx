@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import Sidebar from '../../components/ui/Sidebar';
 import Breadcrumb from '../../components/ui/Breadcrumb';
+import Icon from '../../components/AppIcon';
 import KPICard from './components/KPICard';
 import ProjectStatusTable from './components/ProjectStatusTable';
 import useProyect from '../../hooks/useProyect';
@@ -12,9 +14,11 @@ import QuickActions from './components/QuickActions';
 import DepartmentWorkload from './components/DepartmentWorkload';
 
 const MainDashboard = () => {
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const userRole = localStorage.getItem('userRole') || localStorage.getItem('rol');
   
   // Estados para KPIs dinámicos
   const [proyectosActivos, setProyectosActivos] = useState(0);
@@ -232,6 +236,24 @@ const MainDashboard = () => {
               <ProjectStatusTable />
             </div>
           </div>
+
+          {/* Card especial para rol obra */}
+          {userRole === 'obra' && (
+            <div className="mb-8">
+              <div
+                onClick={() => navigate('/my-tools')}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200"
+              >
+                <div className="flex items-center justify-between text-white">
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">Mis Herramientas</h3>
+                    <p className="text-blue-100">Ver y devolver herramientas asignadas</p>
+                  </div>
+                  <Icon name="Package" className="w-16 h-16 opacity-80" />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Quick Actions */}
           <div className="mb-8">

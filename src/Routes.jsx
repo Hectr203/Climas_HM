@@ -26,6 +26,9 @@ import QuotationDevelopmentCenter from './pages/quotation-development-center';
 import SalesExecutionMonitoring from './pages/sales-execution-monitoring';
 import ProjectAbonosManagement from './pages/project-abonos-management';
 import UserManagement from './pages/user-management';
+import ToolsManagement from './pages/tools-management';
+import MyToolsPage from './pages/my-tools';
+import PriceManagement from './pages/price-management';
 
 const Routes = () => {
   // Componente para redirigir dashboard al inicio del rol
@@ -208,6 +211,30 @@ const Routes = () => {
               element={
                 <ProtectedRoute requiredPath="/monitoreo-ventas">
                   <SalesExecutionMonitoring />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/herramientas" 
+              element={
+                <ProtectedRoute requiredPath="/herramientas">
+                  <ToolsManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/my-tools" 
+              element={
+                <ProtectedRoute allowedRoles={['obra']}>
+                  <MyToolsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/precios" 
+              element={
+                <ProtectedRoute requiredPath="/precios">
+                  <PriceManagement />
                 </ProtectedRoute>
               } 
             />
