@@ -93,7 +93,8 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
       newErrors.amount = 'El monto debe ser un número válido mayor a 0';
 
     if (!formData.requestedBy.trim()) newErrors.requestedBy = 'El solicitante es requerido';
-    if (!formData.projectId) newErrors.project = 'El proyecto es requerido';
+    // El proyecto solo es requerido si la categoría NO es 'Oficina'
+    if (formData.category !== 'Oficina' && !formData.projectId) newErrors.project = 'El proyecto es requerido';
     if (!formData.departmentBudget) newErrors.departmentBudget = 'El presupuesto departamental es requerido';
 
     setErrors(newErrors);
@@ -134,6 +135,7 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
     if (!validateForm()) return;
 
     const amountNumber = parseFloat(String(formData.amount).replace(/,/g, ''));
+    const isOfficeExpense = formData.category === 'Oficina';
     const payload = {
       fecha: formData.date,
       hora: formData.time,
@@ -141,8 +143,9 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
       descripcion: formData.description,
       monto: amountNumber,
       moneda: formData.currency,
-      idProyecto: formData.projectId ? Number(formData.projectId) : null,
-      codigoProyecto: formData.projectCode || null,
+      // No incluir información de proyecto si es gasto de oficina
+      idProyecto: isOfficeExpense ? null : (formData.projectId ? Number(formData.projectId) : null),
+      codigoProyecto: isOfficeExpense ? null : (formData.projectCode || null),
       proveedor: formData.vendor || null,
       solicitadoPor: formData.requestedBy,
       metodoPago: formData.paymentMethod,
@@ -384,59 +387,78 @@ const NewExpenseModal = ({ isOpen, onClose, onSubmit }) => {
               />
             </div>
 
-            {/* Información del Proyecto */}
-            <div className="md:col-span-2 mt-6">
-              <h3 className="text-lg font-medium text-foreground mb-4 flex items-center">
-                <Icon name="Folder" size={20} className="mr-2" />
-                Información del Proyecto
-              </h3>
-            </div>
+            {/* Información del Proyecto - Solo se muestra si NO es categoría Oficina */}
+            {formData.category !== 'Oficina' && (
+              <>
+                <div className="md:col-span-2 mt-6">
+                  <h3 className="text-lg font-medium text-foreground mb-4 flex items-center">
+                    <Icon name="Folder" size={20} className="mr-2" />
+                    Información del Proyecto
+                  </h3>
+                </div>
 
-            <div>
-              <Select
-                label="Proyecto"
-                value={formData.projectId}
-                onChange={handleProjectChange}
-                error={errors?.project}
-                options={projectOptions}
-                placeholder={loadingProyectos ? 'Cargando proyectos…' : 'Selecciona un proyecto'}
-                required
-                disabled={isBusy || loadingProyectos}
-              />
-            </div>
+                <div>
+                  <Select
+                    label="Proyecto"
+                    value={formData.projectId}
+                    onChange={handleProjectChange}
+                    error={errors?.project}
+                    options={projectOptions}
+                    placeholder={loadingProyectos ? 'Cargando proyectos…' : 'Selecciona un proyecto'}
+                    required
+                    disabled={isBusy || loadingProyectos}
+                  />
+                </div>
 
-            <div>
-              <Input
-                label="Código de Proyecto"
-                placeholder="Se completa automáticamente"
-                value={formData.projectCode}
-                onChange={(e) => handleInputChange('projectCode', e.target.value)}
-                readOnly
-                disabled
-              />
-            </div>
+                <div>
+                  <Input
+                    label="Código de Proyecto"
+                    placeholder="Se completa automáticamente"
+                    value={formData.projectCode}
+                    onChange={(e) => handleInputChange('projectCode', e.target.value)}
+                    readOnly
+                    disabled
+                  />
+                </div>
 
-            <div>
-              <Input
-                label="Proveedor/Vendor"
-                placeholder="Ej. Materiales Industriales SA"
-                value={formData.vendor}
-                onChange={(e) => handleInputChange('vendor', e.target.value)}
-                disabled={isBusy}
-              />
-            </div>
+                <div>
+                  <Input
+                    label="Proveedor/Vendor"
+                    placeholder="Ej. Materiales Industriales SA"
+                    value={formData.vendor}
+                    onChange={(e) => handleInputChange('vendor', e.target.value)}
+                    disabled={isBusy}
+                  />
+                </div>
 
-            <div>
-              <Input
-                label="Solicitado por"
-                placeholder="Ej. Carlos Mendoza"
-                value={formData.requestedBy}
-                onChange={(e) => handleInputChange('requestedBy', e.target.value)}
-                error={errors?.requestedBy}
-                required
-                disabled={isBusy}
-              />
-            </div>
+                <div>
+                  <Input
+                    label="Solicitado por"
+                    placeholder="Ej. Carlos Mendoza"
+                    value={formData.requestedBy}
+                    onChange={(e) => handleInputChange('requestedBy', e.target.value)}
+                    error={errors?.requestedBy}
+                    required
+                    disabled={isBusy}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Si es categoría Oficina, solo mostramos Solicitado por */}
+            {formData.category === 'Oficina' && (
+              <div className="md:col-span-2">
+                <Input
+                  label="Solicitado por"
+                  placeholder="Ej. Carlos Mendoza"
+                  value={formData.requestedBy}
+                  onChange={(e) => handleInputChange('requestedBy', e.target.value)}
+                  error={errors?.requestedBy}
+                  required
+                  disabled={isBusy}
+                />
+              </div>
+            )}
 
             {/* Información Adicional */}
             <div className="md:col-span-2 mt-6">

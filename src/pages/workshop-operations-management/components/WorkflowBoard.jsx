@@ -1,10 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import useOperacAlt from '../../../hooks/useOperacAlt';
+import useProyecto from '../../../hooks/useProyect';
 
         const WorkflowBoard = ({ workOrders = [], onStatusChange, onOrderSelect }) => {
+          const navigate = useNavigate();
           const { oportunities, getOportunities } = useOperacAlt();
+          const { proyectos, getProyectos } = useProyecto();
+
+          // Load projects when component mounts
+          useEffect(() => {
+            getProyectos();
+          }, [getProyectos]);
 
           const columns = [
             { id: 'material-reception', title: 'Recepción Material', icon: 'Package', color: 'bg-blue-500' },
@@ -591,9 +600,40 @@ import useOperacAlt from '../../../hooks/useOperacAlt';
                                       variant="outline"
                                       onClick={(e) => {
                                         e?.stopPropagation();
-                                        // Handle photo evidence
+                                        
+                                        // Try to get projectId from order fields
+                                        let projectId = order?.raw?.projectId 
+                                          || order?.raw?.proyecto_id 
+                                          || order?.raw?.proyectoId
+                                          || order?.projectId 
+                                          || order?.proyecto_id
+                                          || order?.proyectoId;
+                                        
+                                        // If no projectId, try to find it by project name
+                                        if (!projectId) {
+                                          const projectName = order?.raw?.proyecto || order?.raw?.proyectoNombre || order?.proyectoNombre;
+                                          
+                                          if (projectName && proyectos?.length > 0) {
+                                            const foundProject = proyectos.find(p => 
+                                              p.nombre === projectName || 
+                                              p.name === projectName ||
+                                              p.proyecto === projectName
+                                            );
+                                            
+                                            if (foundProject) {
+                                              projectId = foundProject.id || foundProject._id;
+                                            }
+                                          }
+                                        }
+                                        
+                                        if (projectId) {
+                                          navigate(`/galeria-proyecto/${projectId}?tab=taller`);
+                                        } else {
+                                          alert('No se pudo determinar el proyecto asociado a esta orden de trabajo.');
+                                        }
                                       }}
                                       iconName="Camera"
+                                      title="Ver imágenes de taller"
                                     />
                                   </div>
                                 </div>

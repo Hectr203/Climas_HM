@@ -10,8 +10,12 @@ const tallerService = {
       const response = await httpService.get(url);
       return response; // { success, data, message }
     } catch (error) {
-      console.error("Error al obtener talleres:", error);
-      throw error;
+      // No mostrar error si el backend no está disponible
+      if (error?.status !== 404 && error?.status !== 500) {
+        console.error("Error al obtener talleres:", error);
+      }
+      // Retornar respuesta vacía en lugar de lanzar error
+      return { success: true, data: [], message: "Backend no disponible, usando datos locales" };
     }
   },
 

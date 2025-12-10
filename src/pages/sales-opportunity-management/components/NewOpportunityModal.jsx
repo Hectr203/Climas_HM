@@ -326,6 +326,8 @@ const NewOpportunityModal = ({ isOpen, onClose, onCreateOpportunity, error }) =>
                     value={formData?.contactChannel}
                     onChange={(value) => handleInputChange('contactChannel', value)}
                     options={[
+                      { value: 'facebook', label: 'Facebook' },
+                      { value: 'instagram', label: 'Instagram' },
                       { value: 'whatsapp', label: 'WhatsApp' },
                       { value: 'email', label: 'Email' },
                       { value: 'phone', label: 'Teléfono' }

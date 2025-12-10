@@ -20,7 +20,8 @@ const NewItemModal = ({ isOpen, onClose, onAddItem }) => {
     currentStock: '',
     supplierName: '',
     supplierContact: '',
-    notes: ''
+    notes: '',
+    enableReorderPoint: false
   });
 
   const [errors, setErrors] = useState({});
@@ -82,7 +83,7 @@ const NewItemModal = ({ isOpen, onClose, onAddItem }) => {
     if (!formData?.unitCost || parseFloat(formData?.unitCost) <= 0) {
       newErrors.unitCost = 'El costo unitario debe ser mayor a 0';
     }
-    if (!formData?.reorderPoint || parseInt(formData?.reorderPoint) < 0) {
+    if (formData?.enableReorderPoint && (!formData?.reorderPoint || parseInt(formData?.reorderPoint) < 0)) {
       newErrors.reorderPoint = 'El punto de reorden debe ser 0 o mayor';
     }
     if (!formData?.currentStock || parseInt(formData?.currentStock) < 0) {
@@ -115,7 +116,7 @@ const NewItemModal = ({ isOpen, onClose, onAddItem }) => {
         categoria: formData?.category,
         unidad: formData?.unit,
         costoUnitario: parseFloat(formData?.unitCost),
-        puntoReorden: parseInt(formData?.reorderPoint),
+        puntoReorden: formData?.enableReorderPoint && formData?.reorderPoint ? parseInt(formData?.reorderPoint) : 0,
         stockActual: parseInt(formData?.currentStock),
         ubicacion: 'Almacén Principal', // Siempre será Almacén Principal
         nombreProveedor: formData?.supplierName?.trim(),
@@ -177,7 +178,8 @@ const NewItemModal = ({ isOpen, onClose, onAddItem }) => {
       currentStock: '',
       supplierName: '',
       supplierContact: '',
-      notes: ''
+      notes: '',
+      enableReorderPoint: false
     });
     setErrors({});
   };
@@ -340,9 +342,19 @@ const NewItemModal = ({ isOpen, onClose, onAddItem }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Punto de Reorden *
-                  </label>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="checkbox"
+                      id="enableReorderPoint"
+                      checked={formData?.enableReorderPoint}
+                      onChange={(e) => handleInputChange('enableReorderPoint', e.target.checked)}
+                      disabled={isSubmitting}
+                      className="w-4 h-4 text-primary border-border rounded focus:ring-2 focus:ring-primary"
+                    />
+                    <label htmlFor="enableReorderPoint" className="text-sm font-medium text-foreground cursor-pointer">
+                    Stock Mínimo
+                    </label>
+                  </div>
                   <Input
                     type="number"
                     min="0"
@@ -350,7 +362,8 @@ const NewItemModal = ({ isOpen, onClose, onAddItem }) => {
                     onChange={(e) => handleInputChange('reorderPoint', e?.target?.value)}
                     placeholder="0"
                     error={errors?.reorderPoint}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !formData?.enableReorderPoint}
+                    className={!formData?.enableReorderPoint ? 'bg-muted cursor-not-allowed' : ''}
                   />
                   {errors?.reorderPoint && (
                     <p className="text-sm text-destructive mt-1">{errors?.reorderPoint}</p>

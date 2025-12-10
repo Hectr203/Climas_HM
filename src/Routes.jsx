@@ -26,6 +26,9 @@ import QuotationDevelopmentCenter from './pages/quotation-development-center';
 import SalesExecutionMonitoring from './pages/sales-execution-monitoring';
 import ProjectAbonosManagement from './pages/project-abonos-management';
 import UserManagement from './pages/user-management';
+import ToolsManagement from './pages/tools-management';
+import MyToolsPage from './pages/my-tools';
+import PriceManagement from './pages/price-management';
 
 const Routes = () => {
   // Componente para redirigir dashboard al inicio del rol
@@ -46,8 +49,18 @@ const Routes = () => {
           {/* Redirigir la raíz a login si no está autenticado */}
           <Route path="/" element={<LoginPage />} />
           
-          {/* Redirigir dashboard al inicio del rol actual */}
-          <Route path="/dashboard" element={<DashboardRedirect />} />
+          {/* Dashboard Route */}
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute requiredPath="/dashboard">
+                <MainDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Redirigir main-dashboard al dashboard */}
+          <Route path="/main-dashboard" element={<Navigate to="/dashboard" replace />} />
           
             <Route 
               path="/proyectos" 
@@ -61,6 +74,14 @@ const Routes = () => {
               path="/galeria-proyecto/:projectId" 
               element={
                 <ProtectedRoute requiredPath="/galeria-proyecto">
+                  <ProjectDetailGallery />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/project-detail-gallery/:projectId" 
+              element={
+                <ProtectedRoute requiredPath="/project-detail-gallery">
                   <ProjectDetailGallery />
                 </ProtectedRoute>
               } 
@@ -190,6 +211,30 @@ const Routes = () => {
               element={
                 <ProtectedRoute requiredPath="/monitoreo-ventas">
                   <SalesExecutionMonitoring />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/herramientas" 
+              element={
+                <ProtectedRoute requiredPath="/herramientas">
+                  <ToolsManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/my-tools" 
+              element={
+                <ProtectedRoute allowedRoles={['obra']}>
+                  <MyToolsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/precios" 
+              element={
+                <ProtectedRoute requiredPath="/precios">
+                  <PriceManagement />
                 </ProtectedRoute>
               } 
             />

@@ -7,6 +7,14 @@ import Select from '../../../components/ui/Select';
 import { useNotifications } from '../../../context/NotificationContext.jsx';
 import { useEstados, useMunicipios } from '../../../hooks/useEstado';
 
+const ORIGEN_CLIENTE_OPTIONS = [
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Teléfono' },
+];
+
 const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialData = null }) => {
   const { createClient, editClient } = useClient();
   const { showSuccess, showError } = useNotifications();
@@ -32,7 +40,9 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
     ubicacionUrl: '',
     estadoDireccion: '',
     municipioDireccion: '',
-    direccionCompleta: ''
+    direccionCompleta: '',
+    // NUEVO
+    origenCliente: '',
   });
 
   // Estado para contactos adicionales (máximo 3 adicionales)
@@ -67,9 +77,11 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
         ubicacionUrl: initialData.ubicacionUrl || '',
         estadoDireccion: (initialData.ubicacion && initialData.ubicacion.estado) || '',
         municipioDireccion: (initialData.ubicacion && initialData.ubicacion.municipio) || '',
-        direccionCompleta: initialData.address || (initialData.ubicacion && initialData.ubicacion.direccion) || ''
+        direccionCompleta: initialData.address || (initialData.ubicacion && initialData.ubicacion.direccion) || '',
+        // NUEVO
+        origenCliente: initialData.origenCliente || '',
       });
-      
+
       // Cargar contactos adicionales si existen
       if (initialData.contactos && Array.isArray(initialData.contactos) && initialData.contactos.length > 1) {
         // El primer contacto es el principal, los demás son adicionales
@@ -201,7 +213,7 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
     // Validación para contactos adicionales
     additionalContacts.forEach((contact, index) => {
       const hasAnyField = contact.contacto?.trim() || contact.email?.trim() || contact.telefono?.trim();
-      
+
       if (hasAnyField) {
         // Si tiene algún campo, todos deben estar completos
         if (!contact.contacto?.trim()) {
@@ -209,13 +221,13 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
         } else if (contact.contacto.length < 3) {
           newErrors[`additionalContact_${index}_name`] = 'El nombre debe tener al menos 3 caracteres';
         }
-        
+
         if (!contact.email?.trim()) {
           newErrors[`additionalContact_${index}_email`] = 'El email es requerido si agregas este contacto';
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/?.test(contact.email)) {
           newErrors[`additionalContact_${index}_email`] = 'El formato del email no es válido';
         }
-        
+
         if (!contact.telefono?.trim()) {
           newErrors[`additionalContact_${index}_phone`] = 'El teléfono es requerido si agregas este contacto';
         } else if (!/^\d{10}$/?.test(contact.telefono)) {
@@ -239,7 +251,7 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
         ...prev,
         [field]: cleanValue
       }));
-    } 
+    }
     // Validación para RFC - solo mayúsculas y alfanumérico
     else if (field === 'rfc') {
       const cleanValue = value.toUpperCase().replace(/[^A-ZÑ&0-9]/g, '').slice(0, 13);
@@ -325,7 +337,7 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
 
   const handleAdditionalContactChange = (index, field, value) => {
     const newContacts = [...additionalContacts];
-    
+
     // Validación y formateo
     if (field === 'telefono') {
       value = value.replace(/\D/g, '').slice(0, 10);
@@ -334,10 +346,10 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
     } else if (field === 'email') {
       value = value.slice(0, 100);
     }
-    
+
     newContacts[index][field] = value;
     setAdditionalContacts(newContacts);
-    
+
     // Limpiar error si existe
     const errorKey = `additionalContact_${index}_${field === 'contacto' ? 'name' : field === 'telefono' ? 'phone' : 'email'}`;
     if (errors[errorKey]) {
@@ -354,13 +366,13 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
     if (!validateForm()) {
       return;
     }
-    
+
     // Construir array de contactos: principal + adicionales que estén completos
     const contactosCompletos = additionalContacts.filter(c => {
       // Solo incluir contactos que tengan los 3 campos completos
       return c.contacto?.trim() && c.email?.trim() && c.telefono?.trim();
     });
-    
+
     const contactos = [
       {
         contacto: formData.contactPerson,
@@ -369,7 +381,7 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
       },
       ...contactosCompletos
     ];
-    
+
     const clientData = {
       empresa: formData.companyName,
       contactos: contactos,
@@ -397,7 +409,9 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
       totalProjects: parseInt(formData.totalProjects) || 0,
       activeContracts: parseInt(formData.activeContracts) || 0,
       totalValue: parseInt(formData.totalValue) || 0,
-      lastContact: formData.lastContact
+      lastContact: formData.lastContact,
+      // NUEVO
+      origenCliente: formData.origenCliente || '',
     };
     console.log('Datos enviados al servicio:', clientData);
     if (mode === 'edit' && initialData && initialData.id) {
@@ -444,7 +458,8 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
       ubicacionUrl: '',
       estadoDireccion: '',
       municipioDireccion: '',
-      direccionCompleta: ''
+      direccionCompleta: '',
+      origenCliente: '',
     });
     setAdditionalContacts([]);
     setErrors({});
@@ -486,15 +501,31 @@ const NewClientModal = ({ isOpen, onClose, onSubmit, mode = 'create', initialDat
               </h3>
             </div>
 
-            <div>
-              <Input
-                label="Nombre de la Empresa"
-                placeholder="Ej. Grupo Industrial Monterrey"
-                value={formData?.companyName}
-                onChange={(e) => handleInputChange('companyName', e?.target?.value)}
-                error={errors?.companyName}
-                required
-              />
+            {/* Nombre empresa + origen cliente en la misma fila */}
+            <div className="md:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Input
+                    label="Nombre de la Empresa"
+                    placeholder="Ej. Grupo Industrial Monterrey"
+                    value={formData?.companyName}
+                    onChange={(e) => handleInputChange('companyName', e?.target?.value)}
+                    error={errors?.companyName}
+                    required
+                  />
+                </div>
+                <div>
+                  <Select
+                    label="Origen del Cliente"
+                    placeholder="Selecciona el origen"
+                    value={formData?.origenCliente}
+                    onChange={(value) => handleInputChange('origenCliente', value)}
+                    options={ORIGEN_CLIENTE_OPTIONS}
+                    // Bloquear origen de cliente cuando se edita
+                    disabled={mode === 'edit'}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Contacto Principal */}

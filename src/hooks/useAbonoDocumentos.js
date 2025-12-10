@@ -92,20 +92,24 @@ const useAbonoDocumentos = () => {
     }
   }, [showHttpError]);
 
-  const descargarDocumento = useCallback(async (documentoId, { expiresIn = 60 } = {}) => {
+  const descargarDocumento = useCallback(async (documentoId, nombreArchivo, { expiresIn = 60 } = {}) => {
     if (!documentoId) return null;
     setLoading(true);
     setError(null);
     try {
-      const res = await abonoDocumentService.descargarDocumento(documentoId, { expiresIn });
-      const data = res?.data || res || {};
-      return (
-        data?.urlDescarga ||
-        data?.url ||
-        data?.link ||
-        data?.downloadUrl ||
-        null
-      );
+      const blob = await abonoDocumentService.descargarDocumento(documentoId, { expiresIn });
+      
+      // Crear URL del blob y descargar
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nombreArchivo || `documento-${documentoId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return true;
     } catch (err) {
       setError(err);
       showHttpError('No se pudo descargar el documento');

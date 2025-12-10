@@ -43,6 +43,54 @@ class HttpService {
           return { data: { data: { comunicaciones: [] } } };
         }
 
+        // Suprimir completamente 404 en constructor de cotizaciones (no existe aún es normal)
+        if (
+          error.response?.status === 404 &&
+          error.config?.url?.includes("/cotizaciones/constructor/obtener")
+        ) {
+          // Retornar null para indicar que no existe
+          return { data: null };
+        }
+
+        // Suprimir completamente 404 y 500 en talleres (endpoint no implementado aún)
+        if (
+          (error.response?.status === 404 || error.response?.status === 500) &&
+          error.config?.url?.includes("/talleres")
+        ) {
+          // Retornar array vacío
+          return { data: { data: [] } };
+        }
+
+        // Suprimir completamente 404 y 500 en imágenes de taller (puede no tener imágenes o proyecto no existe)
+        if (
+          (error.response?.status === 404 || error.response?.status === 500) &&
+          error.config?.url?.includes("/taller/") &&
+          error.config?.url?.includes("/imagenes")
+        ) {
+          // Retornar array vacío
+          return { data: { data: [] } };
+        }
+
+        // Suprimir completamente 404 y 500 en imágenes de empleados (puede no tener imagen o endpoint no disponible)
+        if (
+          (error.response?.status === 404 || error.response?.status === 500) &&
+          error.config?.url?.includes("/empleados/") &&
+          error.config?.url?.includes("/imagen")
+        ) {
+          // Retornar respuesta vacía (sin imagen)
+          return { data: { success: true, data: null } };
+        }
+
+        // Suprimir completamente 404 y 500 en documentos de empleados (puede no tener documentos o endpoint no disponible)
+        if (
+          (error.response?.status === 404 || error.response?.status === 500) &&
+          error.config?.url?.includes("/empleados/") &&
+          error.config?.url?.includes("/documentos")
+        ) {
+          // Retornar respuesta vacía (sin documentos)
+          return { data: { success: true, data: { documentos: [], count: 0 } } };
+        }
+
         if (error.response?.status === 401) this.handleUnauthorized();
         return Promise.reject(this.normalizeError(error));
       }
@@ -84,12 +132,17 @@ class HttpService {
   }
 
   // Métodos HTTP
-async get(url, config = {}) {
-  const res = await this.api.get(url, config);
-
-  // Si es blob, regresamos el response COMPLETO
-  if (config.responseType === "blob") {
-    return res;
+  async get(url, config = {}) {
+    const res = await this.api.get(url, config);
+    // Si es un blob, devolver el blob directamente
+    if (config.responseType === 'blob') {
+      return res.data;
+    }
+    // Si se usa validateStatus personalizado, devolver el objeto completo (incluye status)
+    if (config.validateStatus) {
+      return res;
+    }
+    return res.data;
   }
 
   return res.data;

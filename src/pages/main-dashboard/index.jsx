@@ -1,18 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import Sidebar from '../../components/ui/Sidebar';
 import Breadcrumb from '../../components/ui/Breadcrumb';
+import Icon from '../../components/AppIcon';
 import KPICard from './components/KPICard';
 import ProjectStatusTable from './components/ProjectStatusTable';
+import useProyect from '../../hooks/useProyect';
+import useGastos from '../../hooks/useGastos';
 import NotificationPanel from './components/NotificationPanel';
 import QuickActions from './components/QuickActions';
-import FinancialSummary from './components/FinancialSummary';
+// import FinancialSummary from './components/FinancialSummary';
 import DepartmentWorkload from './components/DepartmentWorkload';
 
 const MainDashboard = () => {
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const userRole = localStorage.getItem('userRole') || localStorage.getItem('rol');
+  
+  // Estados para KPIs dinámicos
+  const [proyectosActivos, setProyectosActivos] = useState(0);
+  const [aprobacionesPendientes, setAprobacionesPendientes] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  
+  // Hooks
+  const { proyectos, getProyectos } = useProyect();
+  const { getGastos } = useGastos();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -21,6 +37,94 @@ const MainDashboard = () => {
 
     return () => clearInterval(timer);
   }, []);
+
+  // Función para cargar datos de KPIs
+  const loadKPIData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Cargar proyectos y calcular activos
+      const proyectosData = await getProyectos();
+      if (Array.isArray(proyectosData)) {
+
+        
+        // Contar proyectos activos (todos excepto cancelado, completado o pausa)
+        const activos = proyectosData.filter(proyecto => {
+          const estado = (proyecto.estado || proyecto.status || '').toLowerCase();
+          return !estado.includes('cancelado') && 
+                 !estado.includes('completado') && 
+                 !estado.includes('terminado') &&
+                 !estado.includes('finalizado') &&
+                 !estado.includes('pausa') &&
+                 !estado.includes('pausado') &&
+                 !estado.includes('suspended') &&
+                 !estado.includes('cancelled') &&
+                 !estado.includes('completed') &&
+                 !estado.includes('finished');
+        }).length;
+        
+
+        setProyectosActivos(activos);
+      }
+
+      // Cargar gastos y calcular pendientes
+      const gastosData = await getGastos();
+      if (Array.isArray(gastosData)) {
+
+        
+        const pendientes = gastosData.filter(gasto => {
+          const estado = (gasto.estado || gasto.status || '').toLowerCase();
+          return estado.includes('pendiente') || 
+                 estado.includes('revision') ||
+                 estado.includes('esperando') ||
+                 estado.includes('por aprobar') ||
+                 estado.includes('sin aprobar') ||
+                 estado === 'pending' ||
+                 estado === 'waiting' ||
+                 (!estado || estado === '') // Si no hay estado, asumir pendiente por aceptar
+        }).length;
+        
+
+        setAprobacionesPendientes(pendientes);
+      }
+      
+      setLastUpdate(new Date());
+      
+    } catch (error) {
+      console.error('Error cargando datos KPI:', error);
+      // Mantener valores por defecto en caso de error
+      setProyectosActivos(0);
+      setAprobacionesPendientes(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [getProyectos, getGastos]);
+
+  // Cargar datos inicial
+  useEffect(() => {
+    loadKPIData();
+  }, [loadKPIData]);
+
+  // Actualización automática cada 5 minutos
+  useEffect(() => {
+    const autoUpdateInterval = setInterval(() => {
+
+      loadKPIData();
+    }, 5 * 60 * 1000); // 5 minutos
+
+    return () => clearInterval(autoUpdateInterval);
+  }, [loadKPIData]);
+
+  // Actualizar cuando la página vuelve a tener foco
+  useEffect(() => {
+    const handleFocus = () => {
+
+      loadKPIData();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [loadKPIData]);
 
   const handleSidebarToggle = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -33,35 +137,19 @@ const MainDashboard = () => {
   const kpiData = [
     {
       title: 'Proyectos Activos',
-      value: '24',
-      change: '+3',
+      value: loading ? '...' : proyectosActivos.toString(),
+      change: loading ? '' : '+0',
       changeType: 'positive',
       icon: 'FolderOpen',
       color: 'primary'
     },
     {
       title: 'Aprobaciones Pendientes',
-      value: '8',
-      change: '+2',
-      changeType: 'negative',
-      icon: 'AlertCircle',
-      color: 'warning'
-    },
-    {
-      title: 'Margen Mensual',
-      value: '30.7%',
-      change: '+2.3%',
-      changeType: 'positive',
-      icon: 'TrendingUp',
-      color: 'success'
-    },
-    {
-      title: 'Eficiencia Operativa',
-      value: '87%',
-      change: '+5%',
-      changeType: 'positive',
-      icon: 'Target',
-      color: 'primary'
+      value: loading ? '...' : aprobacionesPendientes.toString(),
+      change: loading ? '' : (aprobacionesPendientes > 0 ? '+0' : ''),
+      changeType: aprobacionesPendientes > 0 ? 'negative' : 'neutral',
+      icon: 'Clock',
+      color: aprobacionesPendientes > 0 ? 'warning' : 'success'
     }
   ];
 
@@ -69,7 +157,8 @@ const MainDashboard = () => {
     return date?.toLocaleTimeString('es-MX', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: true,
+      timeZone: 'America/Mexico_City'
     });
   };
 
@@ -78,7 +167,8 @@ const MainDashboard = () => {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      timeZone: 'America/Mexico_City'
     });
   };
 
@@ -107,6 +197,15 @@ const MainDashboard = () => {
                 <p className="text-muted-foreground mt-2">
                   Resumen operativo y seguimiento de proyectos HVAC
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Última actualización: {lastUpdate.toLocaleTimeString('es-MX', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                    timeZone: 'America/Mexico_City'
+                  })}
+                </p>
               </div>
               <div className="mt-4 lg:mt-0 text-right">
                 <div className="text-2xl font-bold text-foreground">{formatTime(currentTime)}</div>
@@ -116,7 +215,7 @@ const MainDashboard = () => {
           </div>
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {kpiData?.map((kpi, index) => (
               <KPICard
                 key={index}
@@ -138,15 +237,33 @@ const MainDashboard = () => {
             </div>
           </div>
 
+          {/* Card especial para rol obra */}
+          {userRole === 'obra' && (
+            <div className="mb-8">
+              <div
+                onClick={() => navigate('/my-tools')}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200"
+              >
+                <div className="flex items-center justify-between text-white">
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">Mis Herramientas</h3>
+                    <p className="text-blue-100">Ver y devolver herramientas asignadas</p>
+                  </div>
+                  <Icon name="Package" className="w-16 h-16 opacity-80" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Quick Actions */}
           <div className="mb-8">
-            <QuickActions />
+            <QuickActions onRefresh={loadKPIData} />
           </div>
 
           {/* Financial Summary */}
-          <div className="mb-8">
+          {/* <div className="mb-8">
             <FinancialSummary />
-          </div>
+          </div> */}
 
           {/* Department Workload */}
           <div className="mb-8">

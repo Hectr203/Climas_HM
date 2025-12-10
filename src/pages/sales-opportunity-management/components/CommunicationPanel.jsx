@@ -130,6 +130,8 @@ import { useAuth } from '../../../hooks/useAuth';
                       onChange={(e) => handleInputChange('type', e?.target?.value)}
                       className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
                     >
+                      <option value="facebook">Facebook</option>
+                      <option value="instagram">Instagram</option>
                       <option value="whatsapp">WhatsApp</option>
                       <option value="email">Email</option>
                       <option value="llamada">Llamada</option>

@@ -89,22 +89,30 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   const [errors, setErrors] = useState({});
   const [serverProject, setServerProject] = useState(null);
 
+  const [otherExpenses, setOtherExpenses] = useState([]);
+  const [newExpense, setNewExpense] = useState({ concept: '', amount: '' });
+  const [editingExpenseIndex, setEditingExpenseIndex] = useState(null);
+
   const { persons, getPersons } = usePerson();
   const [clientOptions, setClientOptions] = useState([]);
 
   const { handleError, handleSuccess } = useErrorHandler();
   const { showError } = useNotifications();
 
+  // FX / equipos
   const [isEquipmentInUSD, setIsEquipmentInUSD] = useState(false);
   const [exchangeRate, setExchangeRate] = useState(18);
   const [uiEquipmentUSD, setUiEquipmentUSD] = useState('');
   const [loadingFx, setLoadingFx] = useState(false);
   const [fxError, setFxError] = useState(null);
 
+  // 🔵 NUEVO: ver total en USD
+  const [showUSD, setShowUSD] = useState(false);
+
   /* ============= ESTADOS/MUNICIPIOS (UBICACIÓN) ============= */
   const { estados, loading: loadingEstados, error: errorEstados } = useEstados();
   const [selectedEstadoCode, setSelectedEstadoCode] = useState('');
-  const [municipioOriginal, setMunicipioOriginal] = useState(null); // Guardar municipio original antes de limpiarlo
+  const [municipioOriginal, setMunicipioOriginal] = useState(null);
   const {
     municipios,
     loading: loadingMunicipios,
@@ -175,6 +183,35 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     };
   }, [isOpen, project?.id, handleError, project]);
 
+  /* ============= CARGAR OTROS GASTOS DEL PROYECTO ============= */
+  useEffect(() => {
+    if (isOpen && serverProject) {
+      // Buscar desgloseOtrosGastos en el nivel principal del proyecto
+      const desgloseOtrosGastos = serverProject?.desgloseOtrosGastos;
+      
+      // Puede venir como objeto con gastos[] o directamente como array
+      let gastosArray = [];
+      if (desgloseOtrosGastos) {
+        if (Array.isArray(desgloseOtrosGastos)) {
+          gastosArray = desgloseOtrosGastos;
+        } else if (Array.isArray(desgloseOtrosGastos.gastos)) {
+          gastosArray = desgloseOtrosGastos.gastos;
+        }
+      }
+      
+      if (gastosArray.length > 0) {
+        // Mapear concepto/monto del backend a concept/amount del frontend
+        const mappedExpenses = gastosArray.map(item => ({
+          concept: item.concepto || item.concept || '',
+          amount: item.monto || item.amount || 0
+        }));
+        setOtherExpenses(mappedExpenses);
+      } else {
+        setOtherExpenses([]);
+      }
+    }
+  }, [isOpen, serverProject]);
+
   /* ============= NORMALIZACIÓN DEL PROYECTO PARA EL FORM ============= */
   const normalized = useMemo(() => {
     const doc = serverProject || project || {};
@@ -182,11 +219,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
     const cron = doc.cronograma || {};
     const id = doc.id || project?.id;
 
-    // ubicacion puede venir:
-    // 1) objeto { estado, municipio, direccion }
-    // 2) string simple
-    // 3) string JSON
-    // 4) array [{ estado, municipio, direccion }]
     let rawUbicacion = doc.ubicacion;
     if (typeof rawUbicacion === 'string') {
       const trimmed = rawUbicacion.trim();
@@ -197,7 +229,7 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
             rawUbicacion = parsed;
           }
         } catch {
-          // ignorar, se usa como string normal abajo
+          // ignore
         }
       }
     }
@@ -208,7 +240,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       direccion: '',
     };
 
-    // Si rawUbicacion es un array, tomar el primer elemento
     if (Array.isArray(rawUbicacion) && rawUbicacion.length > 0) {
       rawUbicacion = rawUbicacion[0];
     }
@@ -282,27 +313,22 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       const estadoCode = normalized?.ubicacion?.estado || '';
       const municipioValue = normalized?.ubicacion?.municipio || '';
       
-      // Guardar el municipio original antes de actualizar formData
       if (municipioValue && municipioValue !== formData?.ubicacion?.municipio) {
         setMunicipioOriginal(municipioValue);
       }
       
-      // Actualizar formData con los datos normalizados
       setFormData(normalized);
       
-      // Establecer selectedEstadoCode para cargar los municipios del estado
-      // Esto debe hacerse después de actualizar formData
       if (estadoCode) {
         setSelectedEstadoCode(estadoCode);
       }
     } else {
-      // Reset cuando se cierra el modal
       setSelectedEstadoCode('');
       setMunicipioOriginal(null);
+      setShowUSD(false); // reset toggle USD al cerrar
     }
-  }, [normalized, isOpen]);
+  }, [normalized, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sincronizar selectedEstadoCode con formData.ubicacion.estado cuando cambia
   useEffect(() => {
     if (isOpen && formData?.ubicacion?.estado) {
       const estadoCode = formData.ubicacion.estado;
@@ -310,25 +336,20 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         setSelectedEstadoCode(estadoCode);
       }
     } else if (isOpen && !formData?.ubicacion?.estado && selectedEstadoCode) {
-      // Si no hay estado en formData pero selectedEstadoCode tiene valor, limpiarlo
       setSelectedEstadoCode('');
     }
   }, [isOpen, formData?.ubicacion?.estado, selectedEstadoCode]);
 
-  // Paso 1: Resolver código de estado cuando viene como nombre y los estados están cargados
-  // Esto debe hacerse ANTES de cargar los municipios
+  // resolver estado (code) a partir de nombre
   useEffect(() => {
     if (!isOpen || !estados || loadingEstados || !formData?.ubicacion?.estado || !Array.isArray(estados)) {
       return;
     }
     
     const estadoActual = formData.ubicacion.estado;
-    
-    // Verificar si el estado actual ya es un código válido (existe en estados)
     const esCodigoValido = estados.some((e) => e.code === estadoActual);
     
     if (!esCodigoValido) {
-      // Buscar por nombre (case-insensitive)
       const estadoEncontrado = estados.find((e) => {
         const nombreEstado = e.name || '';
         return nombreEstado.toLowerCase() === estadoActual.toLowerCase() ||
@@ -337,78 +358,54 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       
       if (estadoEncontrado) {
         const codigoEncontrado = estadoEncontrado.code;
-        
-        // Guardar el municipio original antes de limpiarlo
         const municipioActual = formData.ubicacion.municipio || '';
         
         if (municipioActual && !municipioOriginal) {
           setMunicipioOriginal(municipioActual);
         }
         
-        // Actualizar formData y selectedEstadoCode con el código encontrado
-        // Esto desencadenará la carga de municipios
         setFormData((prev) => ({
           ...prev,
           ubicacion: {
             ...prev.ubicacion,
             estado: codigoEncontrado,
-            // Limpiar municipio hasta que se carguen los municipios del estado
             municipio: '',
           },
         }));
         setSelectedEstadoCode(codigoEncontrado);
       }
     } else {
-      // Si el estado ya es un código válido, asegurarse de que selectedEstadoCode esté establecido
-      // para cargar los municipios
       if (selectedEstadoCode !== estadoActual) {
         setSelectedEstadoCode(estadoActual);
       }
     }
   }, [isOpen, estados, loadingEstados, formData?.ubicacion?.estado, selectedEstadoCode, municipioOriginal]);
 
-  // Paso 2: Resolver código de municipio SOLO cuando los municipios están completamente cargados
-  // Esto se ejecuta DESPUÉS de que el estado está establecido y los municipios se han cargado
+  // resolver municipio (code) a partir de nombre
   useEffect(() => {
-    // Esperar a que:
-    // 1. El modal esté abierto
-    // 2. Los municipios estén cargados (no loading)
-    // 3. El estado esté establecido y sea válido
     if (!isOpen || loadingMunicipios || !formData?.ubicacion?.estado) {
       return;
     }
     
-    // Si aún no hay municipios cargados, esperar
     if (!municipios || !municipios.municipios) {
       return;
     }
     
-    // Usar municipioOriginal si existe (cuando se limpió durante la resolución del estado)
-    // o el municipio actual de formData
     const municipioParaResolver = municipioOriginal || formData?.ubicacion?.municipio || '';
-    
-    // Si no hay municipio para resolver, no hacer nada
     if (!municipioParaResolver) {
       return;
     }
     
     const municipiosObj = municipios.municipios || {};
-    
-    // Verificar si el municipio actual ya es un código válido (existe como key en municipios)
     const esCodigoValido = municipioParaResolver && municipiosObj[municipioParaResolver];
     
     if (!esCodigoValido) {
-      // Buscar por nombre o alias
       const municipioEncontrado = Object.entries(municipiosObj).find(([code, name]) => {
-        // Comparación exacta del nombre
         if (name === municipioParaResolver) return true;
-        // Comparación case-insensitive
         if (name.toLowerCase() === municipioParaResolver.toLowerCase()) return true;
-        // Buscar en aliases si existen
         const aliases = municipios.aliases || {};
         const aliasEncontrado = Object.entries(aliases).find(([alias, codigoReferenciado]) => {
           if (codigoReferenciado === code) {
-            // El alias apunta a este código, comparar con el alias o su valor decodificado
             return alias === municipioParaResolver || 
                    alias.toLowerCase() === municipioParaResolver.toLowerCase();
           }
@@ -419,8 +416,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       
       if (municipioEncontrado) {
         const [codigoEncontrado] = municipioEncontrado;
-        
-        // Actualizar formData con el código encontrado y limpiar municipioOriginal
         setFormData((prev) => ({
           ...prev,
           ubicacion: {
@@ -430,7 +425,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         }));
         setMunicipioOriginal(null);
       } else {
-        // Si no se encuentra el municipio, limpiarlo y limpiar municipioOriginal
         setFormData((prev) => ({
           ...prev,
           ubicacion: {
@@ -441,7 +435,6 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         setMunicipioOriginal(null);
       }
     } else {
-      // Si ya es un código válido, asegurarse de que esté en formData y limpiar municipioOriginal
       if (formData?.ubicacion?.municipio !== municipioParaResolver) {
         setFormData((prev) => ({
           ...prev,
@@ -454,6 +447,49 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       setMunicipioOriginal(null);
     }
   }, [isOpen, municipios, loadingMunicipios, formData?.ubicacion?.estado, formData?.ubicacion?.municipio, municipioOriginal]);
+
+  /* ============= MANEJO DE OTROS GASTOS ============= */
+  const handleAddExpense = () => {
+    if (!newExpense.concept.trim()) {
+      showError('Ingrese un concepto para el gasto');
+      return;
+    }
+    const amount = toNumberOrUndef(newExpense.amount);
+    if (!amount || amount <= 0) {
+      showError('Ingrese un monto válido mayor a 0');
+      return;
+    }
+
+    if (editingExpenseIndex !== null) {
+      // Editar gasto existente
+      const updatedExpenses = [...otherExpenses];
+      updatedExpenses[editingExpenseIndex] = { concept: newExpense.concept, amount };
+      setOtherExpenses(updatedExpenses);
+      setEditingExpenseIndex(null);
+    } else {
+      // Agregar nuevo gasto
+      setOtherExpenses([...otherExpenses, { concept: newExpense.concept, amount }]);
+    }
+    setNewExpense({ concept: '', amount: '' });
+  };
+
+  const handleEditExpense = (index) => {
+    const expense = otherExpenses[index];
+    setNewExpense({ concept: expense.concept, amount: formatWithCommas(expense.amount, 2) });
+    setEditingExpenseIndex(index);
+  };
+
+  const handleCancelEdit = () => {
+    setNewExpense({ concept: '', amount: '' });
+    setEditingExpenseIndex(null);
+  };
+
+  const handleRemoveExpense = (index) => {
+    setOtherExpenses(otherExpenses.filter((_, i) => i !== index));
+    if (editingExpenseIndex === index) {
+      handleCancelEdit();
+    }
+  };
 
   /* ============= FX / TIPO DE CAMBIO USD↔MXN ============= */
   const fetchUsdMxnRate = useCallback(async () => {
@@ -487,6 +523,14 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       setLoadingFx(false);
     }
   }, [handleError, showError]);
+
+  // toggle global de ver total en USD
+  const handleToggleShowUSD = async (checked) => {
+    setShowUSD(checked);
+    if (checked) {
+      await fetchUsdMxnRate();
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -539,6 +583,10 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
   }, [persons, formData?.personalAsignado]);
 
   /* ============= TOTAL MXN DEL PRESUPUESTO MOSTRADO ============= */
+  const otherExpensesTotal = useMemo(() => {
+    return otherExpenses.reduce((sum, exp) => sum + (toNumberOrUndef(exp.amount) || 0), 0);
+  }, [otherExpenses]);
+
   const totalMXN = useMemo(() => {
     const b = formData?.presupuesto || {};
     const sum = (...vals) =>
@@ -553,8 +601,16 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       b.materiales,
       b.transporte,
       b.otros
-    );
-  }, [formData]);
+    ) + otherExpensesTotal;
+  }, [formData, otherExpensesTotal]);
+
+  // 🔵 total en USD (solo si showUSD y hay rate)
+  const totalUSD = useMemo(() => {
+    if (!showUSD) return null;
+    const rate = rateSafe(exchangeRate);
+    if (!rate) return null;
+    return totalMXN / rate;
+  }, [showUSD, exchangeRate, totalMXN]);
 
   /* ============= HANDLERS DEL FORM ============= */
   const handle = (k, v) => {
@@ -678,6 +734,13 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
         : [],
       estado: formData.estado,
       presupuesto: pres,
+      // Agregar otros gastos si existen, fuera de presupuesto
+      ...(otherExpenses.length > 0 ? {
+        desgloseOtrosGastos: otherExpenses.map(expense => ({
+          concepto: expense.concept,
+          monto: expense.amount
+        }))
+      } : {}),
     };
   };
 
@@ -696,14 +759,12 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
       uiEstadoCache.set(formData.id, formData.estado);
 
       if (onSubmit) {
-        // Deja que el padre decida si muestra mensaje de éxito
         onSubmit({
           id: formData.id,
           ...payload,
           _uiEstado: formData.estado,
         });
       } else {
-        // Solo mostramos el mensaje aquí si no hay onSubmit
         handleSuccess('update', 'Proyecto');
       }
 
@@ -1114,8 +1175,120 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
               }
             />
 
+            {/* Desglose de Otros Gastos */}
+            <div className="md:col-span-2 mt-4">
+              <h4 className="text-base font-medium text-foreground mb-3">Desglose de Otros Gastos</h4>
+              
+              <div className="bg-muted border border-border rounded-lg p-4">
+                {/* Lista de gastos agregados */}
+                {otherExpenses.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {otherExpenses.map((expense, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between bg-card p-3 rounded-md border transition-all ${
+                          editingExpenseIndex === index
+                            ? 'border-blue-500 ring-2 ring-blue-200'
+                            : 'border-border'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-foreground">
+                            {expense.concept}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-primary">
+                            ${formatWithCommas(expense.amount, 2)} MXN
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleEditExpense(index)}
+                            className="text-blue-600 hover:text-blue-700 transition-colors"
+                            title="Editar"
+                            disabled={editingExpenseIndex !== null && editingExpenseIndex !== index}
+                          >
+                            <Icon name="Edit" size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExpense(index)}
+                            className="text-destructive hover:text-destructive/80 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Icon name="Trash2" size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-2 border-t border-border mt-3">
+                      <span className="text-sm font-medium text-foreground">Subtotal:</span>
+                      <span className="text-base font-semibold text-primary">
+                        ${formatWithCommas(otherExpensesTotal, 2)} MXN
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulario para agregar/editar gasto */}
+                <div className="space-y-3">
+                  {editingExpenseIndex !== null && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2 flex items-center justify-between">
+                      <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                        Editando gasto
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Concepto
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Viáticos, Hospedaje, Combustible"
+                        value={newExpense.concept}
+                        onChange={(e) => setNewExpense({ ...newExpense, concept: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddExpense())}
+                        className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Monto
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={newExpense.amount}
+                        onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddExpense())}
+                        className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddExpense}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md whitespace-nowrap"
+                    >
+                      <Icon name={editingExpenseIndex !== null ? "Check" : "Plus"} size={18} />
+                      {editingExpenseIndex !== null ? "Guardar" : "Agregar Gasto"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Total */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 mt-4">
               <div className="bg-muted p-4 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-foreground">
@@ -1125,6 +1298,39 @@ const EditProjectModal = ({ isOpen = false, onClose, onSubmit, project }) => {
                     ${formatWithCommas(totalMXN, 2)} MXN
                   </span>
                 </div>
+
+                {showUSD && (
+                  <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-muted-foreground">
+                    <div>
+                      ≈{' '}
+                      {totalUSD != null ? (
+                        <span className="font-semibold text-primary">
+                          ${formatWithCommas(totalUSD, 2)} USD
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchUsdMxnRate}
+                      loading={loadingFx}
+                      iconName="RefreshCcw"
+                      iconPosition="left"
+                    >
+                      {loadingFx ? 'Actualizar…' : 'Actualizar tipo de cambio'}
+                    </Button>
+
+                    {fxError && (
+                      <span className="text-xs text-destructive">
+                        {fxError}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

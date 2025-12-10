@@ -470,12 +470,14 @@ const NewQuotationModal = ({ isOpen, onClose, onCreateQuotation }) => {
       if (wasCreated) {
         showOperationSuccess('Cotización creada exitosamente');
         
-        // Si viene de una oportunidad, mantener el estado y redirigir
+        // Limpiar el estado antes de cerrar o redirigir
+        resetModalState();
+        
+        // Si viene de una oportunidad, redirigir (el finally se ejecutará antes de la redirección)
         if (opportunityId) {
-          // Limpiar completamente el estado del modal
-          resetModalState();
-          // Redirigir a oportunidades con mensaje de éxito
-          window.location.href = '/oportunidades?cotizacionCreada=true';
+          setTimeout(() => {
+            window.location.href = '/oportunidades?cotizacionCreada=true';
+          }, 500); // Pequeño delay para que se vea el mensaje de éxito
           return;
         }
         
@@ -483,15 +485,12 @@ const NewQuotationModal = ({ isOpen, onClose, onCreateQuotation }) => {
         onCreateQuotation?.(response.data || response);
         handleClose();
       } else {
-        showOperationSuccess('Error al crear la cotización');
+        throw new Error('No se pudo crear la cotización');
       }
     } catch (error) {
-      alert('Error al crear la cotización');
-      if (error?.response?.data) {
-        console.error('Error detalle backend:', error.response.data);
-      } else {
-        console.error('Error creating quotation:', error);
-      }
+      console.error('Error creating quotation:', error);
+      const errorMsg = error?.response?.data?.message || error?.message || 'Error al crear la cotización';
+      showOperationSuccess(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -843,9 +842,8 @@ const NewQuotationModal = ({ isOpen, onClose, onCreateQuotation }) => {
             <Button
               type="submit"
               disabled={isSubmitting}
-              iconName={isSubmitting ? "Loader2" : "Plus"}
+              iconName="Plus"
               iconPosition="left"
-              className={isSubmitting ? "animate-spin" : ""}
             >
               {isSubmitting ? 'Creando...' : 'Crear Cotización'}
             </Button>

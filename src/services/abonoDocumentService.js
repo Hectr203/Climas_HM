@@ -62,6 +62,7 @@ const abonoDocumentService = {
     if (!documentoId) throw new Error('Falta documentoId');
     return await httpService.get(`/abonos/documentos/descargar/${documentoId}`, {
       params: { expiresIn },
+      responseType: 'blob',
     });
   },
 

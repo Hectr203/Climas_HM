@@ -102,6 +102,10 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
     description: '',
   });
 
+  const [otherExpenses, setOtherExpenses] = useState([]);
+  const [newExpense, setNewExpense] = useState({ concept: '', amount: '' });
+  const [editingExpenseIndex, setEditingExpenseIndex] = useState(null);
+
   const [isEquipmentInUSD, setIsEquipmentInUSD] = useState(false);
   const [exchangeRate, setExchangeRate] = useState(18);
   const [uiEquipmentUSD, setUiEquipmentUSD] = useState('');
@@ -113,6 +117,9 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
 
   const { estados, loading: loadingEstados, error: errorEstados } = useEstados();
   const { municipios, loading: loadingMunicipios, error: errorMunicipios } = useMunicipios(formData.estado);
+
+  // ✅ NUEVO: check para mostrar total en USD
+  const [showTotalInUSD, setShowTotalInUSD] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -130,7 +137,9 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         if (mounted) setLoadingClients(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, handleError]);
 
   const fetchedPersonsRef = useRef(false);
@@ -201,6 +210,48 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
     }));
   };
 
+  const handleAddExpense = () => {
+    if (!newExpense.concept.trim()) {
+      showWarning('Ingrese un concepto para el gasto');
+      return;
+    }
+    const amount = unformatNumber(newExpense.amount);
+    if (amount <= 0) {
+      showWarning('Ingrese un monto válido mayor a 0');
+      return;
+    }
+
+    if (editingExpenseIndex !== null) {
+      // Editar gasto existente
+      const updatedExpenses = [...otherExpenses];
+      updatedExpenses[editingExpenseIndex] = { concept: newExpense.concept, amount };
+      setOtherExpenses(updatedExpenses);
+      setEditingExpenseIndex(null);
+    } else {
+      // Agregar nuevo gasto
+      setOtherExpenses([...otherExpenses, { concept: newExpense.concept, amount }]);
+    }
+    setNewExpense({ concept: '', amount: '' });
+  };
+
+  const handleEditExpense = (index) => {
+    const expense = otherExpenses[index];
+    setNewExpense({ concept: expense.concept, amount: formatWithCommas(expense.amount, 2) });
+    setEditingExpenseIndex(index);
+  };
+
+  const handleCancelEdit = () => {
+    setNewExpense({ concept: '', amount: '' });
+    setEditingExpenseIndex(null);
+  };
+
+  const handleRemoveExpense = (index) => {
+    setOtherExpenses(otherExpenses.filter((_, i) => i !== index));
+    if (editingExpenseIndex === index) {
+      handleCancelEdit();
+    }
+  };
+
   const fetchUsdMxnRate = useCallback(async () => {
     try {
       setFxError(null);
@@ -218,14 +269,14 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         return null;
       }
     } catch (e) {
-      const msg = e?.message || 'Error llamando currencyapi';
-      setFxError(msg);
       handleError(e, 'Tipo de cambio');
       return null;
     } finally {
       setLoadingFx(false);
     }
-  }, [handleError, showError]);
+  },
+  [handleError, showError]
+  );
 
   const toggleEquipmentUSD = (checked) => {
     setIsEquipmentInUSD(checked);
@@ -295,6 +346,12 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         otros: Number(b.other) || 0,
         _metaEquipos: { capturadoEn: isEquipmentInUSD ? 'USD' : 'MXN' },
       },
+      ...(otherExpenses.length > 0 ? {
+        desgloseOtrosGastos: otherExpenses.map(expense => ({
+          concepto: expense.concept,
+          monto: expense.amount
+        }))
+      } : {}),
       estado: formData.status,
     };
   };
@@ -323,13 +380,18 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
   if (!isOpen) return null;
 
   const b = formData.budgetBreakdown || {};
+  const otherExpensesTotal = otherExpenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
   const totalMXN =
     (Number(b?.labor) || 0) +
     (Number(b?.parts) || 0) +
     (Number(b?.equipment) || 0) +
     (Number(b?.materials) || 0) +
     (Number(b?.transportation) || 0) +
-    (Number(b?.other) || 0);
+    (Number(b?.other) || 0) +
+    otherExpensesTotal;
+
+  // ✅ Total en USD cuando el check está activo
+  const totalUSD = showTotalInUSD && exchangeRate > 0 ? totalMXN / exchangeRate : 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-1050 p-4">
@@ -487,10 +549,12 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                       : [
                           { value: '', label: 'Selecciona un municipio' },
                           ...(municipios
-                            ? Object.entries(municipios.municipios || {}).map(([code, name]) => ({
-                                value: code,
-                                label: name,
-                              }))
+                            ? Object.entries(municipios.municipios || {}).map(
+                                ([code, name]) => ({
+                                  value: code,
+                                  label: name,
+                                })
+                              )
                             : []),
                         ]
                   }
@@ -654,7 +718,119 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               onChange={(e) => handleBudgetChange('other', e?.target?.value)}
             />
 
-            <div className="md:col-span-2">
+            {/* Desglose de Otros Gastos */}
+            <div className="md:col-span-2 mt-4">
+              <h4 className="text-base font-medium text-foreground mb-3">Desglose de Otros Gastos</h4>
+              
+              <div className="bg-muted border border-border rounded-lg p-4">
+                {/* Lista de gastos agregados */}
+                {otherExpenses.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {otherExpenses.map((expense, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between bg-card p-3 rounded-md border transition-all ${
+                          editingExpenseIndex === index
+                            ? 'border-blue-500 ring-2 ring-blue-200'
+                            : 'border-border'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-foreground">
+                            {expense.concept}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-primary">
+                            ${formatWithCommas(expense.amount, 2)} MXN
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleEditExpense(index)}
+                            className="text-blue-600 hover:text-blue-700 transition-colors"
+                            title="Editar"
+                            disabled={editingExpenseIndex !== null && editingExpenseIndex !== index}
+                          >
+                            <Icon name="Edit" size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExpense(index)}
+                            className="text-destructive hover:text-destructive/80 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Icon name="Trash2" size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-2 border-t border-border mt-3">
+                      <span className="text-sm font-medium text-foreground">Subtotal:</span>
+                      <span className="text-base font-semibold text-primary">
+                        ${formatWithCommas(otherExpensesTotal, 2)} MXN
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulario para agregar/editar gasto */}
+                <div className="space-y-3">
+                  {editingExpenseIndex !== null && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2 flex items-center justify-between">
+                      <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                        Editando gasto
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Concepto
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Viáticos, Hospedaje, Combustible"
+                        value={newExpense.concept}
+                        onChange={(e) => setNewExpense({ ...newExpense, concept: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddExpense())}
+                        className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Monto
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={newExpense.amount}
+                        onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddExpense())}
+                        className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddExpense}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md whitespace-nowrap"
+                    >
+                      <Icon name={editingExpenseIndex !== null ? "Check" : "Plus"} size={18} />
+                      {editingExpenseIndex !== null ? "Guardar" : "Agregar Gasto"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 mt-4">
               <div className="bg-muted p-4 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-foreground">
@@ -664,6 +840,23 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                     ${formatWithCommas(totalMXN, 2)} MXN
                   </span>
                 </div>
+
+                {showTotalInUSD && (
+                  <div className="mt-2 flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                      Total estimado en USD (usando tipo de cambio actual):
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {exchangeRate > 0 ? `$${formatWithCommas(totalUSD, 2)} USD` : '—'}
+                    </span>
+                  </div>
+                )}
+
+                {showTotalInUSD && exchangeRate <= 0 && (
+                  <div className="mt-1 text-xs text-destructive">
+                    No hay un tipo de cambio válido para calcular el total en USD.
+                  </div>
+                )}
               </div>
             </div>
 
