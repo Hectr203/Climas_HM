@@ -12,7 +12,7 @@ export const ROLE_PERMISSIONS = {
   // Admin - Acceso total al sistema
   [AUTH_ROLES?.ADMIN]: {
     allowedPaths: [
-      // '/dashboard', // TODO: Habilitar cuando se implemente
+      '/dashboard',
       "/oportunidades",
       "/cotizaciones",
       "/proyectos",
@@ -35,7 +35,7 @@ export const ROLE_PERMISSIONS = {
       "/monitoreo-ventas",
       "/herramientas",
     ],
-    defaultPath: "/oportunidades",
+    defaultPath: "/dashboard",
   },
   // Administración - Negocio, Personal y Abonos
   [AUTH_ROLES?.ADMINISTRACION]: {
@@ -166,15 +166,14 @@ export const getAllowedNavigationItems = (userRole) => {
   const allowedPaths = ROLE_PERMISSIONS?.[userRole]?.allowedPaths;
 
   const allNavigationItems = [
-    // TODO: Habilitar cuando se implemente el dashboard
-    // {
-    //   label: 'Dashboard',
-    //   path: '/dashboard',
-    //   icon: 'LayoutDashboard',
-    //   tooltip: 'Resumen operacional y KPIs',
-    //   badge: null,
-    //   roles: [AUTH_ROLES?.ADMIN]
-    // },
+    {
+      label: 'Dashboard',
+      path: '/dashboard',
+      icon: 'LayoutDashboard',
+      tooltip: 'Resumen operacional y KPIs',
+      badge: null,
+      roles: [AUTH_ROLES?.ADMIN]
+    },
     {
       label: "Oportunidades",
       path: "/oportunidades",

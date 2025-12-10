@@ -49,8 +49,18 @@ const Routes = () => {
           {/* Redirigir la raíz a login si no está autenticado */}
           <Route path="/" element={<LoginPage />} />
           
-          {/* Redirigir dashboard al inicio del rol actual */}
-          <Route path="/dashboard" element={<DashboardRedirect />} />
+          {/* Dashboard Route */}
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute requiredPath="/dashboard">
+                <MainDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Redirigir main-dashboard al dashboard */}
+          <Route path="/main-dashboard" element={<Navigate to="/dashboard" replace />} />
           
             <Route 
               path="/proyectos" 
