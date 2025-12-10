@@ -145,11 +145,6 @@ class HttpService {
     return res.data;
   }
 
-  return res.data;
-}
-
-  
-
   async post(url, data = {}, config = {}) {
     const res = await this.api.post(url, data, config);
     return res.data;
