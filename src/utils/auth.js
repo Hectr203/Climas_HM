@@ -33,12 +33,13 @@ export const ROLE_PERMISSIONS = {
       "/centro-operaciones-taller",
       "/monitoreo-ventas",
       "/herramientas",
+      "/notificaciones",
     ],
     defaultPath: "/oportunidades",
   },
   // Administración - Negocio, Personal y Abonos
   [AUTH_ROLES?.ADMINISTRACION]: {
-    allowedPaths: ["/clientes", "/finanzas", "/personal", "/abonos"],
+    allowedPaths: ["/clientes", "/finanzas", "/personal", "/abonos", "/notificaciones"],
     defaultPath: "/clientes",
   },
   // Proyectos - Cotizaciones y Proyectos
@@ -53,6 +54,7 @@ export const ROLE_PERMISSIONS = {
       "/flujo-proyecto",
       "/constructor-cotizaciones",
       "/herramientas",
+      "/notificaciones",
     ],
     defaultPath: "/cotizaciones",
   },
@@ -71,6 +73,7 @@ export const ROLE_PERMISSIONS = {
       "/project-detail-gallery",
       "/documentacion-proyectos",
       "/flujo-proyecto",
+      "/notificaciones",
     ],
     defaultPath: "/oportunidades",
   },
@@ -82,6 +85,7 @@ export const ROLE_PERMISSIONS = {
       "/centro-operaciones-taller",
       "/inventario",
       "/herramientas",
+      "/notificaciones",
     ],
     defaultPath: "/operaciones",
   },
@@ -288,6 +292,14 @@ export const getAllowedNavigationItems = (userRole) => {
       tooltip: "Gestión de usuarios del sistema",
       badge: null,
       roles: [AUTH_ROLES?.ADMIN],
+    },
+    {
+      label: "Notificaciones",
+      path: "/notificaciones",
+      icon: "Bell",
+      tooltip: "Centro de notificaciones",
+      badge: null,
+      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.PROYECTOS, AUTH_ROLES?.VENTAS, AUTH_ROLES?.TALLER],
     },
   ];
 

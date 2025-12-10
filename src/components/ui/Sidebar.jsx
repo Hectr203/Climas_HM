@@ -8,6 +8,8 @@ import { getAllowedNavigationItems } from '../../utils/auth';
 import useAuth from '../../hooks/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
 import { useConfirmDialog } from '../../ui/ConfirmDialogContext';
+import { useSignalR } from '../../hooks/useSignalR';
+import NotificationsModal from './NotificationsModal';
 
 const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const location = useLocation();
@@ -18,6 +20,8 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const [navigationItems, setNavigationItems] = useState([]);
   const { user, isAuthenticated, logout } = useAuth();
   const { showSuccess } = useNotifications();
+  const { notificaciones } = useSignalR();
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -34,7 +38,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     setSearchQuery(query);
     if (query?.length > 2) {
       // Filter search results based on user's allowed paths
-      const allowedPaths = navigationItems?.flatMap(item => 
+      const allowedPaths = navigationItems?.flatMap(item =>
         item?.children ? item?.children?.map(child => child?.path) : [item?.path]
       )?.filter(Boolean);
 
@@ -42,11 +46,11 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
         { type: 'project', title: 'Instalación Aire Acondicionado - Edificio A', path: '/proyectos' },
         { type: 'client', title: 'ABC Corporation', path: '/clientes' },
         { type: 'work-order', title: 'WO-2024-001', path: '/operaciones' }
-      ]?.filter(item => 
+      ]?.filter(item =>
         item?.title?.toLowerCase()?.includes(query?.toLowerCase()) &&
         allowedPaths?.includes(item?.path)
       );
-      
+
       setSearchResults(mockResults);
       setShowSearchResults(true);
     } else {
@@ -55,8 +59,8 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   };
 
   const toggleExpanded = (label) => {
-    setExpandedItems(prev => 
-      prev?.includes(label) 
+    setExpandedItems(prev =>
+      prev?.includes(label)
         ? prev?.filter(item => item !== label)
         : [...prev, label]
     );
@@ -87,25 +91,30 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     const hasChildren = item?.children && item?.children?.length > 0;
     const isExpanded = expandedItems?.includes(item?.label);
 
+    // Dynamic badge for notifications
+    const badge = item?.path === '/notificaciones' ? notificaciones.length : item?.badge;
+
     const handleItemClick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
+
+      if (item?.path === '/notificaciones') {
+        setShowNotificationsModal(true);
+        return;
+      }
+
       if (hasChildren) {
         toggleExpanded(item?.label);
       } else if (item?.path) {
         handleNavigation(item?.path);
       }
-    };
-
-    return (
+    }; return (
       <div key={item?.label} className="relative">
         <div
-          className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-smooth group ${
-            isActive
-              ? 'bg-primary text-primary-foreground'
-              : 'text-foreground hover:bg-muted'
-          } ${level > 0 ? 'ml-4' : ''}`}
+          className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-smooth group ${isActive
+            ? 'bg-primary text-primary-foreground'
+            : 'text-foreground hover:bg-muted'
+            } ${level > 0 ? 'ml-4' : ''}`}
           onClick={handleItemClick}
           title={isCollapsed ? item?.tooltip : ''}
           role="button"
@@ -117,9 +126,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
           }}
         >
           <div className="flex items-center space-x-3 min-w-0 flex-1">
-            <Icon 
-              name={item?.icon} 
-              size={20} 
+            <Icon
+              name={item?.icon}
+              size={20}
               className={`flex-shrink-0 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}
             />
             {!isCollapsed && (
@@ -129,18 +138,17 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
 
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
-              {item?.badge && (
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  isActive 
-                    ? 'bg-primary-foreground text-primary' 
-                    : 'bg-accent text-accent-foreground'
-                }`}>
-                  {item?.badge}
+              {badge && (
+                <span className={`px-2 py-1 text-xs rounded-full ${isActive
+                  ? 'bg-primary-foreground text-primary'
+                  : 'bg-accent text-accent-foreground'
+                  }`}>
+                  {badge}
                 </span>
               )}
               {hasChildren && (
-                <Icon 
-                  name={isExpanded ? 'ChevronDown' : 'ChevronRight'} 
+                <Icon
+                  name={isExpanded ? 'ChevronDown' : 'ChevronRight'}
                   size={16}
                   className={`transition-transform ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`}
                 />
@@ -160,10 +168,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   return (
     <>
       {/* Sidebar */}
-      <aside 
-        className={`fixed left-0 top-0 h-full bg-card border-r border-border sidebar-shadow z-1000 transition-all duration-300 ${
-          isCollapsed ? 'w-16' : 'w-60'
-        }`}
+      <aside
+        className={`fixed left-0 top-0 h-full bg-card border-r border-border sidebar-shadow z-1000 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-60'
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
@@ -183,7 +190,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                 </div>
               </div>
             )}
-            
+
             <Button
               variant="ghost"
               size="icon"
@@ -206,9 +213,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                   onChange={(e) => handleSearch(e?.target?.value)}
                   className="pl-10"
                 />
-                <Icon 
-                  name="Search" 
-                  size={16} 
+                <Icon
+                  name="Search"
+                  size={16}
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
                 />
               </div>
@@ -227,9 +234,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                         }}
                         className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-smooth"
                       >
-                        <Icon 
-                          name={result?.type === 'project' ? 'FolderOpen' : result?.type === 'client' ? 'Users' : 'ClipboardList'} 
-                          size={16} 
+                        <Icon
+                          name={result?.type === 'project' ? 'FolderOpen' : result?.type === 'client' ? 'Users' : 'ClipboardList'}
+                          size={16}
                         />
                         <div className="text-left">
                           <div className="font-medium">{result?.title}</div>
@@ -283,11 +290,22 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       </aside>
       {/* Overlay for mobile */}
       {!isCollapsed && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-999 lg:hidden"
           onClick={onToggle}
         />
       )}
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        notificaciones={notificaciones}
+        userId={user?.id}
+        onViewAll={() => {
+          setShowNotificationsModal(false);
+          navigate('/notificaciones');
+        }}
+      />
     </>
   );
 };
