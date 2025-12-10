@@ -6,9 +6,22 @@ import clientesArchivosService from '../../../services/clientesArchivosService';
 import { useNotification } from '../../../context/NotificationContext';
 
 const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocumentsChange, onViewDocument, onDownloadDocument }) => {
-  const { documents: rawDocuments, loading, error, uploadFiles, refresh, downloadDocument } = useClientArchivo(clientId);
+  const { documents: rawDocuments, loading, error, uploadFiles, refresh, downloadDocument, deleteDocument } = useClientArchivo(clientId);
   const { showSuccess, showError } = useNotification();
   const [downloadState, setDownloadState] = useState({ active: false, fileName: '', percent: 0, loaded: 0, total: 0, index: 0, totalFiles: 0 });
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isComprobanteFlag, setIsComprobanteFlag] = useState(false);
+  const [expirationDateInput, setExpirationDateInput] = useState('');
+  const [pendingExistingDoc, setPendingExistingDoc] = useState(null);
+  const [modalError, setModalError] = useState('');
+
+  const getTodayISO = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
   useEffect(() => {
     if (error) showError(error?.message || 'Error al obtener documentos');
@@ -24,7 +37,8 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
       type: d.tipoDocumento || (d.mimeType && typeof d.mimeType === 'string' && d.mimeType.includes('pdf') ? 'Facturación' : 'Documento'),
       status: d.status || d.estado || 'Completo',
       uploadDate: d.createdAt || d.uploadDate || d?.data?.createdAt || new Date().toISOString(),
-      expirationDate: d.expirationDate || null,
+      expirationDate: d.expirationDate || d.fechaLimite || d.fecha_limite || d?.data?.expirationDate || d?.metadata?.fechaLimite || null,
+      isComprobante: d.comprobante || d.isComprobante || d?.data?.comprobante || d?.metadata?.comprobante || false,
       notes: d.notes || d.nombreOriginal || '',
       url: d.urlBase || d.url || d?.data?.urlBase || null,
       containerName: d.containerName,
@@ -89,8 +103,16 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
     return expiry < today;
   };
 
-  const handleUploadClick = async (existingDocument = null) => {
+  // Abre la modal para preguntar si es comprobante y la fecha límite
+  const handleUploadClick = (existingDocument = null) => {
     if (!clientId) return showError('Seleccione un cliente antes de subir archivos');
+    setPendingExistingDoc(existingDocument);
+    setIsComprobanteFlag(false);
+    setExpirationDateInput('');
+    setShowUploadModal(true);
+  };
+
+  const pickFilesAndUpload = async (meta = {}, existingDocument = null) => {
     try {
       const files = await new Promise((resolve) => {
         const input = document.createElement('input');
@@ -101,7 +123,7 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
         input.click();
       });
       if (!files || files.length === 0) return;
-      const resp = await uploadFiles(files);
+      const resp = await uploadFiles(files, meta);
       // después de subir, forzamos refrescar la lista desde el backend
       await refresh();
       showSuccess('Archivo(s) subidos correctamente');
@@ -110,9 +132,10 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
         id: d.id || d.documentoId || d._id || String(Date.now()),
         name: d.nombreOriginal || d.nombreAsignado || d.name || 'Archivo',
         type: d.tipoDocumento || (d.mimeType && typeof d.mimeType === 'string' && d.mimeType.includes('pdf') ? 'Facturación' : 'Documento'),
-        status: d.status || d.estado || 'Completo',
+        status: meta && meta.comprobante ? 'Pendiente' : (d.status || d.estado || 'Completo'),
         uploadDate: d.createdAt || d.uploadDate || new Date().toISOString(),
-        expirationDate: d.expirationDate || null,
+        expirationDate: d.expirationDate || d.fechaLimite || (meta && meta.fechaLimite) || null,
+        isComprobante: d?.metadata?.comprobante ?? (meta && meta.comprobante) ?? false,
         notes: d.notes || d.nombreOriginal || '',
         url: d.urlBase || d.url || null,
         containerName: d.containerName,
@@ -123,6 +146,22 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
       console.error('Error subiendo documento:', error);
       showError(error?.message || 'Error al subir archivo');
     }
+  };
+
+  const handleUploadModalContinue = async () => {
+    // preparar metadata
+    if (isComprobanteFlag && !expirationDateInput) {
+      setModalError('Debes indicar la fecha límite para comprobante');
+      return;
+    }
+    setModalError('');
+    const meta = {
+  comprobante: Boolean(isComprobanteFlag),
+  fechaLimite: isComprobanteFlag ? expirationDateInput : null
+};
+    setShowUploadModal(false);
+    await pickFilesAndUpload(meta, pendingExistingDoc);
+    setPendingExistingDoc(null);
   };
 
   const handleDownloadAll = async () => {
@@ -171,18 +210,10 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
 
   const handleDelete = async (doc) => {
     if (!doc?.id) return showError('Documento sin ID');
-    const confirm = window.confirm('¿Eliminar este documento? Esta acción no se puede deshacer.');
-    if (!confirm) return;
     try {
-      const res = await clientesArchivosService.deleteClienteArchivo(doc.id, clientId);
-      if (res && res.ok) {
-        await refresh();
-        showSuccess('Documento eliminado');
-        return;
-      }
-      showError(res?.message || res?.data?.message || 'No se pudo eliminar el documento');
+      await deleteDocument(doc.id);
     } catch (e) {
-      console.error('Error eliminando documento:', e);
+      console.error('handleDelete error:', e);
       showError(e?.message || 'No se pudo eliminar el documento');
     }
   };
@@ -257,6 +288,37 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
           </div>
         </div>
       )}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowUploadModal(false)} />
+          <div className="relative bg-card border border-border rounded-lg p-6 shadow-lg w-full max-w-md">
+            <h4 className="text-lg font-semibold mb-2">Subir Documento</h4>
+            <p className="text-sm text-muted-foreground">Antes de subir, indica si es comprobante y la fecha límite (si aplica).</p>
+            <div className="mt-4 space-y-3">
+              <label className="flex items-center space-x-2">
+                <input type="checkbox" className="rounded" checked={isComprobanteFlag} onChange={(e) => setIsComprobanteFlag(e.target.checked)} />
+                <span className="text-sm">Es comprobante</span>
+              </label>
+              {isComprobanteFlag && (
+                <div>
+                  <label className="text-sm">Fecha límite</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full bg-input border border-border rounded px-2 py-1"
+                    value={expirationDateInput}
+                    onChange={(e) => setExpirationDateInput(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="mt-4 flex items-center justify-end space-x-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowUploadModal(false)}>Cancelar</Button>
+              <Button variant="default" size="sm" onClick={handleUploadModalContinue}>Seleccionar archivos</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-foreground">Estado de Documentos</h3>
         <div className="flex items-center space-x-2">
@@ -310,6 +372,11 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
                     <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(doc?.status)}`}>
                       {doc?.status}
                     </span>
+                    {doc?.isComprobante && (
+                      <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded-full">
+                        Comprobante
+                      </span>
+                    )}
                     {isExpiringSoon(doc?.expirationDate) && (
                       <span className="px-2 py-1 text-xs bg-warning text-warning-foreground rounded-full">
                         Por Vencer
