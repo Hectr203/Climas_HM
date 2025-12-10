@@ -224,10 +224,12 @@ const DepartmentWorkload = () => {
   ];
 
   const getWorkloadColor = (workload) => {
-    if (workload >= 90) return 'bg-error';
-    if (workload >= 75) return 'bg-warning';
-    if (workload >= 50) return 'bg-success';
-    return 'bg-muted';
+    if (workload >= 90) return 'bg-red-500';
+    if (workload >= 75) return 'bg-orange-500';
+    if (workload >= 50) return 'bg-yellow-500';
+    if (workload >= 25) return 'bg-blue-500';
+    if (workload > 0) return 'bg-green-500';
+    return 'bg-gray-300';
   };
 
   const getStatusColor = (status) => {
