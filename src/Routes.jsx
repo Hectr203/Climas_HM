@@ -28,6 +28,7 @@ import ProjectAbonosManagement from './pages/project-abonos-management';
 import UserManagement from './pages/user-management';
 import ToolsManagement from './pages/tools-management';
 import MyToolsPage from './pages/my-tools';
+import PriceManagement from './pages/price-management';
 
 const Routes = () => {
   // Componente para redirigir dashboard al inicio del rol
@@ -216,6 +217,14 @@ const Routes = () => {
               element={
                 <ProtectedRoute allowedRoles={['obra']}>
                   <MyToolsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/precios" 
+              element={
+                <ProtectedRoute requiredPath="/precios">
+                  <PriceManagement />
                 </ProtectedRoute>
               } 
             />

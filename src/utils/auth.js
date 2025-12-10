@@ -22,6 +22,7 @@ export const ROLE_PERMISSIONS = {
       "/inventario",
       "/clientes",
       "/finanzas",
+      "/precios",
       "/usuarios",
       "/visor-galeria",
       "/galeria-proyecto",
@@ -38,7 +39,7 @@ export const ROLE_PERMISSIONS = {
   },
   // Administración - Negocio, Personal y Abonos
   [AUTH_ROLES?.ADMINISTRACION]: {
-    allowedPaths: ["/clientes", "/finanzas", "/personal", "/abonos"],
+    allowedPaths: ["/clientes", "/finanzas", "/precios", "/personal", "/abonos"],
     defaultPath: "/clientes",
   },
   // Proyectos - Cotizaciones y Proyectos
@@ -65,6 +66,7 @@ export const ROLE_PERMISSIONS = {
       "/monitoreo-ventas",
       "/abonos",
       "/clientes",
+      "/precios",
       "/proyectos",
       "/visor-galeria",
       "/galeria-proyecto",
@@ -278,6 +280,13 @@ export const getAllowedNavigationItems = (userRole) => {
           tooltip: "Supervisión y reportes financieros",
           // badge: 3,
           roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION],
+        },
+        {
+          label: "Precios",
+          path: "/precios",
+          icon: "TrendingUp",
+          tooltip: "Gestión y consulta de precios de productos",
+          roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.VENTAS],
         },
       ],
     },
