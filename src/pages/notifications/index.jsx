@@ -7,6 +7,7 @@ import Header from '../../components/ui/Header';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
+import { getCategoryColor } from './categories';
 
 const Notifications = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
@@ -244,7 +245,7 @@ const Notifications = () => {
                                                 <div className="flex-1">
                                                     <h4 className="text-sm font-medium text-foreground mb-1">{notif.mensaje}</h4>
                                                     {notif.descripcionCategoria && (
-                                                        <p className="text-xs text-muted-foreground mb-2">
+                                                        <p className={`text-xs mb-2 ${getCategoryColor(notif.descripcionCategoria)}`}>
                                                             <Icon name="Tag" size={12} className="inline mr-1" />
                                                             {notif.descripcionCategoria}
                                                         </p>
