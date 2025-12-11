@@ -151,6 +151,41 @@ const quotationService = {
         throw error;
       }
     },
+
+    // Funciones para manejo de estados de aprobación
+    async updateEstadoAprobacion(id, estadoAprobacion, comentarios = '', modificadoPor = '') {
+      try {
+        const response = await httpService.patch(`cotizacion/${id}/estado-aprobacion`, {
+          estadoAprobacion,
+          comentarios,
+          modificadoPor
+        });
+        return response.data;
+      } catch (error) {
+        console.error('Error actualizando estado de aprobación:', error);
+        throw error;
+      }
+    },
+
+    async getCotizacionesByEstado(estado, limite = 50, pagina = 1) {
+      try {
+        const response = await httpService.get(`cotizacion/estado/${estado}?limite=${limite}&pagina=${pagina}`);
+        return response.data;
+      } catch (error) {
+        console.error('Error obteniendo cotizaciones por estado:', error);
+        throw error;
+      }
+    },
+
+    async getEstadisticasEstados() {
+      try {
+        const response = await httpService.get('cotizacion/estadisticas/estados');
+        return response.data;
+      } catch (error) {
+        console.error('Error obteniendo estadísticas de estados:', error);
+        throw error;
+      }
+    },
 };
 
 export default quotationService;

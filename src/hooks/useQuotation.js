@@ -205,6 +205,49 @@ const useQuotation = () => {
     }
   };
 
+  // Funciones para manejo de estados de aprobación
+  const updateEstadoAprobacion = async (id, estadoAprobacion, comentarios = '', modificadoPor = '') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.updateEstadoAprobacion(id, estadoAprobacion, comentarios, modificadoPor);
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCotizacionesByEstado = async (estado, limite = 50, pagina = 1) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getCotizacionesByEstado(estado, limite, pagina);
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getEstadisticasEstados = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getEstadisticasEstados();
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     createQuotation,
     getCotizaciones,
@@ -221,6 +264,10 @@ const useQuotation = () => {
     getQuotationVersions,
     getVersionById,
     restoreVersion,
+    // Métodos de aprobación
+    updateEstadoAprobacion,
+    getCotizacionesByEstado,
+    getEstadisticasEstados,
     loading,
     error,
   };
