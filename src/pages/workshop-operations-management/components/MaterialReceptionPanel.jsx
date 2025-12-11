@@ -750,7 +750,7 @@
                   articuloId: m.codigo || m.key,
                   cantidad: m.received,
                   unidad: m.raw?.unidad || 'pcs',
-                  ordenTrabajo: orderKey, // Agregar orden de trabajo
+                  ordenTrabajo: orderKey, // El backend ya soporta este campo
                   notas: '' // Dejar vacío para que el usuario agregue sus propias notas
                 }));
 
