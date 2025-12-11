@@ -10,7 +10,6 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
     // Función para marcar notificación como leída
     const handleMarcarLeida = async (notificacionId, tipo) => {
         try {
-            console.log('📖 [MODAL] Marcando notificación como leída:', notificacionId, 'tipo:', tipo);
 
             // Llamar a la API para marcar como leída
             await marcarNotificacionLeida(notificacionId);
@@ -26,7 +25,6 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                 );
             } else if (tipo === 'signalr') {
                 // Para notificaciones SignalR, emitir evento para actualizar estado global
-                console.log('📖 [MODAL] Notificación SignalR marcada como leída - actualizando estado');
                 window.dispatchEvent(new CustomEvent('signalrNotificationRead', {
                     detail: { notificationId: notificacionId }
                 }));
@@ -36,10 +34,7 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
             if (onNotificationRead) {
                 onNotificationRead();
             }
-
-            console.log('✅ [MODAL] Notificación marcada como leída exitosamente');
         } catch (err) {
-            console.error('❌ [MODAL] Error marcando notificación como leída:', err);
             // Aquí podríamos mostrar un toast de error si fuera necesario
         }
     };
@@ -48,14 +43,12 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
     React.useEffect(() => {
         if (onModalStateChange) {
             onModalStateChange(isOpen);
-            console.log(`📋 [MODAL] Estado del modal: ${isOpen ? 'ABIERTO - SignalR habilitado' : 'CERRADO - SignalR bloqueado'}`);
         }
     }, [isOpen, onModalStateChange]);
 
     // Cargar notificaciones sin leer cuando se abra el modal (y refrescar cada vez)
     React.useEffect(() => {
         if (isOpen) {
-            console.log('📋 [MODAL] Modal abierto, refrescando notificaciones desde la base de datos...');
 
             let isMounted = true; // Flag para evitar actualizaciones si se desmonta el componente
 
@@ -64,18 +57,14 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                     const result = await obtenerNotificacionesSinLeer();
 
                     if (isMounted) {
-                        console.log('📋 [MODAL] Respuesta de notificaciones sin leer:', result);
 
                         // La respuesta puede ser { data: [...] } o directamente [...]
                         const notifs = result.data || result || [];
-                        console.log('📋 [MODAL] Notificaciones extraídas:', notifs);
 
                         setNotificacionesBD(notifs);
-                        console.log('✅ [MODAL] Notificaciones refrescadas desde la BD');
                     }
                 } catch (err) {
                     if (isMounted) {
-                        console.error('❌ [MODAL] Error cargando notificaciones sin leer:', err);
                         setNotificacionesBD([]);
                     }
                 }
@@ -90,14 +79,9 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
         }
     }, [isOpen]); // Solo depende de isOpen para refrescar cada vez que se abra    // Combinar notificaciones de BD con las de SignalR en tiempo real
     const todasLasNotificaciones = React.useMemo(() => {
-        console.log('🔄 [MODAL] Combinando notificaciones...');
-        console.log('🔄 [MODAL] Notificaciones BD:', notificacionesBD);
-        console.log('🔄 [MODAL] Notificaciones SignalR:', realtimeNotifs);
 
         const notifsBD = Array.isArray(notificacionesBD) ? notificacionesBD : [];
         const notifsSignalR = Array.isArray(realtimeNotifs) ? realtimeNotifs : [];
-
-        console.log('🔄 [MODAL] Cantidad BD:', notifsBD.length, 'SignalR:', notifsSignalR.length);
 
         // Convertir notificaciones de BD al formato esperado
         const notifsBDFormateadas = notifsBD.map(notif => ({
@@ -117,14 +101,10 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
             tipo: 'signalr'
         }));
 
-        console.log('🔄 [MODAL] Notificaciones BD formateadas:', notifsBDFormateadas);
-        console.log('🔄 [MODAL] Notificaciones SignalR formateadas:', notifsSignalRFormateadas);
-
         // Combinar y ordenar por timestamp (más reciente primero)
         const combinadas = [...notifsBDFormateadas, ...notifsSignalRFormateadas];
         const ordenadas = combinadas.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-        console.log('✅ [MODAL] Notificaciones combinadas y ordenadas:', ordenadas);
         return ordenadas;
     }, [notificacionesBD, realtimeNotifs])
 

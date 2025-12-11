@@ -29,26 +29,21 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
 
   // Manejar el estado del modal de notificaciones para controlar SignalR
   const handleModalStateChange = useCallback((isModalOpen) => {
-    console.log(`🔄 [SIDEBAR] Cambio de estado del modal: ${isModalOpen ? 'ABIERTO' : 'CERRADO'}`);
     setAllowSignalRNotifications(isModalOpen);
 
     // Cuando se cierra el modal, limpiar las notificaciones de SignalR
     if (!isModalOpen) {
-      console.log('🧹 [SIDEBAR] Modal cerrado - Limpiando notificaciones de SignalR');
       limpiarNotificaciones();
     }
   }, [limpiarNotificaciones]);
 
   // Manejar cuando se marca una notificación como leída
   const handleNotificationRead = useCallback(async () => {
-    console.log('📖 [SIDEBAR] Notificación marcada como leída - Refrescando contador');
     try {
       const result = await obtenerTotalNotificacionesSinLeer();
       const total = result.data?.total || result.total || 0;
       setTotalUnread(total);
-      console.log('📖 [SIDEBAR] Contador actualizado después de marcar como leída:', total);
     } catch (err) {
-      console.error('❌ [SIDEBAR] Error refrescando contador:', err);
     }
   }, [obtenerTotalNotificacionesSinLeer]);
 
@@ -63,12 +58,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
 
   // Cargar el total de notificaciones sin leer solo una vez cuando el usuario esté autenticado
   useEffect(() => {
-    console.log('🔍 [NOTIFICACIONES] useEffect ejecutado - isAuthenticated:', isAuthenticated);
-
     let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
 
     if (isAuthenticated) {
-      console.log('🔔 [NOTIFICACIONES] Usuario autenticado, cargando total de notificaciones sin leer...');
       const loadTotal = async () => {
         try {
           // Ahora no necesitamos pasar userId, el hook lo extraerá del token automáticamente
@@ -76,23 +68,17 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
 
           // Solo actualizar el estado si el componente aún está montado
           if (isMounted) {
-            console.log('🔔 [NOTIFICACIONES] Respuesta de la API:', result);
             const total = result.data?.total || result.total || 0;
-            console.log('🔔 [NOTIFICACIONES] Total extraído:', total);
             setTotalUnread(total);
-            console.log('🔔 [NOTIFICACIONES] Estado actualizado - totalUnread:', total);
           }
         } catch (err) {
           if (isMounted) {
-            console.error('❌ [NOTIFICACIONES] Error cargando total sin leer:', err);
             setTotalUnread(0);
-            console.log('🔔 [NOTIFICACIONES] Estado reseteado a 0 por error');
           }
         }
       };
       loadTotal();
     } else {
-      console.log('⚠️ [NOTIFICACIONES] Usuario no autenticado, no se cargan notificaciones');
       if (isMounted) {
         setTotalUnread(0);
       }
@@ -107,14 +93,11 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   // Escuchar eventos de notificaciones marcadas como leídas
   useEffect(() => {
     const handleNotificationReadEvent = async () => {
-      console.log('📖 [SIDEBAR] Notificación marcada como leída - Refrescando contador');
       try {
         const result = await obtenerTotalNotificacionesSinLeer();
         const total = result.data?.total || result.total || 0;
         setTotalUnread(total);
-        console.log('📖 [SIDEBAR] Contador actualizado después de marcar como leída:', total);
       } catch (err) {
-        console.error('❌ [SIDEBAR] Error refrescando contador:', err);
       }
     };
 
@@ -126,17 +109,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   }, [obtenerTotalNotificacionesSinLeer]);  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
   useEffect(() => {
     if (newCount > 0) {
-      console.log('📩 [NOTIFICACIONES] Nueva notificación detectada vía SignalR!');
-      console.log('📩 [NOTIFICACIONES] Nuevas notificaciones recibidas:', newCount);
-      console.log('📩 [NOTIFICACIONES] Total actual antes de sumar:', totalUnread);
-      setTotalUnread(prev => {
-        const nuevoTotal = prev + newCount;
-        console.log('📩 [NOTIFICACIONES] Total después de sumar:', nuevoTotal);
-        return nuevoTotal;
-      });
+      setTotalUnread(prev => prev + newCount);
       // Resetear el contador de nuevas notificaciones después de sumarlo
       resetearContador();
-      console.log('📩 [NOTIFICACIONES] Contador de nuevas notificaciones reseteado');
     }
   }, [newCount, resetearContador]);
 
@@ -201,14 +176,6 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
 
     // Dynamic badge for notifications
     const badge = item?.path === '/notificaciones' ? (totalUnread + newCount) : item?.badge;
-
-    // Log para depuración del badge de notificaciones
-    if (item?.path === '/notificaciones') {
-      console.log('🏷️ [NOTIFICACIONES] Badge calculado para sidebar:');
-      console.log('  - totalUnread:', totalUnread);
-      console.log('  - newCount:', newCount);
-      console.log('  - badge final:', badge);
-    }
 
     const handleItemClick = (e) => {
       e.preventDefault();
