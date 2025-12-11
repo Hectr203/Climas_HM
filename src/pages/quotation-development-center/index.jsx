@@ -13,6 +13,7 @@ import RevisionHistory from './components/RevisionHistory';
 import InternalReview from './components/InternalReview';
 import NewQuotationModal from './components/NewQuotationModal';
 import useQuotation from '../../hooks/useQuotation';
+import quotationService from '../../services/quotationService';
 
 const QuotationDevelopmentCenter = () => {
   const [quotations, setQuotations] = useState([]);
@@ -22,6 +23,8 @@ const QuotationDevelopmentCenter = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [isNewQuotationModalOpen, setIsNewQuotationModalOpen] = useState(false);
+  const [showRejected, setShowRejected] = useState(false);
+  const [allQuotations, setAllQuotations] = useState([]);
 
   // Verificar parámetros de URL al cargar
   useEffect(() => {
@@ -75,6 +78,7 @@ const QuotationDevelopmentCenter = () => {
             assignedTo: cotizacion.asignacion?.responsables?.[0]?.nombre_responsable || '',
             assignedToId: cotizacion.asignacion?.responsables?.[0]?.id_responsable || '',
             priority: cotizacion.informacion_basica?.prioridad || 'media',
+            estado_aprobacion: cotizacion.estado_aprobacion || 'pendiente',
             quotationData: {
               // Usar monto del constructor si existe, sino usar el presupuesto estimado
               totalAmount: constructorData?.monto_total || cotizacion.detalles_proyecto?.presupuesto_estimado_mxn || 0,
@@ -82,7 +86,12 @@ const QuotationDevelopmentCenter = () => {
             }
           };
         }));
-        setQuotations(mapped);
+        setAllQuotations(mapped);
+        // Filtrar cotizaciones según el estado actual
+        const filtered = showRejected 
+          ? mapped.filter(q => q.estado_aprobacion === 'rechazada')
+          : mapped.filter(q => q.estado_aprobacion !== 'rechazada');
+        setQuotations(filtered);
       } catch (err) {
         setQuotations([]);
         console.error('Error al obtener cotizaciones:', err);
@@ -113,15 +122,13 @@ const QuotationDevelopmentCenter = () => {
       assignedTo: newQuotation?.asignacion?.responsables?.[0]?.nombre_responsable || '',
       assignedToId: newQuotation?.asignacion?.responsables?.[0]?.id_responsable || '',
       priority: newQuotation?.informacion_basica?.prioridad || 'media',
+      estado_aprobacion: newQuotation?.estado_aprobacion || 'pendiente',
       quotationData: {
         totalAmount: newQuotation?.detalles_proyecto?.presupuesto_estimado_mxn || 0
       }
     };
-    setQuotations(prev => {
-      const updated = [mappedQuotation, ...prev];
-      // console.log eliminado
-      return updated;
-    });
+    // Agregar a allQuotations primero
+    setAllQuotations(prev => [mappedQuotation, ...prev]);
     setSelectedQuotation(mappedQuotation);
     setActiveTab('builder');
     setIsNewQuotationModalOpen(false);
@@ -153,11 +160,12 @@ const QuotationDevelopmentCenter = () => {
         assignedTo: cotizacion.asignacion?.responsables?.[0]?.nombre_responsable || '',
         assignedToId: cotizacion.asignacion?.responsables?.[0]?.id_responsable || '',
         priority: cotizacion.informacion_basica?.prioridad || 'media',
+        estado_aprobacion: cotizacion.estado_aprobacion || 'pendiente',
         quotationData: {
           totalAmount: cotizacion.detalles_proyecto?.presupuesto_estimado_mxn || 0
         }
       }));
-      setQuotations(mapped);
+      setAllQuotations(mapped);
     });
   };
 
@@ -193,14 +201,28 @@ const QuotationDevelopmentCenter = () => {
   };
 
   const handleQuotationUpdate = (quotationId, updates) => {
-    setQuotations(prev => prev?.map(quote =>
-      quote?.id === quotationId
-        ? { ...quote, ...updates, lastModified: new Date()?.toISOString()?.split('T')?.[0] }
-        : quote
-    ));
+    // Actualizar allQuotations primero (esto triggerea el useEffect para re-filtrar)
+    setAllQuotations(prev => {
+      const updated = prev?.map(quote => 
+        quote?.id === quotationId 
+          ? { ...quote, ...updates, lastModified: new Date()?.toISOString()?.split('T')?.[0] } 
+          : quote
+      );
+      return updated;
+    });
 
+    // Actualizar cotización seleccionada si es la misma
     if (selectedQuotation?.id === quotationId) {
       setSelectedQuotation(prev => ({ ...prev, ...updates }));
+      
+      // Si la cotización fue rechazada y estamos en vista normal, deseleccionarla
+      if (updates.estado_aprobacion === 'rechazada' && !showRejected) {
+        setSelectedQuotation(null);
+      }
+      // Si la cotización fue aprobada/pendiente y estamos en vista rechazadas, deseleccionarla
+      if (updates.estado_aprobacion !== 'rechazada' && showRejected) {
+        setSelectedQuotation(null);
+      }
     }
   };
 
@@ -268,6 +290,30 @@ const QuotationDevelopmentCenter = () => {
     }
   };
 
+  // Filtrar cotizaciones cuando cambie el estado de mostrar rechazadas
+  useEffect(() => {
+    if (allQuotations.length > 0) {
+      const filtered = showRejected 
+        ? allQuotations.filter(q => q.estado_aprobacion === 'rechazada')
+        : allQuotations.filter(q => q.estado_aprobacion !== 'rechazada');
+      
+      console.log('Filtrando cotizaciones:', {
+        showRejected,
+        total: allQuotations.length,
+        filtered: filtered.length,
+        estados: allQuotations.map(q => ({ id: q.id, estado: q.estado_aprobacion }))
+      });
+      
+      setQuotations(filtered);
+      
+      // Si la cotización seleccionada no está en el filtro actual, deseleccionarla
+      if (selectedQuotation && !filtered.find(q => q.id === selectedQuotation.id)) {
+        console.log('Deseleccionando cotización:', selectedQuotation.id);
+        setSelectedQuotation(null);
+      }
+    }
+  }, [showRejected, allQuotations]);
+
   useEffect(() => {
     // Ya no selecciona automáticamente la primera cotización
   }, [quotations, selectedQuotation]);
@@ -313,15 +359,14 @@ const QuotationDevelopmentCenter = () => {
               </div>
 
               <div className="flex items-center space-x-4 mt-4 lg:mt-0">
-                {/* Botón comentado: Exportar PDF (se dejó comentado para posible uso futuro)
                 <Button
-                  variant="outline"
-                  iconName="Download"
+                  variant={showRejected ? "default" : "outline"}
+                  onClick={() => setShowRejected(!showRejected)}
+                  iconName={showRejected ? "Eye" : "EyeOff"}
                   iconPosition="left"
                 >
-                  Exportar PDF
+                  {showRejected ? 'Ver Aprobadas y Pendientes' : 'Ver Rechazadas'}
                 </Button>
-                */}
                 <Button
                   iconName="Plus"
                   iconPosition="left"
@@ -340,17 +385,43 @@ const QuotationDevelopmentCenter = () => {
               <div className="w-80">
                 <div className="bg-card rounded-lg shadow-sm border">
                   <div className="p-4 border-b">
-                    <h3 className="font-semibold">Cotizaciones Activas</h3>
+                    <h3 className="font-semibold">
+                      {showRejected ? 'Cotizaciones Rechazadas' : 'Cotizaciones Activas'}
+                    </h3>
                   </div>
 
                   <div className="p-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
-                    {quotations?.map((quotation) => (
+                    {quotations?.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Icon name={showRejected ? "XCircle" : "FileText"} size={32} className="text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          {showRejected 
+                            ? 'No hay cotizaciones rechazadas' 
+                            : 'No hay cotizaciones aprobadas o pendientes'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {showRejected 
+                            ? 'Las cotizaciones rechazadas aparecerán aquí' 
+                            : 'Las cotizaciones rechazadas se mueven automáticamente al historial'}
+                        </p>
+                      </div>
+                    ) : (
+                      quotations?.map((quotation) => (
                       <div
                         key={quotation?.id}
                         onClick={() => handleQuotationSelect(quotation)}
-                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-all ${selectedQuotation?.id === quotation?.id ? 'bg-primary/10' : 'bg-card'
+                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-all relative ${selectedQuotation?.id === quotation?.id ? 'bg-primary/10' : 'bg-card'
                           } ${getPriorityColor(quotation?.priority)}`}
                       >
+                        {/* Indicador de estado de aprobación */}
+                        <div className={`absolute top-2 right-2 w-3 h-3 rounded-full transition-all duration-300 ${
+                          quotation?.estado_aprobacion === 'aprobada' 
+                            ? 'bg-green-500 shadow-green-200 shadow-lg' 
+                            : quotation?.estado_aprobacion === 'rechazada'
+                            ? 'bg-red-500 shadow-red-200 shadow-lg'
+                            : 'bg-orange-500 animate-pulse shadow-orange-200 shadow-lg'
+                        }`}></div>
+                        
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-medium text-sm text-foreground line-clamp-2">
                             {quotation?.projectName || 'Sin proyecto'}
@@ -389,7 +460,8 @@ const QuotationDevelopmentCenter = () => {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -413,10 +485,19 @@ const QuotationDevelopmentCenter = () => {
                           <button
                             key={tab?.id}
                             onClick={() => setActiveTab(tab?.id)}
-                            className={`flex items-center space-x-2 px-4 py-2 text-sm rounded-lg transition-all ${activeTab === tab?.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                              }`}
+                            className={`flex items-center space-x-2 px-4 py-2 text-sm rounded-lg transition-all ${
+                              activeTab === tab?.id
+                                ? (tab?.id === 'review' 
+                                    ? (selectedQuotation?.estado_aprobacion === 'aprobada' ? 'bg-green-600 text-white' :
+                                       selectedQuotation?.estado_aprobacion === 'rechazada' ? 'bg-red-600 text-white' :
+                                       'bg-orange-600 text-white')
+                                    : 'bg-primary text-primary-foreground')
+                                : (tab?.id === 'review'
+                                    ? (selectedQuotation?.estado_aprobacion === 'aprobada' ? 'text-green-600 hover:bg-green-50' :
+                                       selectedQuotation?.estado_aprobacion === 'rechazada' ? 'text-red-600 hover:bg-red-50' :
+                                       'text-orange-600 hover:bg-orange-50')
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted')
+                            }`}
                           >
                             <Icon name={tab?.icon} size={16} />
                             <span>{tab?.label}</span>
@@ -466,6 +547,7 @@ const QuotationDevelopmentCenter = () => {
                         <InternalReview
                           quotation={selectedQuotation}
                           onSubmitReview={(reviewData) => handleSubmitInternalReview(selectedQuotation?.id, reviewData)}
+                          onQuotationUpdate={handleQuotationUpdate}
                         />
                       )}
 
