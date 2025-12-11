@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
@@ -21,10 +21,23 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const [navigationItems, setNavigationItems] = useState([]);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [totalUnread, setTotalUnread] = useState(0);
+  const [allowSignalRNotifications, setAllowSignalRNotifications] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const { showSuccess } = useNotifications();
-  const { notificaciones, newCount, resetearContador } = useSignalR(true); // Siempre habilitado para recibir notificaciones
+  const { notificaciones, newCount, resetearContador, limpiarNotificaciones } = useSignalR(true, allowSignalRNotifications);
   const { obtenerTotalNotificacionesSinLeer } = useNotificaciones();
+
+  // Manejar el estado del modal de notificaciones para controlar SignalR
+  const handleModalStateChange = useCallback((isModalOpen) => {
+    console.log(`🔄 [SIDEBAR] Cambio de estado del modal: ${isModalOpen ? 'ABIERTO' : 'CERRADO'}`);
+    setAllowSignalRNotifications(isModalOpen);
+
+    // Cuando se cierra el modal, limpiar las notificaciones de SignalR
+    if (!isModalOpen) {
+      console.log('🧹 [SIDEBAR] Modal cerrado - Limpiando notificaciones de SignalR');
+      limpiarNotificaciones();
+    }
+  }, [limpiarNotificaciones]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -369,7 +382,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
         isOpen={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
         notificaciones={notificaciones}
-        userId={user?.id}
+        onModalStateChange={handleModalStateChange}
         onViewAll={() => {
           setShowNotificationsModal(false);
           navigate('/notificaciones');

@@ -3,7 +3,7 @@ import * as signalR from '@microsoft/signalr'
 import EnvConfig from '../utils/config'
 import { jwtDecode } from 'jwt-decode'
 
-export const useSignalR = (enabled = true) => {
+export const useSignalR = (enabled = true, allowNotifications = true) => {
     const [connection, setConnection] = useState(null)
     const [notificaciones, setNotificaciones] = useState([])
     const [newCount, setNewCount] = useState(0)
@@ -15,6 +15,12 @@ export const useSignalR = (enabled = true) => {
     })
     const intentosRef = useRef(0)
     const connRef = useRef(null)
+    const allowNotificationsRef = useRef(allowNotifications)
+
+    // Actualizar el ref cuando cambie allowNotifications
+    useEffect(() => {
+        allowNotificationsRef.current = allowNotifications
+    }, [allowNotifications])
 
     useEffect(() => {
         if (!enabled) {
@@ -128,17 +134,38 @@ export const useSignalR = (enabled = true) => {
                     console.log('📩 Notificación recibida: notification')
                     console.log('📊 Datos completos:', JSON.stringify(data, null, 2))
 
-                    const nuevaNotif = {
-                        tipo: 'notificacion',
-                        mensaje: 'Nueva notificación recibida',
-                        data,
-                        timestamp: new Date().toISOString(),
-                        leido: false,
-                    }
-                    console.log('🔔 Nueva notificación añadida:', nuevaNotif)
+                    // SIEMPRE incrementar el contador para el sidebar
+                    console.log('📈 [SIGNALR] Incrementando contador del sidebar');
+                    setNewCount(prev => prev + 1);
 
-                    setNotificaciones(prev => [nuevaNotif, ...prev])
-                    setNewCount(prev => prev + 1)
+                    // Solo agregar a la lista del modal si allowNotifications es true
+                    if (allowNotificationsRef.current) {
+                        console.log('✅ [SIGNALR] Agregando notificación al modal - Modal abierto');
+
+                        const nuevaNotif = {
+                            id: data.id || `signalr-${Date.now()}`,
+                            tipo: 'signalr',
+                            mensaje: data.mensajePrincipal || data.mensaje || 'Nueva notificación recibida',
+                            mensajeDetallado: data.mensajeDetallado || '',
+                            descripcionCategoria: data.descripcionCategoria || 'General',
+                            timestamp: data.createdAt || data.timestamp || new Date().toISOString(),
+                            leido: data.leida || false,
+                            data, // Mantener el objeto original por si acaso
+                        }
+                        console.log('🔔 [SIGNALR] Notificación formateada para modal:', {
+                            id: nuevaNotif.id,
+                            mensaje: nuevaNotif.mensaje,
+                            descripcionCategoria: nuevaNotif.descripcionCategoria,
+                            mensajeDetallado: nuevaNotif.mensajeDetallado?.substring(0, 50) + '...',
+                            timestamp: nuevaNotif.timestamp,
+                            leido: nuevaNotif.leido
+                        })
+                        console.log('🔔 Nueva notificación añadida al modal:', nuevaNotif)
+
+                        setNotificaciones(prev => [nuevaNotif, ...prev])
+                    } else {
+                        console.log('🚫 [SIGNALR] Notificación NO agregada al modal - Modal cerrado (pero contador actualizado)');
+                    }
                 })
 
                 // Listener genérico para debug
