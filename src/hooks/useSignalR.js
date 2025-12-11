@@ -3,9 +3,10 @@ import * as signalR from '@microsoft/signalr'
 import EnvConfig from '../utils/config'
 import { jwtDecode } from 'jwt-decode'
 
-export const useSignalR = () => {
+export const useSignalR = (enabled = true) => {
     const [connection, setConnection] = useState(null)
     const [notificaciones, setNotificaciones] = useState([])
+    const [newCount, setNewCount] = useState(0)
     const [conectado, setConectado] = useState(false)
     const [debugInfo, setDebugInfo] = useState({
         intentosConexion: 0,
@@ -16,6 +17,18 @@ export const useSignalR = () => {
     const connRef = useRef(null)
 
     useEffect(() => {
+        if (!enabled) {
+            if (connRef.current) {
+                connRef.current.stop();
+                setConnection(null);
+                setConectado(false);
+                setNotificaciones([]);
+                setNewCount(0);
+                setDebugInfo(prev => ({ ...prev, estadoConexion: 'disabled' }));
+            }
+            return;
+        }
+
         let disposed = false;
 
         (async () => {
@@ -125,6 +138,7 @@ export const useSignalR = () => {
                     console.log('🔔 Nueva notificación añadida:', nuevaNotif)
 
                     setNotificaciones(prev => [nuevaNotif, ...prev])
+                    setNewCount(prev => prev + 1)
                 })
 
                 // Listener genérico para debug
@@ -138,6 +152,7 @@ export const useSignalR = () => {
 
                 setConnection(conn)
                 setConectado(true)
+                setNewCount(0)
                 setDebugInfo(prev => ({ ...prev, estadoConexion: 'connected' }))
                 console.log('✅ Conectado a SignalR exitosamente')
                 console.log('🆔 Connection ID:', conn.connectionId)
@@ -154,7 +169,7 @@ export const useSignalR = () => {
             disposed = true;
             if (connRef.current) connRef.current.stop();
         };
-    }, [])
+    }, [enabled])
 
     const desconectarSignalR = useCallback(async () => {
         if (connRef.current && conectado) {
@@ -169,12 +184,18 @@ export const useSignalR = () => {
         setNotificaciones([])
     }, [])
 
+    const resetearContador = useCallback(() => {
+        setNewCount(0)
+    }, [])
+
     return {
         connection,
         notificaciones,
+        newCount,
         conectado,
         debugInfo,
         desconectarSignalR,
         limpiarNotificaciones,
+        resetearContador,
     }
 }

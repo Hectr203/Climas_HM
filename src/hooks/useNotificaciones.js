@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { jwtDecode } from 'jwt-decode'
 import httpService from '../services/httpService'
 
 export const useNotificaciones = () => {
@@ -6,12 +7,39 @@ export const useNotificaciones = () => {
     const [error, setError] = useState(null)
     const [data, setData] = useState(null)
 
+    // Función para extraer el ID del usuario del token (memoizada para evitar re-creaciones)
+    const obtenerUserIdDelToken = useCallback(() => {
+        try {
+            const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+            if (!authToken) {
+                console.error('❌ [NOTIFICACIONES] No se encontró token de autenticación');
+                return null;
+            }
+
+            const decoded = jwtDecode(authToken);
+            const userId = decoded.sub || decoded.userId || decoded.id || decoded.user_id;
+
+            console.log('🔍 [NOTIFICACIONES] Token decodificado:', decoded);
+            console.log('🔍 [NOTIFICACIONES] ID de usuario extraído:', userId);
+
+            if (!userId) {
+                console.error('❌ [NOTIFICACIONES] No se encontró ID de usuario en el token');
+                return null;
+            }
+
+            return userId;
+        } catch (err) {
+            console.error('❌ [NOTIFICACIONES] Error decodificando token:', err);
+            return null;
+        }
+    }, [])
+
     // Crear notificación
     const guardarNotificacion = async (notificacionData) => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.post('/api/notificaciones/crear', notificacionData)
+            const response = await httpService.api.post('/notificaciones/crear', notificacionData)
             setData(response.data)
             return response.data
         } catch (err) {
@@ -27,7 +55,7 @@ export const useNotificaciones = () => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.put(`/api/notificaciones/${id}`, updateData)
+            const response = await httpService.api.put(`/notificaciones/${id}`, updateData)
             setData(response.data)
             return response.data
         } catch (err) {
@@ -44,7 +72,7 @@ export const useNotificaciones = () => {
         setError(null)
         try {
             const params = usuarioId ? { usuarioId } : {}
-            const response = await httpService.api.get('/api/notificaciones', { params })
+            const response = await httpService.api.get('/notificaciones', { params })
             setData(response.data)
             return response.data
         } catch (err) {
@@ -60,7 +88,7 @@ export const useNotificaciones = () => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.get(`/api/notificaciones/${id}`)
+            const response = await httpService.api.get(`/notificaciones/${id}`)
             setData(response.data)
             return response.data
         } catch (err) {
@@ -76,7 +104,7 @@ export const useNotificaciones = () => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.delete(`/api/notificaciones/${id}`)
+            const response = await httpService.api.delete(`/notificaciones/${id}`)
             setData(response.data)
             return response.data
         } catch (err) {
@@ -88,11 +116,17 @@ export const useNotificaciones = () => {
     }
 
     // Obtener notificaciones por usuario
-    const obtenerNotificacionesPorUsuario = async (usuarioId) => {
+    const obtenerNotificacionesPorUsuario = async (usuarioId = null) => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.get(`/api/notificaciones/usuario/${usuarioId}`)
+            const userId = usuarioId || obtenerUserIdDelToken();
+            if (!userId) {
+                throw new Error('No se pudo obtener el ID del usuario');
+            }
+            console.log('🔔 [NOTIFICACIONES] Obteniendo notificaciones para usuario:', userId);
+
+            const response = await httpService.api.get(`/notificaciones/usuario/${userId}`)
             setData(response.data)
             return response.data
         } catch (err) {
@@ -104,11 +138,17 @@ export const useNotificaciones = () => {
     }
 
     // Obtener notificaciones sin leer por usuario
-    const obtenerNotificacionesSinLeer = async (usuarioId) => {
+    const obtenerNotificacionesSinLeer = async (usuarioId = null) => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.get(`/api/notificaciones/sin-leer/${usuarioId}`)
+            const userId = usuarioId || obtenerUserIdDelToken();
+            if (!userId) {
+                throw new Error('No se pudo obtener el ID del usuario');
+            }
+            console.log('🔔 [NOTIFICACIONES] Obteniendo notificaciones sin leer para usuario:', userId);
+
+            const response = await httpService.api.get(`/notificaciones/sin-leer/${userId}`)
             setData(response.data)
             return response.data
         } catch (err) {
@@ -119,21 +159,29 @@ export const useNotificaciones = () => {
         }
     }
 
-    // Obtener total de notificaciones sin leer por usuario
-    const obtenerTotalNotificacionesSinLeer = async (usuarioId) => {
+    // Obtener total de notificaciones sin leer por usuario (memoizada)
+    const obtenerTotalNotificacionesSinLeer = useCallback(async (usuarioId = null) => {
         setLoading(true)
         setError(null)
         try {
-            const response = await httpService.api.get(`/api/notificaciones/total-sin-leer/${usuarioId}`)
+            const userId = usuarioId || obtenerUserIdDelToken();
+            if (!userId) {
+                throw new Error('No se pudo obtener el ID del usuario');
+            }
+            console.log('🔔 [NOTIFICACIONES] Obteniendo total sin leer para usuario:', userId);
+
+            const response = await httpService.api.get(`/notificaciones/total-sin-leer/${userId}`)
+            console.log('🔔 [NOTIFICACIONES] Respuesta del servidor:', response.data);
             setData(response.data)
             return response.data
         } catch (err) {
+            console.error('❌ [NOTIFICACIONES] Error en obtenerTotalNotificacionesSinLeer:', err);
             setError(err.response?.data?.message || err.message)
             throw err
         } finally {
             setLoading(false)
         }
-    }
+    }, [obtenerUserIdDelToken])
 
     return {
         loading,

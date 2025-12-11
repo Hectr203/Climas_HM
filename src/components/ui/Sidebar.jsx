@@ -9,6 +9,7 @@ import useAuth from '../../hooks/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
 import { useConfirmDialog } from '../../ui/ConfirmDialogContext';
 import { useSignalR } from '../../hooks/useSignalR';
+import { useNotificaciones } from '../../hooks/useNotificaciones';
 import NotificationsModal from './NotificationsModal';
 
 const Sidebar = ({ isCollapsed = false, onToggle }) => {
@@ -18,10 +19,12 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [navigationItems, setNavigationItems] = useState([]);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [totalUnread, setTotalUnread] = useState(0);
   const { user, isAuthenticated, logout } = useAuth();
   const { showSuccess } = useNotifications();
-  const { notificaciones } = useSignalR();
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const { notificaciones, newCount, resetearContador } = useSignalR(true); // Siempre habilitado para recibir notificaciones
+  const { obtenerTotalNotificacionesSinLeer } = useNotificaciones();
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -31,6 +34,64 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       navigate('/login');
     }
   }, [isAuthenticated, user, navigate]);
+
+  // Cargar el total de notificaciones sin leer solo una vez cuando el usuario esté autenticado
+  useEffect(() => {
+    console.log('🔍 [NOTIFICACIONES] useEffect ejecutado - isAuthenticated:', isAuthenticated);
+
+    let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
+
+    if (isAuthenticated) {
+      console.log('🔔 [NOTIFICACIONES] Usuario autenticado, cargando total de notificaciones sin leer...');
+      const loadTotal = async () => {
+        try {
+          // Ahora no necesitamos pasar userId, el hook lo extraerá del token automáticamente
+          const result = await obtenerTotalNotificacionesSinLeer();
+
+          // Solo actualizar el estado si el componente aún está montado
+          if (isMounted) {
+            console.log('🔔 [NOTIFICACIONES] Respuesta de la API:', result);
+            const total = result.data?.total || result.total || 0;
+            console.log('🔔 [NOTIFICACIONES] Total extraído:', total);
+            setTotalUnread(total);
+            console.log('🔔 [NOTIFICACIONES] Estado actualizado - totalUnread:', total);
+          }
+        } catch (err) {
+          if (isMounted) {
+            console.error('❌ [NOTIFICACIONES] Error cargando total sin leer:', err);
+            setTotalUnread(0);
+            console.log('🔔 [NOTIFICACIONES] Estado reseteado a 0 por error');
+          }
+        }
+      };
+      loadTotal();
+    } else {
+      console.log('⚠️ [NOTIFICACIONES] Usuario no autenticado, no se cargan notificaciones');
+      if (isMounted) {
+        setTotalUnread(0);
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]); // Solo depende de isAuthenticated  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
+  useEffect(() => {
+    if (newCount > 0) {
+      console.log('📩 [NOTIFICACIONES] Nueva notificación detectada vía SignalR!');
+      console.log('📩 [NOTIFICACIONES] Nuevas notificaciones recibidas:', newCount);
+      console.log('📩 [NOTIFICACIONES] Total actual antes de sumar:', totalUnread);
+      setTotalUnread(prev => {
+        const nuevoTotal = prev + newCount;
+        console.log('📩 [NOTIFICACIONES] Total después de sumar:', nuevoTotal);
+        return nuevoTotal;
+      });
+      // Resetear el contador de nuevas notificaciones después de sumarlo
+      resetearContador();
+      console.log('📩 [NOTIFICACIONES] Contador de nuevas notificaciones reseteado');
+    }
+  }, [newCount, resetearContador]);
 
   const [expandedItems, setExpandedItems] = useState(['Recursos', 'Negocio']);
 
@@ -92,7 +153,15 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     const isExpanded = expandedItems?.includes(item?.label);
 
     // Dynamic badge for notifications
-    const badge = item?.path === '/notificaciones' ? notificaciones.length : item?.badge;
+    const badge = item?.path === '/notificaciones' ? (totalUnread + newCount) : item?.badge;
+
+    // Log para depuración del badge de notificaciones
+    if (item?.path === '/notificaciones') {
+      console.log('🏷️ [NOTIFICACIONES] Badge calculado para sidebar:');
+      console.log('  - totalUnread:', totalUnread);
+      console.log('  - newCount:', newCount);
+      console.log('  - badge final:', badge);
+    }
 
     const handleItemClick = (e) => {
       e.preventDefault();
