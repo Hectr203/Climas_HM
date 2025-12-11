@@ -11,35 +11,117 @@ import Button from '../../components/ui/Button';
 const Notifications = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
     const { notificaciones: realtimeNotifs, limpiarNotificaciones } = useSignalR();
-    const { obtenerNotificacionesPorUsuario, loading, error, data: storedNotifs } = useNotificaciones();
+    const { obtenerNotificacionesPorUsuario, marcarNotificacionLeida, loading, error, data: storedNotifs } = useNotificaciones();
     const { user } = useAuth();
     const [allNotifs, setAllNotifs] = React.useState([]);
+    const [signalrReadIds, setSignalrReadIds] = React.useState(new Set());
+
+    // Función para marcar notificación como leída
+    const handleMarcarLeida = async (notificacionId, tipo) => {
+        try {
+            console.log('📖 [NOTIFICACIONES] Marcando notificación como leída:', notificacionId, 'tipo:', tipo);
+
+            // Llamar a la API para marcar como leída
+            await marcarNotificacionLeida(notificacionId);
+
+            // Actualizar el estado local inmediatamente para feedback visual
+            if (tipo === 'bd') {
+                setAllNotifs(prev =>
+                    prev.map(notif =>
+                        notif.id === notificacionId
+                            ? { ...notif, leida: true }
+                            : notif
+                    )
+                );
+            } else if (tipo === 'signalr') {
+                // Para notificaciones SignalR, marcar como leída localmente
+                setSignalrReadIds(prev => new Set([...prev, notificacionId]));
+                console.log('📖 [NOTIFICACIONES] Notificación SignalR marcada como leída localmente');
+            }
+
+            // Notificar que se marcó una notificación como leída para actualizar el sidebar
+            console.log('📢 [NOTIFICACIONES] Enviando evento de notificación leída para actualizar sidebar');
+            window.dispatchEvent(new CustomEvent('notificationRead'));
+
+            console.log('✅ [NOTIFICACIONES] Notificación marcada como leída exitosamente');
+        } catch (err) {
+            console.error('❌ [NOTIFICACIONES] Error marcando notificación como leída:', err);
+        }
+    };
 
     React.useEffect(() => {
-        if (user?.id) {
-            const loadNotifs = async () => {
-                try {
-                    const notifs = await obtenerNotificacionesPorUsuario(user.id);
-                    setAllNotifs(notifs);
-                } catch (err) {
-                    console.error('Error cargando notificaciones:', err);
-                }
-            };
-            loadNotifs();
-        }
-    }, [user?.id, obtenerNotificacionesPorUsuario]);
+        const loadNotifs = async () => {
+            try {
+                console.log('🔔 [NOTIFICACIONES] Cargando todas las notificaciones del usuario...');
+                const result = await obtenerNotificacionesPorUsuario();
+
+                // Manejar la respuesta como en NotificationsModal
+                const notifs = result.data || result || [];
+                console.log('🔔 [NOTIFICACIONES] Notificaciones obtenidas:', notifs);
+
+                setAllNotifs(notifs);
+            } catch (err) {
+                console.error('❌ [NOTIFICACIONES] Error cargando notificaciones:', err);
+                setAllNotifs([]);
+            }
+        };
+        loadNotifs();
+    }, [obtenerNotificacionesPorUsuario]);
+
+    // Escuchar eventos de notificaciones SignalR marcadas como leídas desde el modal
+    React.useEffect(() => {
+        const handleSignalrRead = (event) => {
+            const { notificationId } = event.detail;
+            setSignalrReadIds(prev => new Set([...prev, notificationId]));
+            console.log('📖 [NOTIFICACIONES] Notificación SignalR marcada como leída desde modal:', notificationId);
+        };
+
+        window.addEventListener('signalrNotificationRead', handleSignalrRead);
+
+        return () => {
+            window.removeEventListener('signalrNotificationRead', handleSignalrRead);
+        };
+    }, []);
 
     // Combinar notificaciones almacenadas con las en tiempo real
     const combinedNotifs = React.useMemo(() => {
-        const stored = allNotifs || [];
-        const realtime = realtimeNotifs || [];
-        // Evitar duplicados por id si existe
-        const all = [...stored, ...realtime];
-        const unique = all.filter((notif, index, self) =>
+        console.log('🔄 [NOTIFICACIONES] Combinando notificaciones...');
+        console.log('🔄 [NOTIFICACIONES] BD:', allNotifs);
+        console.log('🔄 [NOTIFICACIONES] SignalR:', realtimeNotifs);
+
+        const stored = Array.isArray(allNotifs) ? allNotifs : [];
+        const realtime = Array.isArray(realtimeNotifs) ? realtimeNotifs : [];
+
+        // Formatear notificaciones de BD
+        const storedFormatted = stored.map(notif => ({
+            id: notif.id,
+            mensaje: notif.mensajePrincipal || notif.mensaje || 'Notificación',
+            mensajeDetallado: notif.mensajeDetallado || '',
+            descripcionCategoria: notif.descripcionCategoria || 'General',
+            timestamp: notif.createdAt || notif.timestamp || new Date().toISOString(),
+            leida: notif.leida || false,
+            data: notif,
+            tipo: 'bd'
+        }));
+
+        // Las de SignalR ya están formateadas, pero verificamos estado leído local
+        const realtimeFormatted = realtime.map(notif => ({
+            ...notif,
+            leida: notif.leida || signalrReadIds.has(notif.id),
+            tipo: 'signalr'
+        }));
+
+        // Combinar y ordenar
+        const combined = [...storedFormatted, ...realtimeFormatted];
+        const unique = combined.filter((notif, index, self) =>
             index === self.findIndex(n => n.id === notif.id || n.timestamp === notif.timestamp)
         );
-        return unique.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    }, [allNotifs, realtimeNotifs]);
+
+        const sorted = unique.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        console.log('✅ [NOTIFICACIONES] Notificaciones combinadas:', sorted);
+
+        return sorted;
+    }, [allNotifs, realtimeNotifs, signalrReadIds]);
 
     const breadcrumbItems = [
         { label: 'Inicio', path: '/dashboard' },
@@ -81,25 +163,67 @@ const Notifications = () => {
                                 </div>
                             ) : (
                                 combinedNotifs.map((notif) => (
-                                    <div key={notif.id || notif.timestamp} className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="flex-shrink-0">
-                                                <Icon name="Bell" size={20} className="text-primary" />
+                                    <div
+                                        key={notif.id || notif.timestamp}
+                                        className={`p-4 rounded-lg border relative cursor-pointer transition-colors hover:bg-opacity-80 ${notif.leida
+                                            ? 'bg-card border-border'
+                                            : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
+                                            } shadow-sm`}
+                                        onClick={() => handleMarcarLeida(notif.id, notif.tipo)}
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex items-start space-x-3 flex-1">
+                                                <div className="flex-shrink-0">
+                                                    <Icon name="Bell" size={20} className="text-primary" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="text-sm font-medium text-foreground mb-1">{notif.mensaje}</h4>
+                                                    {notif.descripcionCategoria && (
+                                                        <p className="text-xs text-muted-foreground mb-2">
+                                                            <Icon name="Tag" size={12} className="inline mr-1" />
+                                                            {notif.descripcionCategoria}
+                                                        </p>
+                                                    )}
+                                                    {notif.mensajeDetallado && (
+                                                        <p className="text-xs text-muted-foreground mb-2">
+                                                            {notif.mensajeDetallado}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-xs text-muted-foreground">
+                                                        <Icon name="Clock" size={12} className="inline mr-1" />
+                                                        {new Date(notif.timestamp).toLocaleString('es-ES', {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </p>
+                                                    {/* {notif.data && Object.keys(notif.data).length > 0 && (
+                                                        <details className="mt-2">
+                                                            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                                                                <Icon name="ChevronRight" size={12} className="inline mr-1 transform transition-transform details-open:rotate-90" />
+                                                                Ver detalles adicionales
+                                                            </summary>
+                                                            <div className="mt-2 p-3 bg-muted/50 rounded border">
+                                                                <div className="space-y-1">
+                                                                    {Object.entries(notif.data).map(([key, value]) => (
+                                                                        <div key={key} className="flex flex-wrap">
+                                                                            <span className="text-xs font-medium text-foreground mr-2 min-w-0">{key}:</span>
+                                                                            <span className="text-xs text-muted-foreground flex-1 break-words">
+                                                                                {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </details>
+                                                    )} */}
+                                                </div>
                                             </div>
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-foreground">{notif.mensaje}</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {new Date(notif.timestamp).toLocaleString()}
-                                                </p>
-                                                {notif.data && (
-                                                    <details className="mt-2">
-                                                        <summary className="text-xs text-muted-foreground cursor-pointer">Ver detalles</summary>
-                                                        <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-x-auto">
-                                                            {JSON.stringify(notif.data, null, 2)}
-                                                        </pre>
-                                                    </details>
-                                                )}
-                                            </div>
+                                            {!notif.leida && (
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
+                                            )}
                                         </div>
                                     </div>
                                 ))

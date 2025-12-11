@@ -102,7 +102,28 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated]); // Solo depende de isAuthenticated  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
+  }, [isAuthenticated]); // Solo depende de isAuthenticated
+
+  // Escuchar eventos de notificaciones marcadas como leídas
+  useEffect(() => {
+    const handleNotificationReadEvent = async () => {
+      console.log('📖 [SIDEBAR] Notificación marcada como leída - Refrescando contador');
+      try {
+        const result = await obtenerTotalNotificacionesSinLeer();
+        const total = result.data?.total || result.total || 0;
+        setTotalUnread(total);
+        console.log('📖 [SIDEBAR] Contador actualizado después de marcar como leída:', total);
+      } catch (err) {
+        console.error('❌ [SIDEBAR] Error refrescando contador:', err);
+      }
+    };
+
+    window.addEventListener('notificationRead', handleNotificationReadEvent);
+
+    return () => {
+      window.removeEventListener('notificationRead', handleNotificationReadEvent);
+    };
+  }, [obtenerTotalNotificacionesSinLeer]);  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
   useEffect(() => {
     if (newCount > 0) {
       console.log('📩 [NOTIFICACIONES] Nueva notificación detectada vía SignalR!');

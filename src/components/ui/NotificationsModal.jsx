@@ -25,10 +25,11 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                     )
                 );
             } else if (tipo === 'signalr') {
-                // Para notificaciones SignalR, no podemos modificar el estado directamente
-                // ya que vienen del hook useSignalR. En su lugar, podríamos emitir un evento
-                // o refrescar las notificaciones, pero por ahora solo loggeamos
-                console.log('📖 [MODAL] Notificación SignalR marcada como leída (se actualizará en próxima carga)');
+                // Para notificaciones SignalR, emitir evento para actualizar estado global
+                console.log('📖 [MODAL] Notificación SignalR marcada como leída - actualizando estado');
+                window.dispatchEvent(new CustomEvent('signalrNotificationRead', {
+                    detail: { notificationId: notificacionId }
+                }));
             }
 
             // Notificar al componente padre para actualizar el contador
@@ -161,7 +162,7 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                                         ? 'bg-muted border-border'
                                         : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                                         }`}
-                                    onClick={() => !notif.leida && handleMarcarLeida(notif.id, notif.tipo)}
+                                    onClick={() => handleMarcarLeida(notif.id, notif.tipo)}
                                 >
                                     {/* Indicador del origen de la notificación - REMOVIDO */}
                                     <div className="flex items-start justify-between mb-2">
