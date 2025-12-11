@@ -3,9 +3,45 @@ import Icon from '../AppIcon';
 import Button from './Button';
 import { useNotificaciones } from '../../hooks/useNotificaciones';
 
-const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, onViewAll, onModalStateChange }) => {
-    const { obtenerNotificacionesSinLeer, loading, error } = useNotificaciones()
+const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, onViewAll, onModalStateChange, onNotificationRead }) => {
+    const { obtenerNotificacionesSinLeer, marcarNotificacionLeida, loading, error } = useNotificaciones()
     const [notificacionesBD, setNotificacionesBD] = React.useState([])
+
+    // Función para marcar notificación como leída
+    const handleMarcarLeida = async (notificacionId, tipo) => {
+        try {
+            console.log('📖 [MODAL] Marcando notificación como leída:', notificacionId, 'tipo:', tipo);
+
+            // Llamar a la API para marcar como leída
+            await marcarNotificacionLeida(notificacionId);
+
+            // Actualizar el estado local inmediatamente para feedback visual
+            if (tipo === 'bd') {
+                setNotificacionesBD(prev =>
+                    prev.map(notif =>
+                        notif.id === notificacionId
+                            ? { ...notif, leida: true }
+                            : notif
+                    )
+                );
+            } else if (tipo === 'signalr') {
+                // Para notificaciones SignalR, no podemos modificar el estado directamente
+                // ya que vienen del hook useSignalR. En su lugar, podríamos emitir un evento
+                // o refrescar las notificaciones, pero por ahora solo loggeamos
+                console.log('📖 [MODAL] Notificación SignalR marcada como leída (se actualizará en próxima carga)');
+            }
+
+            // Notificar al componente padre para actualizar el contador
+            if (onNotificationRead) {
+                onNotificationRead();
+            }
+
+            console.log('✅ [MODAL] Notificación marcada como leída exitosamente');
+        } catch (err) {
+            console.error('❌ [MODAL] Error marcando notificación como leída:', err);
+            // Aquí podríamos mostrar un toast de error si fuera necesario
+        }
+    };
 
     // Notificar al componente padre sobre el estado del modal para controlar SignalR
     React.useEffect(() => {
@@ -121,10 +157,11 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                             {todasLasNotificaciones.map((notif, index) => (
                                 <div
                                     key={notif.id || `${notif.timestamp}-${index}`}
-                                    className={`p-3 rounded-lg border relative ${notif.leida
+                                    className={`p-3 rounded-lg border relative cursor-pointer transition-colors hover:bg-opacity-80 ${notif.leida
                                         ? 'bg-muted border-border'
                                         : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                                         }`}
+                                    onClick={() => !notif.leida && handleMarcarLeida(notif.id, notif.tipo)}
                                 >
                                     {/* Indicador del origen de la notificación - REMOVIDO */}
                                     <div className="flex items-start justify-between mb-2">
@@ -161,36 +198,23 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                                         })}
                                     </p>
 
-                                    {notif.data && notif.tipo === 'signalr' && (
-                                        <details className="mt-2">
-                                            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                                                <Icon name="ChevronRight" size={12} className="inline mr-1" />
-                                                Ver detalles técnicos
-                                            </summary>
-                                            <pre className="text-xs bg-background p-2 rounded mt-1 overflow-x-auto border text-muted-foreground">
-                                                {JSON.stringify(notif.data, null, 2)}
-                                            </pre>
-                                        </details>
-                                    )}
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
-                {todasLasNotificaciones.length > 0 && (
-                    <div className="p-4 border-t border-border">
-                        <div className="flex gap-2">
-                            <Button onClick={onViewAll} className="flex-1">
-                                <Icon name="ExternalLink" size={16} className="mr-2" />
-                                Ver todas las notificaciones
-                            </Button>
-                            <Button variant="outline" onClick={onClose} className="flex-1">
-                                <Icon name="Check" size={16} className="mr-2" />
-                                Cerrar
-                            </Button>
-                        </div>
+                <div className="p-4 border-t border-border">
+                    <div className="flex gap-2">
+                        <Button onClick={onViewAll} className="flex-1">
+                            <Icon name="ExternalLink" size={16} className="mr-2" />
+                            Ver todas las notificaciones
+                        </Button>
+                        <Button variant="outline" onClick={onClose} className="flex-1">
+                            <Icon name="Check" size={16} className="mr-2" />
+                            Cerrar
+                        </Button>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );

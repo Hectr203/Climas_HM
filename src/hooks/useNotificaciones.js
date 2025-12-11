@@ -183,6 +183,25 @@ export const useNotificaciones = () => {
         }
     }, [obtenerUserIdDelToken])
 
+    // Marcar notificación como leída
+    const marcarNotificacionLeida = async (id) => {
+        setLoading(true)
+        setError(null)
+        try {
+            console.log('📖 [NOTIFICACIONES] Marcando notificación como leída:', id);
+            const response = await httpService.api.put(`/notificaciones/${id}/marcar-leida`)
+            setData(response.data)
+            console.log('✅ [NOTIFICACIONES] Notificación marcada como leída:', response.data);
+            return response.data
+        } catch (err) {
+            console.error('❌ [NOTIFICACIONES] Error marcando notificación como leída:', err);
+            setError(err.response?.data?.message || err.message)
+            throw err
+        } finally {
+            setLoading(false)
+        }
+    }
+
     return {
         loading,
         error,
@@ -195,6 +214,7 @@ export const useNotificaciones = () => {
         obtenerNotificacionesPorUsuario,
         obtenerNotificacionesSinLeer,
         obtenerTotalNotificacionesSinLeer,
+        marcarNotificacionLeida,
     }
 }
 

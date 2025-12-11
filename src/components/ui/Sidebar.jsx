@@ -39,6 +39,19 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     }
   }, [limpiarNotificaciones]);
 
+  // Manejar cuando se marca una notificación como leída
+  const handleNotificationRead = useCallback(async () => {
+    console.log('📖 [SIDEBAR] Notificación marcada como leída - Refrescando contador');
+    try {
+      const result = await obtenerTotalNotificacionesSinLeer();
+      const total = result.data?.total || result.total || 0;
+      setTotalUnread(total);
+      console.log('📖 [SIDEBAR] Contador actualizado después de marcar como leída:', total);
+    } catch (err) {
+      console.error('❌ [SIDEBAR] Error refrescando contador:', err);
+    }
+  }, [obtenerTotalNotificacionesSinLeer]);
+
   useEffect(() => {
     if (isAuthenticated && user) {
       const allowedItems = getAllowedNavigationItems(user?.rol);
@@ -383,6 +396,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
         onClose={() => setShowNotificationsModal(false)}
         notificaciones={notificaciones}
         onModalStateChange={handleModalStateChange}
+        onNotificationRead={handleNotificationRead}
         onViewAll={() => {
           setShowNotificationsModal(false);
           navigate('/notificaciones');
