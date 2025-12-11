@@ -751,7 +751,7 @@
                   cantidad: m.received,
                   unidad: m.raw?.unidad || 'pcs',
                   ordenTrabajo: orderKey, // El backend ya soporta este campo
-                  notas: '' // Dejar vacío para que el usuario agregue sus propias notas
+                  notas: receptionData.notes || '' // Pasar las notas adicionales del usuario
                 }));
 
                 await registrarConsumo(materialesParaConsumo, null, () => {
