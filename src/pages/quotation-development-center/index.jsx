@@ -109,7 +109,6 @@ const QuotationDevelopmentCenter = () => {
         setQuotations(filtered);
       } catch (err) {
         setQuotations([]);
-        console.error('Error al obtener cotizaciones:', err);
       } finally {
         setIsLoading(false);
       }
@@ -312,18 +311,10 @@ const QuotationDevelopmentCenter = () => {
         ? allQuotations.filter(q => q.estado_aprobacion === 'rechazada')
         : allQuotations.filter(q => q.estado_aprobacion !== 'rechazada');
 
-      console.log('Filtrando cotizaciones:', {
-        showRejected,
-        total: allQuotations.length,
-        filtered: filtered.length,
-        estados: allQuotations.map(q => ({ id: q.id, estado: q.estado_aprobacion }))
-      });
-
       setQuotations(filtered);
 
       // Si la cotización seleccionada no está en el filtro actual, deseleccionarla
       if (selectedQuotation && !filtered.find(q => q.id === selectedQuotation.id)) {
-        console.log('Deseleccionando cotización:', selectedQuotation.id);
         setSelectedQuotation(null);
       }
     }
@@ -429,10 +420,10 @@ const QuotationDevelopmentCenter = () => {
                         >
                           {/* Indicador de estado de aprobación */}
                           <div className={`absolute top-2 right-2 w-3 h-3 rounded-full transition-all duration-300 ${quotation?.estado_aprobacion === 'aprobada'
-                              ? 'bg-green-500 shadow-green-200 shadow-lg'
-                              : quotation?.estado_aprobacion === 'rechazada'
-                                ? 'bg-red-500 shadow-red-200 shadow-lg'
-                                : 'bg-orange-500 animate-pulse shadow-orange-200 shadow-lg'
+                            ? 'bg-green-500 shadow-green-200 shadow-lg'
+                            : quotation?.estado_aprobacion === 'rechazada'
+                              ? 'bg-red-500 shadow-red-200 shadow-lg'
+                              : 'bg-orange-500 animate-pulse shadow-orange-200 shadow-lg'
                             }`}></div>
 
                           <div className="flex items-start justify-between mb-2">
@@ -499,16 +490,16 @@ const QuotationDevelopmentCenter = () => {
                             key={tab?.id}
                             onClick={() => setActiveTab(tab?.id)}
                             className={`flex items-center space-x-2 px-4 py-2 text-sm rounded-lg transition-all ${activeTab === tab?.id
-                                ? (tab?.id === 'review'
-                                  ? (selectedQuotation?.estado_aprobacion === 'aprobada' ? 'bg-green-600 text-white' :
-                                    selectedQuotation?.estado_aprobacion === 'rechazada' ? 'bg-red-600 text-white' :
-                                      'bg-orange-600 text-white')
-                                  : 'bg-primary text-primary-foreground')
-                                : (tab?.id === 'review'
-                                  ? (selectedQuotation?.estado_aprobacion === 'aprobada' ? 'text-green-600 hover:bg-green-50' :
-                                    selectedQuotation?.estado_aprobacion === 'rechazada' ? 'text-red-600 hover:bg-red-50' :
-                                      'text-orange-600 hover:bg-orange-50')
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted')
+                              ? (tab?.id === 'review'
+                                ? (selectedQuotation?.estado_aprobacion === 'aprobada' ? 'bg-green-600 text-white' :
+                                  selectedQuotation?.estado_aprobacion === 'rechazada' ? 'bg-red-600 text-white' :
+                                    'bg-orange-600 text-white')
+                                : 'bg-primary text-primary-foreground')
+                              : (tab?.id === 'review'
+                                ? (selectedQuotation?.estado_aprobacion === 'aprobada' ? 'text-green-600 hover:bg-green-50' :
+                                  selectedQuotation?.estado_aprobacion === 'rechazada' ? 'text-red-600 hover:bg-red-50' :
+                                    'text-orange-600 hover:bg-orange-50')
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted')
                               }`}
                           >
                             <Icon name={tab?.icon} size={16} />

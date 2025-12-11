@@ -23,8 +23,6 @@ const Notifications = () => {
     // Función para manejar el clic en una notificación: marcar como leída y redirigir
     const handleNotificationClick = async (notif) => {
         try {
-            console.log('📖 [NOTIFICACIONES] Marcando notificación como leída y redirigiendo:', notif.id, 'tipo:', notif.tipo);
-
             // Marcar como leída
             await marcarNotificacionLeida(notif.id);
 
@@ -40,11 +38,9 @@ const Notifications = () => {
             } else if (notif.tipo === 'signalr') {
                 // Para notificaciones SignalR, marcar como leída localmente
                 setSignalrReadIds(prev => new Set([...prev, notif.id]));
-                console.log('📖 [NOTIFICACIONES] Notificación SignalR marcada como leída localmente');
             }
 
             // Notificar que se marcó una notificación como leída para actualizar el sidebar
-            console.log('📢 [NOTIFICACIONES] Enviando evento de notificación leída para actualizar sidebar');
             window.dispatchEvent(new CustomEvent('notificationRead'));
 
             // Redirigir según la categoría usando configuración general
@@ -59,30 +55,22 @@ const Notifications = () => {
                     }
                 }
                 navigate(url);
-                console.log('🚀 [NOTIFICACIONES] Redirigiendo a:', url);
             } else {
-                console.log('⚠️ [NOTIFICACIONES] No hay configuración definida para la categoría:', notif.descripcionCategoria);
             }
 
-            console.log('✅ [NOTIFICACIONES] Notificación procesada exitosamente');
         } catch (err) {
-            console.error('❌ [NOTIFICACIONES] Error procesando notificación:', err);
         }
     };
 
     React.useEffect(() => {
         const loadNotifs = async () => {
             try {
-                console.log('🔔 [NOTIFICACIONES] Cargando todas las notificaciones del usuario...');
                 const result = await obtenerNotificacionesPorUsuario();
 
                 // Manejar la respuesta como en NotificationsModal
                 const notifs = result.data || result || [];
-                console.log('🔔 [NOTIFICACIONES] Notificaciones obtenidas:', notifs);
-
                 setAllNotifs(notifs);
             } catch (err) {
-                console.error('❌ [NOTIFICACIONES] Error cargando notificaciones:', err);
                 setAllNotifs([]);
             }
         };
@@ -94,7 +82,6 @@ const Notifications = () => {
         const handleSignalrRead = (event) => {
             const { notificationId } = event.detail;
             setSignalrReadIds(prev => new Set([...prev, notificationId]));
-            console.log('📖 [NOTIFICACIONES] Notificación SignalR marcada como leída desde modal:', notificationId);
         };
 
         window.addEventListener('signalrNotificationRead', handleSignalrRead);
@@ -106,10 +93,6 @@ const Notifications = () => {
 
     // Combinar notificaciones almacenadas con las en tiempo real
     const combinedNotifs = React.useMemo(() => {
-        console.log('🔄 [NOTIFICACIONES] Combinando notificaciones...');
-        console.log('🔄 [NOTIFICACIONES] BD:', allNotifs);
-        console.log('🔄 [NOTIFICACIONES] SignalR:', realtimeNotifs);
-
         const stored = Array.isArray(allNotifs) ? allNotifs : [];
         const realtime = Array.isArray(realtimeNotifs) ? realtimeNotifs : [];
 
@@ -139,7 +122,6 @@ const Notifications = () => {
         );
 
         const sorted = unique.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        console.log('✅ [NOTIFICACIONES] Notificaciones combinadas:', sorted);
 
         return sorted;
     }, [allNotifs, realtimeNotifs, signalrReadIds]);

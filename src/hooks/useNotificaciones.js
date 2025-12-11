@@ -12,24 +12,18 @@ export const useNotificaciones = () => {
         try {
             const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
             if (!authToken) {
-                console.error('❌ [NOTIFICACIONES] No se encontró token de autenticación');
                 return null;
             }
 
             const decoded = jwtDecode(authToken);
             const userId = decoded.sub || decoded.userId || decoded.id || decoded.user_id;
 
-            console.log('🔍 [NOTIFICACIONES] Token decodificado:', decoded);
-            console.log('🔍 [NOTIFICACIONES] ID de usuario extraído:', userId);
-
             if (!userId) {
-                console.error('❌ [NOTIFICACIONES] No se encontró ID de usuario en el token');
                 return null;
             }
 
             return userId;
         } catch (err) {
-            console.error('❌ [NOTIFICACIONES] Error decodificando token:', err);
             return null;
         }
     }, [])
@@ -124,7 +118,6 @@ export const useNotificaciones = () => {
             if (!userId) {
                 throw new Error('No se pudo obtener el ID del usuario');
             }
-            console.log('🔔 [NOTIFICACIONES] Obteniendo notificaciones para usuario:', userId);
 
             const response = await httpService.api.get(`/notificaciones/usuario/${userId}`)
             const notifs = response.data.data || response.data;
@@ -147,7 +140,6 @@ export const useNotificaciones = () => {
             if (!userId) {
                 throw new Error('No se pudo obtener el ID del usuario');
             }
-            console.log('🔔 [NOTIFICACIONES] Obteniendo notificaciones sin leer para usuario:', userId);
 
             const response = await httpService.api.get(`/notificaciones/sin-leer/${userId}`)
             setData(response.data)
@@ -169,14 +161,11 @@ export const useNotificaciones = () => {
             if (!userId) {
                 throw new Error('No se pudo obtener el ID del usuario');
             }
-            console.log('🔔 [NOTIFICACIONES] Obteniendo total sin leer para usuario:', userId);
 
             const response = await httpService.api.get(`/notificaciones/total-sin-leer/${userId}`)
-            console.log('🔔 [NOTIFICACIONES] Respuesta del servidor:', response.data);
             setData(response.data)
             return response.data
         } catch (err) {
-            console.error('❌ [NOTIFICACIONES] Error en obtenerTotalNotificacionesSinLeer:', err);
             setError(err.response?.data?.message || err.message)
             throw err
         } finally {
@@ -189,13 +178,10 @@ export const useNotificaciones = () => {
         setLoading(true)
         setError(null)
         try {
-            console.log('📖 [NOTIFICACIONES] Marcando notificación como leída:', id);
             const response = await httpService.api.put(`/notificaciones/${id}/marcar-leida`)
             setData(response.data)
-            console.log('✅ [NOTIFICACIONES] Notificación marcada como leída:', response.data);
             return response.data
         } catch (err) {
-            console.error('❌ [NOTIFICACIONES] Error marcando notificación como leída:', err);
             setError(err.response?.data?.message || err.message)
             throw err
         } finally {
