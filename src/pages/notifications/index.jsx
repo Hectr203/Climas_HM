@@ -47,18 +47,21 @@ const Notifications = () => {
             console.log('📢 [NOTIFICACIONES] Enviando evento de notificación leída para actualizar sidebar');
             window.dispatchEvent(new CustomEvent('notificationRead'));
 
-            // Redirigir según la categoría
-            const route = categoryRoutes[notif.descripcionCategoria];
-            if (route) {
-                if (notif.descripcionCategoria === 'Cotización' && notif.data?.datosAdicionales?.idCotizacion) {
-                    // Para cotizaciones, agregar el ID como query param
-                    navigate(`${route}?id=${notif.data.datosAdicionales.idCotizacion}`);
-                } else {
-                    navigate(route);
+            // Redirigir según la categoría usando configuración general
+            const config = categoryRoutes[notif.descripcionCategoria];
+            if (config) {
+                let url = config.route;
+                if (config.needsId && config.idField) {
+                    // Extraer el ID del campo especificado en la configuración
+                    const id = notif.data && config.idField.split('.').reduce((obj, key) => obj?.[key], notif.data);
+                    if (id) {
+                        url += `?id=${id}`;
+                    }
                 }
-                console.log('🚀 [NOTIFICACIONES] Redirigiendo a:', route);
+                navigate(url);
+                console.log('🚀 [NOTIFICACIONES] Redirigiendo a:', url);
             } else {
-                console.log('⚠️ [NOTIFICACIONES] No hay ruta definida para la categoría:', notif.descripcionCategoria);
+                console.log('⚠️ [NOTIFICACIONES] No hay configuración definida para la categoría:', notif.descripcionCategoria);
             }
 
             console.log('✅ [NOTIFICACIONES] Notificación procesada exitosamente');
