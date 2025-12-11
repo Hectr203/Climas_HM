@@ -31,14 +31,22 @@ import MyToolsPage from './pages/my-tools';
 import Notifications from './pages/notifications';
 import PriceManagement from './pages/price-management';
 
-const Routes = () => {
-  // Componente para redirigir dashboard al inicio del rol
-  const DashboardRedirect = () => {
-    const userRole = localStorage.getItem('userRole');
-    const defaultPath = getDefaultPath(userRole);
-    return <Navigate to={defaultPath} replace />;
-  };
+// Componente para redirigir dashboard al inicio del rol (definido fuera para evitar recreación)
+const DashboardRedirect = () => {
+  const userRole = localStorage.getItem('userRole');
+  // Si es admin, ir al MainDashboard real
+  if (userRole === 'admin') {
+    return <Navigate to="/panel-principal" replace />;
+  }
+  const defaultPath = getDefaultPath(userRole);
+  // Evitar loop infinito si defaultPath es /dashboard
+  if (defaultPath === '/dashboard' || !defaultPath) {
+    return <Navigate to="/oportunidades" replace />;
+  }
+  return <Navigate to={defaultPath} replace />;
+};
 
+const Routes = () => {
   return (
     <ErrorBoundary>
       <ButtonHandlersProvider>
@@ -55,6 +63,16 @@ const Routes = () => {
 
           {/* Redirigir main-dashboard al dashboard */}
           <Route path="/main-dashboard" element={<Navigate to="/dashboard" replace />} />
+
+          {/* Panel Principal - Dashboard para admin */}
+          <Route
+            path="/panel-principal"
+            element={
+              <ProtectedRoute requiredPath="/panel-principal">
+                <MainDashboard />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/proyectos"
