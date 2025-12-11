@@ -15,6 +15,7 @@ const Notifications = () => {
     const { user } = useAuth();
     const [allNotifs, setAllNotifs] = React.useState([]);
     const [signalrReadIds, setSignalrReadIds] = React.useState(new Set());
+    const [filtroActivo, setFiltroActivo] = React.useState('todas'); // 'todas' | 'no-leidas' | 'leidas'
 
     // Función para marcar notificación como leída
     const handleMarcarLeida = async (notificacionId, tipo) => {
@@ -123,6 +124,16 @@ const Notifications = () => {
         return sorted;
     }, [allNotifs, realtimeNotifs, signalrReadIds]);
 
+    // Filtrar notificaciones según el filtro activo
+    const notificacionesFiltradas = React.useMemo(() => {
+        if (filtroActivo === 'no-leidas') {
+            return combinedNotifs.filter(notif => !notif.leida);
+        } else if (filtroActivo === 'leidas') {
+            return combinedNotifs.filter(notif => notif.leida);
+        }
+        return combinedNotifs;
+    }, [combinedNotifs, filtroActivo]);
+
     const breadcrumbItems = [
         { label: 'Inicio', path: '/dashboard' },
         { label: 'Notificaciones', path: '/notificaciones' }
@@ -137,11 +148,54 @@ const Notifications = () => {
                     <Breadcrumb items={breadcrumbItems} />
                     <div className="max-w-4xl mx-auto">
                         <div className="flex items-center justify-between mb-6">
-                            <h1 className="text-2xl font-bold text-foreground">Centro de Notificaciones</h1>
-                            <Button onClick={limpiarNotificaciones} variant="outline">
-                                <Icon name="Trash2" size={16} className="mr-2" />
-                                Limpiar todas
-                            </Button>
+                            <div className="flex items-center space-x-3">
+                                <h1 className="text-2xl font-bold text-foreground">Centro de Notificaciones</h1>
+                                {combinedNotifs.filter(notif => !notif.leida).length > 0 && (
+                                    <span className="bg-blue-500 text-white text-sm px-2 py-1 rounded-full font-medium">
+                                        {combinedNotifs.filter(notif => !notif.leida).length} sin leer
+                                    </span>
+                                )}
+                            </div>
+
+                        </div>
+
+                        {/* Botones de filtro */}
+                        <div className="mb-6">
+                            <div className="flex space-x-2">
+                                <Button
+                                    variant={filtroActivo === 'todas' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setFiltroActivo('todas')}
+                                    className={`transition-colors ${filtroActivo === 'todas'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                >
+                                    Todas
+                                </Button>
+                                <Button
+                                    variant={filtroActivo === 'no-leidas' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setFiltroActivo('no-leidas')}
+                                    className={`transition-colors ${filtroActivo === 'no-leidas'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                >
+                                    No leídas
+                                </Button>
+                                <Button
+                                    variant={filtroActivo === 'leidas' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setFiltroActivo('leidas')}
+                                    className={`transition-colors ${filtroActivo === 'leidas'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                >
+                                    Leídas
+                                </Button>
+                            </div>
                         </div>
                         <div className="space-y-4">
                             {loading ? (
@@ -155,14 +209,25 @@ const Notifications = () => {
                                     <h3 className="text-lg font-medium text-foreground mb-2">Error al cargar notificaciones</h3>
                                     <p className="text-muted-foreground">{error}</p>
                                 </div>
-                            ) : combinedNotifs.length === 0 ? (
+                            ) : notificacionesFiltradas.length === 0 ? (
                                 <div className="text-center py-12">
                                     <Icon name="Bell" size={48} className="mx-auto text-muted-foreground mb-4" />
-                                    <h3 className="text-lg font-medium text-foreground mb-2">No hay notificaciones</h3>
-                                    <p className="text-muted-foreground">Las nuevas notificaciones aparecerán aquí.</p>
+                                    <h3 className="text-lg font-medium text-foreground mb-2">
+                                        {filtroActivo === 'no-leidas' ? 'No hay notificaciones sin leer' :
+                                            filtroActivo === 'leidas' ? 'No hay notificaciones leídas' :
+                                                'No hay notificaciones'}
+                                    </h3>
+                                    <p className="text-muted-foreground">
+                                        {filtroActivo === 'no-leidas'
+                                            ? 'Todas las notificaciones han sido leídas.'
+                                            : filtroActivo === 'leidas'
+                                                ? 'No hay notificaciones marcadas como leídas.'
+                                                : 'Las nuevas notificaciones aparecerán aquí.'
+                                        }
+                                    </p>
                                 </div>
                             ) : (
-                                combinedNotifs.map((notif) => (
+                                notificacionesFiltradas.map((notif) => (
                                     <div
                                         key={notif.id || notif.timestamp}
                                         className={`p-4 rounded-lg border relative cursor-pointer transition-colors hover:bg-opacity-80 ${notif.leida
