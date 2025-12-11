@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNotifications } from '../../../context/NotificationContext';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
@@ -17,8 +17,22 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
   const [localError, setLocalError] = useState(null);
   const [_loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const { updatePersonById, getPersonById } = usePerson();
+  const { 
+    updatePersonById, 
+    getPersonById,
+    uploadEmployeeImage,
+    getEmployeeImageUrl,
+    deleteEmployeeImage,
+    uploadEmployeeDocument,
+    listEmployeeDocuments,
+    downloadEmployeeDocument,
+    deleteEmployeeDocument
+  } = usePerson();
   const { showSuccess, showWarning, showError } = useNotifications();
+  
+  // Referencias para los inputs de archivo
+  const profileImageInputRef = useRef(null);
+  const documentInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -52,8 +66,193 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
   });
 
   const [step, setStep] = useState(0);
-  // Mapeo de steps: 0=general, 1=ppe, 2=emergency (medical está oculto)
-  const steps = ['general', 'ppe', 'emergency'];
+  // Mapeo de steps: 0=general, 1=imagen, 2=documentos, 3=ppe, 4=emergency
+  const steps = ['general', 'imagen', 'documentos', 'ppe', 'emergency'];
+  
+  // Estados para archivos
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [existingDocuments, setExistingDocuments] = useState([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+
+  // Tipos de documentos disponibles
+  const documentTypes = [
+    { value: 'INE', label: 'INE (Identificación)' },
+    { value: 'ComprobanteD', label: 'Comprobante de Domicilio' },
+    { value: 'Contrato', label: 'Contrato Laboral' },
+    { value: 'CURP', label: 'CURP' },
+    { value: 'RFC', label: 'RFC' },
+    { value: 'NSS', label: 'Número de Seguridad Social' },
+    { value: 'ActaNacimiento', label: 'Acta de Nacimiento' },
+    { value: 'Curriculum', label: 'Currículum Vitae' },
+    { value: 'CartaRecomendacion', label: 'Carta de Recomendación' },
+    { value: 'ComprobanteBancario', label: 'Comprobante Bancario' },
+    { value: 'ComprobantEstudios', label: 'Comprobante de Estudios' }
+  ];
+
+  // Funciones para cargar imagen y documentos existentes
+  const loadEmployeeImage = async (empId) => {
+    try {
+      const imageData = await getEmployeeImageUrl(empId);
+      if (imageData && imageData.sasUrl) {
+        setCurrentImageUrl(imageData.sasUrl);
+        setProfileImagePreview(imageData.sasUrl);
+      }
+    } catch (error) {
+      // Silencioso para errores 404 y 500 (sin imagen o endpoint no disponible)
+      const status = error?.status || error?.response?.status;
+      if (status !== 404 && status !== 500) {
+        console.warn('Error al cargar imagen:', error);
+      }
+    }
+  };
+
+  const loadEmployeeDocuments = async (empId) => {
+    setLoadingDocuments(true);
+    try {
+      const docsData = await listEmployeeDocuments(empId);
+      if (docsData && Array.isArray(docsData.documentos)) {
+        setExistingDocuments(docsData.documentos);
+      } else {
+        setExistingDocuments([]);
+      }
+    } catch (error) {
+      // Silencioso para errores 404 y 500 (sin documentos o endpoint no disponible)
+      const status = error?.status || error?.response?.status;
+      if (status === 404 || status === 500) {
+        setExistingDocuments([]);
+      } else {
+        console.warn('Error al cargar documentos:', error);
+        setExistingDocuments([]);
+      }
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  // Manejadores de imagen de perfil
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        showWarning('Solo se permiten imágenes (JPG, PNG, WEBP)');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showWarning('La imagen no debe superar los 5MB');
+        return;
+      }
+      
+      setProfileImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveProfileImage = () => {
+    setProfileImage(null);
+    setProfileImagePreview(null);
+    setCurrentImageUrl(null);
+    if (profileImageInputRef.current) {
+      profileImageInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteCurrentImage = async () => {
+    if (!employeeId) return;
+    try {
+      await deleteEmployeeImage(employeeId);
+      setCurrentImageUrl(null);
+      setProfileImagePreview(null);
+      showSuccess('Imagen eliminada exitosamente');
+    } catch (error) {
+      console.error('Error al eliminar imagen:', error);
+    }
+  };
+
+  // Manejadores de documentos
+  const handleAddDocument = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const validTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      if (!validTypes.includes(file.type)) {
+        showWarning('Solo se permiten archivos PDF, imágenes (JPG, PNG) o documentos Word');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showWarning('El documento no debe superar los 10MB');
+        return;
+      }
+      
+      setDocuments(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          file,
+          tipoDocumento: '',
+          descripcion: ''
+        }
+      ]);
+      
+      if (documentInputRef.current) {
+        documentInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDocumentTypeChange = (docId, tipoDocumento) => {
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === docId ? { ...doc, tipoDocumento } : doc
+      )
+    );
+  };
+
+  const handleDocumentDescriptionChange = (docId, descripcion) => {
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === docId ? { ...doc, descripcion } : doc
+      )
+    );
+  };
+
+  const handleRemoveDocument = (docId) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== docId));
+  };
+
+  const handleDeleteExistingDocument = async (documentId) => {
+    try {
+      await deleteEmployeeDocument(documentId);
+      setExistingDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      showSuccess('Documento eliminado exitosamente');
+    } catch (error) {
+      console.error('Error al eliminar documento:', error);
+    }
+  };
+
+  const handleDownloadDocument = async (documentId) => {
+    try {
+      const docData = await downloadEmployeeDocument(documentId);
+      if (docData && docData.sasUrl) {
+        window.open(docData.sasUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error al descargar documento:', error);
+    }
+  };
 
   // Cargar datos del empleado usando el hook
   useEffect(() => {
@@ -117,6 +316,12 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
               certifications: employee.certifications || [],
               emergencyContact
             });
+
+            // Cargar imagen de perfil existente
+            loadEmployeeImage(employeeId);
+            
+            // Cargar documentos existentes
+            loadEmployeeDocuments(employeeId);
           }
         } catch (error) {
           console.error("Error al cargar empleado:", error);
@@ -126,7 +331,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
       };
       loadEmployee();
     } else {
-      // Resetear formulario cuando se cierra
+      // Resetear formulario y estados de archivos cuando se cierra
       setFormData({
         name: '',
         employeeId: '',
@@ -157,6 +362,12 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
           relationship: ''
         }
       });
+      // Limpiar estados de archivos
+      setProfileImage(null);
+      setProfileImagePreview(null);
+      setCurrentImageUrl(null);
+      setDocuments([]);
+      setExistingDocuments([]);
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -402,6 +613,43 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
       };
 
       const result = await updatePersonById(employeeId, payload);
+
+      // Subir nueva imagen de perfil si existe
+      if (profileImage) {
+        try {
+          await uploadEmployeeImage(profileImage, employeeId, 'Foto de perfil actualizada');
+        } catch (imgError) {
+          console.error('Error al subir imagen de perfil:', imgError);
+          showWarning('Datos actualizados, pero hubo un error al subir la imagen de perfil');
+        }
+      }
+
+      // Subir nuevos documentos si existen
+      if (documents.length > 0) {
+        let uploadedCount = 0;
+        for (const doc of documents) {
+          if (!doc.tipoDocumento) {
+            showWarning(`Documento "${doc.file.name}" omitido: tipo de documento no especificado`);
+            continue;
+          }
+          try {
+            await uploadEmployeeDocument(
+              doc.file,
+              employeeId,
+              doc.tipoDocumento,
+              doc.descripcion || `${doc.tipoDocumento} del empleado`
+            );
+            uploadedCount++;
+          } catch (docError) {
+            console.error(`Error al subir documento ${doc.file.name}:`, docError);
+            showWarning(`Error al subir documento "${doc.file.name}"`);
+          }
+        }
+        if (uploadedCount > 0) {
+          showSuccess(`${uploadedCount} documento(s) subido(s) exitosamente`);
+        }
+      }
+
       setIsSaving(false);
       showSuccess('Datos personales del usuario actualizados exitosamente.');
 
@@ -418,10 +666,11 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
 
   const tabs = [
     { id: 'general', label: 'Información General', icon: 'User' },
-    { id: 'medical', label: 'Archivos', icon: 'FileText', hidden: true }, // Oculto temporalmente
+    { id: 'imagen', label: 'Imagen de Perfil', icon: 'Image' },
+    { id: 'documentos', label: 'Documentos', icon: 'FileText' },
     { id: 'ppe', label: 'EPP', icon: 'Shield' },
     { id: 'emergency', label: 'Contacto de Emergencia', icon: 'Phone' }
-  ].filter(tab => !tab.hidden); // Filtrar pestañas ocultas
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-1050 flex items-center justify-center p-4">
@@ -548,11 +797,232 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
             </div>
           )}
 
-          {/* Estudios Médicos - OCULTO TEMPORALMENTE */}
-          {/* La sección de Archivos está oculta hasta que se complete la implementación */}
+          {/* Imagen de Perfil */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div className="flex flex-col items-center space-y-4">
+                {/* Preview de la imagen */}
+                <div className="relative">
+                  {profileImagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={profileImagePreview}
+                        alt="Preview"
+                        className="w-40 h-40 rounded-full object-cover border-4 border-border"
+                      />
+                      <button
+                        type="button"
+                        onClick={currentImageUrl && !profileImage ? handleDeleteCurrentImage : handleRemoveProfileImage}
+                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-smooth"
+                        disabled={isSaving}
+                      >
+                        <Icon name="X" size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-40 h-40 rounded-full bg-muted border-4 border-border flex items-center justify-center">
+                      <Icon name="User" size={48} className="text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón para subir imagen */}
+                <div className="text-center space-y-2">
+                  <input
+                    ref={profileImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleProfileImageChange}
+                    className="hidden"
+                    disabled={isSaving}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => profileImageInputRef.current?.click()}
+                    iconName="Upload"
+                    iconPosition="left"
+                    disabled={isSaving}
+                  >
+                    {profileImage ? 'Cambiar Imagen' : currentImageUrl ? 'Reemplazar Imagen' : 'Seleccionar Imagen'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Formatos: JPG, PNG, WEBP • Tamaño máximo: 5MB
+                  </p>
+                  {profileImage && (
+                    <p className="text-xs text-primary font-medium">
+                      Nueva imagen: {profileImage.name} ({(profileImage.size / 1024).toFixed(0)} KB)
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Documentos */}
+          {step === 2 && (
+            <div className="space-y-6">
+              {/* Botón para agregar documento */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-foreground">Documentos del Empleado</h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Agrega o gestiona documentos importantes (INE, contratos, comprobantes, etc.)
+                  </p>
+                </div>
+                <div>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/jpg,image/png,.doc,.docx"
+                    onChange={handleAddDocument}
+                    className="hidden"
+                    disabled={isSaving}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => documentInputRef.current?.click()}
+                    iconName="Plus"
+                    iconPosition="left"
+                    disabled={isSaving}
+                  >
+                    Agregar Documento
+                  </Button>
+                </div>
+              </div>
+
+              {/* Documentos existentes */}
+              {loadingDocuments ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground">Cargando documentos...</p>
+                </div>
+              ) : existingDocuments.length > 0 ? (
+                <div>
+                  <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                    Documentos Guardados ({existingDocuments.length})
+                  </h5>
+                  <div className="space-y-3">
+                    {existingDocuments.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="p-4 border border-border rounded-lg flex items-center justify-between bg-muted/30"
+                      >
+                        <div className="flex items-center space-x-3 flex-1">
+                          <Icon name="FileText" size={20} className="text-primary" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground">
+                              {doc.tipoDocumento || 'Documento'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.nombreOriginal} • {(doc.size / 1024).toFixed(0)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleDownloadDocument(doc.id)}
+                            disabled={isSaving}
+                          >
+                            <Icon name="Download" size={16} className="text-blue-500" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleDeleteExistingDocument(doc.id)}
+                            disabled={isSaving}
+                          >
+                            <Icon name="Trash2" size={16} className="text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Nuevos documentos para subir */}
+              {documents.length > 0 && (
+                <div>
+                  <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                    Nuevos Documentos ({documents.length})
+                  </h5>
+                  <div className="space-y-4">
+                    {documents.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="p-4 border border-border rounded-lg space-y-3"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <Icon name="FileText" size={20} className="text-primary" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-foreground">{doc.file.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(doc.file.size / 1024).toFixed(0)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleRemoveDocument(doc.id)}
+                            disabled={isSaving}
+                          >
+                            <Icon name="Trash2" size={16} className="text-red-500" />
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Select
+                            label="Tipo de Documento"
+                            options={documentTypes}
+                            value={doc.tipoDocumento}
+                            onChange={(value) => handleDocumentTypeChange(doc.id, value)}
+                            placeholder="Seleccionar tipo..."
+                            required
+                          />
+                          <Input
+                            label="Descripción (opcional)"
+                            value={doc.descripcion}
+                            onChange={(e) => handleDocumentDescriptionChange(doc.id, e.target.value)}
+                            placeholder="Ej: INE actualizada 2025"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mensaje cuando no hay documentos */}
+              {existingDocuments.length === 0 && documents.length === 0 && !loadingDocuments && (
+                <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                  <Icon name="FileText" size={48} className="text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No hay documentos agregados</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Haz clic en "Agregar Documento" para comenzar
+                  </p>
+                </div>
+              )}
+
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground">
+                  💡 <strong>Nota:</strong> Puedes agregar múltiples documentos. Asegúrate de especificar
+                  el tipo de documento para cada uno antes de guardar.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* EPP */}
-          {step === 1 && (
+          {step === 3 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -600,7 +1070,7 @@ const EditEmployeeModal = ({ isOpen, onClose, employeeId, onSave }) => {
           )}
 
           {/* Contacto de Emergencia */}
-          {step === 2 && (
+          {step === 4 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input

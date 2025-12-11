@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
 import { useNotifications } from "../context/NotificationContext";
 import personService from "../services/personService";
+import empleadoImagenService from "../services/empleadoImagenService";
+import empleadoDocumentoService from "../services/empleadoDocumentoService";
 
 const usePerson = () => {
   const { showOperationSuccess, showHttpError } = useNotifications();
@@ -150,6 +152,155 @@ const usePerson = () => {
     }
   };
 
+  // 🔹 FUNCIONES PARA IMÁGENES DE EMPLEADOS
+  const uploadEmployeeImage = async (file, empleadoId, descripcion) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await empleadoImagenService.subirImagen(file, {
+        empleadoId,
+        descripcion
+      });
+      if (response.success) {
+        showOperationSuccess("Imagen subida exitosamente");
+        return response.data;
+      }
+    } catch (err) {
+      console.error("Error en usePerson.uploadEmployeeImage:", err);
+      setError(err);
+      showHttpError("Error al subir imagen");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getEmployeeImageUrl = async (empleadoId, expiresInMinutes = 60) => {
+    try {
+      const response = await empleadoImagenService.obtenerImagenUrl(empleadoId, expiresInMinutes);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (err) {
+      const status = err?.status || err?.response?.status;
+      // Solo mostrar error si no es 404 o 500 (sin imagen o endpoint no disponible)
+      if (status !== 404 && status !== 500) {
+        console.error("Error en usePerson.getEmployeeImageUrl:", err);
+      }
+      return null;
+    }
+  };
+
+  const deleteEmployeeImage = async (empleadoId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await empleadoImagenService.eliminarImagen(empleadoId);
+      if (response.success) {
+        showOperationSuccess("Imagen eliminada exitosamente");
+        return true;
+      }
+    } catch (err) {
+      console.error("Error en usePerson.deleteEmployeeImage:", err);
+      setError(err);
+      showHttpError("Error al eliminar imagen");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔹 FUNCIONES PARA DOCUMENTOS DE EMPLEADOS
+  const uploadEmployeeDocument = async (file, empleadoId, tipoDocumento, descripcion) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await empleadoDocumentoService.subirDocumento(file, {
+        empleadoId,
+        tipoDocumento,
+        descripcion
+      });
+      if (response.success) {
+        showOperationSuccess("Documento subido exitosamente");
+        return response.data;
+      }
+    } catch (err) {
+      console.error("Error en usePerson.uploadEmployeeDocument:", err);
+      setError(err);
+      showHttpError("Error al subir documento");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const listEmployeeDocuments = async (empleadoId, tipoDocumento = null) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await empleadoDocumentoService.listarDocumentos(empleadoId, tipoDocumento);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return { documentos: [], count: 0 };
+    } catch (err) {
+      const status = err?.status || err?.response?.status;
+      // Solo mostrar error si no es 404 o 500 (endpoints no disponibles)
+      if (status !== 404 && status !== 500) {
+        console.error("Error en usePerson.listEmployeeDocuments:", err);
+        setError(err);
+      }
+      // Silencioso para 404 y 500
+      return { documentos: [], count: 0 };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadEmployeeDocument = async (documentoId, expiresInMinutes = 60) => {
+    try {
+      const response = await empleadoDocumentoService.descargarDocumento(documentoId, expiresInMinutes);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error en usePerson.downloadEmployeeDocument:", err);
+      showHttpError("Error al descargar documento");
+      return null;
+    }
+  };
+
+  const deleteEmployeeDocument = async (documentoId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await empleadoDocumentoService.eliminarDocumento(documentoId);
+      if (response.success) {
+        showOperationSuccess("Documento eliminado exitosamente");
+        return true;
+      }
+    } catch (err) {
+      console.error("Error en usePerson.deleteEmployeeDocument:", err);
+      setError(err);
+      showHttpError("Error al eliminar documento");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyEmployeeImagesBatch = async (empleadoIds) => {
+    try {
+      const result = await empleadoImagenService.verificarImagenesBatch(empleadoIds);
+      return result;
+    } catch (err) {
+      console.error("Error en usePerson.verifyEmployeeImagesBatch:", err);
+      return { conImagen: [], sinImagen: empleadoIds };
+    }
+  };
+
   return {
     persons,
     departmentPersons,
@@ -161,6 +312,16 @@ const usePerson = () => {
     createPerson,
     updatePersonById,
     getPersonsWithoutUser,
+    // Funciones de imágenes
+    uploadEmployeeImage,
+    getEmployeeImageUrl,
+    deleteEmployeeImage,
+    verifyEmployeeImagesBatch,
+    // Funciones de documentos
+    uploadEmployeeDocument,
+    listEmployeeDocuments,
+    downloadEmployeeDocument,
+    deleteEmployeeDocument,
   };
 };
 

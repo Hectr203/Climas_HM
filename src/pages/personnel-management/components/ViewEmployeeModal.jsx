@@ -3,6 +3,7 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import Image from '../../../components/AppImage';
 import usePerson from '../../../hooks/usePerson';
 import { 
   departmentOptions, 
@@ -16,18 +17,32 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
   const [step, setStep] = useState(0);
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(false);
-  const { getPersonById } = usePerson();
+  const { getPersonById, getEmployeeImageUrl, listEmployeeDocuments, downloadEmployeeDocument } = usePerson();
+  
+  // Estados para archivos
+  const [profileImageUrl, setProfileImageUrl] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
 
   // Cargar datos del empleado cuando se abre el modal
   useEffect(() => {
     if (isOpen && employeeId) {
       setLoading(true);
       setEmployee(null);
+      setProfileImageUrl(null);
+      setDocuments([]);
+      
       const loadEmployee = async () => {
         try {
           const data = await getPersonById(employeeId);
           if (data) {
             setEmployee(data);
+            
+            // Cargar imagen de perfil
+            loadEmployeeImage(employeeId);
+            
+            // Cargar documentos
+            loadEmployeeDocuments(employeeId);
           }
         } catch (error) {
           console.error("Error al cargar empleado:", error);
@@ -38,10 +53,51 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
       loadEmployee();
     } else {
       setEmployee(null);
+      setProfileImageUrl(null);
+      setDocuments([]);
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, employeeId]);
+
+  // Cargar imagen de perfil
+  const loadEmployeeImage = async (empId) => {
+    try {
+      const imageData = await getEmployeeImageUrl(empId, 120);
+      if (imageData && imageData.sasUrl) {
+        setProfileImageUrl(imageData.sasUrl);
+      }
+    } catch (error) {
+      // Silencioso - sin imagen
+    }
+  };
+
+  // Cargar documentos del empleado
+  const loadEmployeeDocuments = async (empId) => {
+    setLoadingDocuments(true);
+    try {
+      const docsData = await listEmployeeDocuments(empId);
+      if (docsData && Array.isArray(docsData.documentos)) {
+        setDocuments(docsData.documentos);
+      }
+    } catch (error) {
+      // Silencioso - sin documentos
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  // Descargar documento
+  const handleDownloadDocument = async (documentId) => {
+    try {
+      const docData = await downloadEmployeeDocument(documentId);
+      if (docData && docData.sasUrl) {
+        window.open(docData.sasUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error al descargar documento:', error);
+    }
+  };
 
   if (!isOpen || !employeeId || loading || !employee) return null;
 
@@ -87,10 +143,11 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
 
   const tabs = [
     { id: 'general', label: 'Información General', icon: 'User' },
-    { id: 'medical', label: 'Archivos', icon: 'FileText', hidden: true }, // Oculto temporalmente
+    { id: 'imagen', label: 'Imagen de Perfil', icon: 'Image' },
+    { id: 'documentos', label: 'Documentos', icon: 'FileText' },
     { id: 'ppe', label: 'EPP', icon: 'Shield' },
     { id: 'emergency', label: 'Contacto de Emergencia', icon: 'Phone' }
-  ].filter(tab => !tab.hidden); // Filtrar pestañas ocultas
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-1050 flex items-center justify-center p-4">
@@ -185,6 +242,95 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
             </div>
           )}
 
+          {/* Imagen de Perfil */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative">
+                  {profileImageUrl ? (
+                    <div className="w-48 h-48 rounded-full overflow-hidden border-4 border-border">
+                      <Image
+                        src={profileImageUrl}
+                        alt={employee.nombreCompleto}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-48 h-48 rounded-full bg-muted border-4 border-border flex items-center justify-center">
+                      <Icon name="User" size={64} className="text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-foreground">{employee.nombreCompleto}</h3>
+                  <p className="text-sm text-muted-foreground">{employee.empleadoId}</p>
+                  {!profileImageUrl && (
+                    <p className="text-xs text-muted-foreground mt-2">Sin foto de perfil</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Documentos */}
+          {step === 2 && (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-medium text-foreground mb-4">Documentos del Empleado</h4>
+                
+                {loadingDocuments ? (
+                  <div className="text-center py-8">
+                    <Icon name="Loader2" className="animate-spin mx-auto mb-2" size={24} />
+                    <p className="text-sm text-muted-foreground">Cargando documentos...</p>
+                  </div>
+                ) : documents.length > 0 ? (
+                  <div className="space-y-3">
+                    {documents.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="p-4 border border-border rounded-lg flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-smooth"
+                      >
+                        <div className="flex items-center space-x-3 flex-1">
+                          <Icon name="FileText" size={24} className="text-primary" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground">
+                              {doc.tipoDocumento || 'Documento'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.nombreOriginal} • {(doc.size / 1024).toFixed(0)} KB
+                            </p>
+                            {doc.descripcion && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {doc.descripcion}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadDocument(doc.id)}
+                          iconName="Download"
+                          iconPosition="left"
+                        >
+                          Descargar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                    <Icon name="FileText" size={48} className="text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">No hay documentos disponibles</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Este empleado no tiene documentos adjuntos
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Estudios Médicos - OCULTO TEMPORALMENTE */}
           {/* La sección de Archivos está oculta hasta que se complete la implementación */}
           {/* Para reactivar, descomenta el bloque siguiente y ajusta los índices de las secciones EPP y Contacto de Emergencia */}
@@ -229,7 +375,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
           )} */}
 
           {/* EPP */}
-          {step === 1 && (
+          {step === 3 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -301,7 +447,7 @@ const ViewEmployeeModal = ({ isOpen, onClose, employeeId }) => {
           )}
 
           {/* Contacto de Emergencia */}
-          {step === 2 && (
+          {step === 4 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input

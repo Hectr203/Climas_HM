@@ -29,6 +29,7 @@ import UserManagement from './pages/user-management';
 import ToolsManagement from './pages/tools-management';
 import MyToolsPage from './pages/my-tools';
 import Notifications from './pages/notifications';
+import PriceManagement from './pages/price-management';
 
 const Routes = () => {
   // Componente para redirigir dashboard al inicio del rol
@@ -51,6 +52,9 @@ const Routes = () => {
 
           {/* Redirigir dashboard al inicio del rol actual */}
           <Route path="/dashboard" element={<DashboardRedirect />} />
+
+          {/* Redirigir main-dashboard al dashboard */}
+          <Route path="/main-dashboard" element={<Navigate to="/dashboard" replace />} />
 
           <Route
             path="/proyectos"
@@ -225,6 +229,14 @@ const Routes = () => {
             element={
               <ProtectedRoute requiredPath="/notificaciones">
                 <Notifications />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/precios"
+            element={
+              <ProtectedRoute requiredPath="/precios">
+                <PriceManagement />
               </ProtectedRoute>
             }
           />

@@ -12,7 +12,7 @@ export const ROLE_PERMISSIONS = {
   // Admin - Acceso total al sistema
   [AUTH_ROLES?.ADMIN]: {
     allowedPaths: [
-      // '/dashboard', // TODO: Habilitar cuando se implemente
+      '/dashboard',
       "/oportunidades",
       "/cotizaciones",
       "/proyectos",
@@ -22,6 +22,7 @@ export const ROLE_PERMISSIONS = {
       "/inventario",
       "/clientes",
       "/finanzas",
+      "/precios",
       "/usuarios",
       "/visor-galeria",
       "/galeria-proyecto",
@@ -35,11 +36,11 @@ export const ROLE_PERMISSIONS = {
       "/herramientas",
       "/notificaciones",
     ],
-    defaultPath: "/oportunidades",
+    defaultPath: "/dashboard",
   },
   // Administración - Negocio, Personal y Abonos
   [AUTH_ROLES?.ADMINISTRACION]: {
-    allowedPaths: ["/clientes", "/finanzas", "/personal", "/abonos", "/notificaciones"],
+    allowedPaths: ["/clientes", "/finanzas", "/precios", "/personal", "/abonos", "/notificaciones"],
     defaultPath: "/clientes",
   },
   // Proyectos - Cotizaciones y Proyectos
@@ -67,6 +68,7 @@ export const ROLE_PERMISSIONS = {
       "/monitoreo-ventas",
       "/abonos",
       "/clientes",
+      "/precios",
       "/proyectos",
       "/visor-galeria",
       "/galeria-proyecto",
@@ -168,15 +170,14 @@ export const getAllowedNavigationItems = (userRole) => {
   const allowedPaths = ROLE_PERMISSIONS?.[userRole]?.allowedPaths;
 
   const allNavigationItems = [
-    // TODO: Habilitar cuando se implemente el dashboard
-    // {
-    //   label: 'Dashboard',
-    //   path: '/dashboard',
-    //   icon: 'LayoutDashboard',
-    //   tooltip: 'Resumen operacional y KPIs',
-    //   badge: null,
-    //   roles: [AUTH_ROLES?.ADMIN]
-    // },
+    {
+      label: 'Dashboard',
+      path: '/dashboard',
+      icon: 'LayoutDashboard',
+      tooltip: 'Resumen operacional y KPIs',
+      badge: null,
+      roles: [AUTH_ROLES?.ADMIN]
+    },
     {
       label: "Oportunidades",
       path: "/oportunidades",
@@ -282,6 +283,13 @@ export const getAllowedNavigationItems = (userRole) => {
           tooltip: "Supervisión y reportes financieros",
           // badge: 3,
           roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION],
+        },
+        {
+          label: "Precios",
+          path: "/precios",
+          icon: "TrendingUp",
+          tooltip: "Gestión y consulta de precios de productos",
+          roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.VENTAS],
         },
       ],
     },
