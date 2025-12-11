@@ -2,42 +2,44 @@ import React from 'react';
 import { useSignalR } from '../../hooks/useSignalR';
 import { useNotificaciones } from '../../hooks/useNotificaciones';
 import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/ui/Sidebar';
 import Header from '../../components/ui/Header';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
-import { getCategoryColor } from './categories';
+import { getCategoryColor, categoryRoutes } from './categories';
 
 const Notifications = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
     const { notificaciones: realtimeNotifs, limpiarNotificaciones } = useSignalR();
     const { obtenerNotificacionesPorUsuario, marcarNotificacionLeida, loading, error, data: storedNotifs } = useNotificaciones();
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [allNotifs, setAllNotifs] = React.useState([]);
     const [signalrReadIds, setSignalrReadIds] = React.useState(new Set());
     const [filtroActivo, setFiltroActivo] = React.useState('todas'); // 'todas' | 'no-leidas' | 'leidas'
 
-    // Función para marcar notificación como leída
-    const handleMarcarLeida = async (notificacionId, tipo) => {
+    // Función para manejar el clic en una notificación: marcar como leída y redirigir
+    const handleNotificationClick = async (notif) => {
         try {
-            console.log('📖 [NOTIFICACIONES] Marcando notificación como leída:', notificacionId, 'tipo:', tipo);
+            console.log('📖 [NOTIFICACIONES] Marcando notificación como leída y redirigiendo:', notif.id, 'tipo:', notif.tipo);
 
-            // Llamar a la API para marcar como leída
-            await marcarNotificacionLeida(notificacionId);
+            // Marcar como leída
+            await marcarNotificacionLeida(notif.id);
 
             // Actualizar el estado local inmediatamente para feedback visual
-            if (tipo === 'bd') {
+            if (notif.tipo === 'bd') {
                 setAllNotifs(prev =>
-                    prev.map(notif =>
-                        notif.id === notificacionId
-                            ? { ...notif, leida: true }
-                            : notif
+                    prev.map(n =>
+                        n.id === notif.id
+                            ? { ...n, leida: true }
+                            : n
                     )
                 );
-            } else if (tipo === 'signalr') {
+            } else if (notif.tipo === 'signalr') {
                 // Para notificaciones SignalR, marcar como leída localmente
-                setSignalrReadIds(prev => new Set([...prev, notificacionId]));
+                setSignalrReadIds(prev => new Set([...prev, notif.id]));
                 console.log('📖 [NOTIFICACIONES] Notificación SignalR marcada como leída localmente');
             }
 
@@ -45,9 +47,23 @@ const Notifications = () => {
             console.log('📢 [NOTIFICACIONES] Enviando evento de notificación leída para actualizar sidebar');
             window.dispatchEvent(new CustomEvent('notificationRead'));
 
-            console.log('✅ [NOTIFICACIONES] Notificación marcada como leída exitosamente');
+            // Redirigir según la categoría
+            const route = categoryRoutes[notif.descripcionCategoria];
+            if (route) {
+                if (notif.descripcionCategoria === 'Cotización' && notif.data?.datosAdicionales?.idCotizacion) {
+                    // Para cotizaciones, agregar el ID como query param
+                    navigate(`${route}?id=${notif.data.datosAdicionales.idCotizacion}`);
+                } else {
+                    navigate(route);
+                }
+                console.log('🚀 [NOTIFICACIONES] Redirigiendo a:', route);
+            } else {
+                console.log('⚠️ [NOTIFICACIONES] No hay ruta definida para la categoría:', notif.descripcionCategoria);
+            }
+
+            console.log('✅ [NOTIFICACIONES] Notificación procesada exitosamente');
         } catch (err) {
-            console.error('❌ [NOTIFICACIONES] Error marcando notificación como leída:', err);
+            console.error('❌ [NOTIFICACIONES] Error procesando notificación:', err);
         }
     };
 
@@ -235,7 +251,7 @@ const Notifications = () => {
                                             ? 'bg-card border-border'
                                             : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                                             } shadow-sm`}
-                                        onClick={() => handleMarcarLeida(notif.id, notif.tipo)}
+                                        onClick={() => handleNotificationClick(notif)}
                                     >
                                         <div className="flex items-start justify-between mb-2">
                                             <div className="flex items-start space-x-3 flex-1">

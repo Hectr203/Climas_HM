@@ -15,3 +15,15 @@ export const categoryColors = {
 export const getCategoryColor = (categoria) => {
     return categoryColors[categoria] || 'text-gray-500';
 };
+
+// Diccionario de rutas por categoría
+export const categoryRoutes = {
+    'Proyecto': '/proyectos',
+    'Finanzas': '/finanzas',
+    'Inventario': '/inventario',
+    'Personal': '/personal',
+    'Ventas': '/oportunidades',
+    'Taller': '/operaciones-taller',
+    'Cotización': '/cotizaciones',
+    // Agregar más según sea necesario
+};

@@ -28,11 +28,26 @@ const QuotationDevelopmentCenter = () => {
     const params = new URLSearchParams(window.location.search);
     const opportunityId = params.get('opportunityId');
     const newQuotation = params.get('newQuotation');
+    const quotationId = params.get('id'); // Nuevo parámetro para seleccionar cotización específica
+
     if (opportunityId && newQuotation === 'true') {
       window.dispatchEvent(new CustomEvent('setNewQuotationModalFromOpportunity'));
       setIsNewQuotationModalOpen(true);
     }
-  }, []);
+
+    // Si hay un ID de cotización en la URL, seleccionar esa cotización y cambiar a la pestaña de revisión
+    if (quotationId && quotations.length > 0) {
+      const quotationToSelect = quotations.find(q => q.id === quotationId);
+      if (quotationToSelect) {
+        handleQuotationSelect(quotationToSelect);
+        setActiveTab('review'); // Cambiar a la pestaña de revisión
+        // Limpiar el parámetro de la URL para evitar re-selección en recargas
+        const newParams = new URLSearchParams(window.location.search);
+        newParams.delete('id');
+        window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
+      }
+    }
+  }, [quotations]); // Agregar quotations como dependencia
 
   const { getCotizaciones, getCotizacionById, getConstructorByCotizacionId } = useQuotation();
 
@@ -47,7 +62,7 @@ const QuotationDevelopmentCenter = () => {
         // Mapeo adaptado a la estructura real del backend con datos del constructor
         const mapped = await Promise.all(cotizaciones.map(async (cotizacion) => {
           let constructorData = null;
-          
+
           // Intentar obtener datos del constructor para cada cotización
           try {
             constructorData = await getConstructorByCotizacionId(cotizacion.id);
@@ -348,8 +363,7 @@ const QuotationDevelopmentCenter = () => {
                       <div
                         key={quotation?.id}
                         onClick={() => handleQuotationSelect(quotation)}
-                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-all ${selectedQuotation?.id === quotation?.id ? 'bg-primary/10' : 'bg-card'
-                          } ${getPriorityColor(quotation?.priority)}`}
+                        className={`p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-all ${selectedQuotation?.id === quotation?.id ? 'bg-blue-100 border-blue-500' : 'bg-card hover:bg-muted/50'} ${getPriorityColor(quotation?.priority)}`}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-medium text-sm text-foreground line-clamp-2">
