@@ -13,6 +13,7 @@ export const ROLE_PERMISSIONS = {
   [AUTH_ROLES?.ADMIN]: {
     allowedPaths: [
       '/dashboard',
+      '/panel-principal',
       "/oportunidades",
       "/cotizaciones",
       "/proyectos",
@@ -36,7 +37,7 @@ export const ROLE_PERMISSIONS = {
       "/herramientas",
       "/notificaciones",
     ],
-    defaultPath: "/dashboard",
+    defaultPath: "/panel-principal",
   },
   // Administración - Negocio, Personal y Abonos
   [AUTH_ROLES?.ADMINISTRACION]: {
