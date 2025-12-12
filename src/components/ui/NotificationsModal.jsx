@@ -2,31 +2,33 @@ import React from 'react';
 import Icon from '../AppIcon';
 import Button from './Button';
 import { useNotificaciones } from '../../hooks/useNotificaciones';
+import { useNavigate } from 'react-router-dom';
+import { categoryRoutes } from '../../pages/notifications/categories';
 
 const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, onViewAll, onModalStateChange, onNotificationRead }) => {
     const { obtenerNotificacionesSinLeer, marcarNotificacionLeida, loading, error } = useNotificaciones()
     const [notificacionesBD, setNotificacionesBD] = React.useState([])
+    const navigate = useNavigate()
 
-    // Función para marcar notificación como leída
-    const handleMarcarLeida = async (notificacionId, tipo) => {
+    // Función para manejar el clic en una notificación: marcar como leída y redirigir
+    const handleNotificationClick = async (notif) => {
         try {
-
-            // Llamar a la API para marcar como leída
-            await marcarNotificacionLeida(notificacionId);
+            // Marcar como leída
+            await marcarNotificacionLeida(notif.id);
 
             // Actualizar el estado local inmediatamente para feedback visual
-            if (tipo === 'bd') {
+            if (notif.tipo === 'bd') {
                 setNotificacionesBD(prev =>
-                    prev.map(notif =>
-                        notif.id === notificacionId
-                            ? { ...notif, leida: true }
-                            : notif
+                    prev.map(n =>
+                        n.id === notif.id
+                            ? { ...n, leida: true }
+                            : n
                     )
                 );
-            } else if (tipo === 'signalr') {
+            } else if (notif.tipo === 'signalr') {
                 // Para notificaciones SignalR, emitir evento para actualizar estado global
                 window.dispatchEvent(new CustomEvent('signalrNotificationRead', {
-                    detail: { notificationId: notificacionId }
+                    detail: { notificationId: notif.id }
                 }));
             }
 
@@ -34,6 +36,25 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
             if (onNotificationRead) {
                 onNotificationRead();
             }
+
+            // Redirigir según la categoría usando configuración general
+            const config = categoryRoutes[notif.descripcionCategoria];
+            if (config) {
+                let url = config.route;
+                if (config.needsId && config.idField) {
+                    // Extraer el ID del campo especificado en la configuración
+                    const id = notif.data && config.idField.split('.').reduce((obj, key) => obj?.[key], notif.data);
+                    if (id) {
+                        url += `?id=${id}`;
+                    }
+                }
+                navigate(url);
+                onClose(); // Cerrar el modal después de redirigir
+            } else {
+                // Si no hay configuración, solo cerrar el modal
+                onClose();
+            }
+
         } catch (err) {
             // Aquí podríamos mostrar un toast de error si fuera necesario
         }
@@ -142,7 +163,7 @@ const NotificationsModal = ({ isOpen, onClose, notificaciones: realtimeNotifs, o
                                         ? 'bg-muted border-border'
                                         : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                                         }`}
-                                    onClick={() => handleMarcarLeida(notif.id, notif.tipo)}
+                                    onClick={() => handleNotificationClick(notif)}
                                 >
                                     {/* Indicador del origen de la notificación - REMOVIDO */}
                                     <div className="flex items-start justify-between mb-2">
