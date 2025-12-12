@@ -53,11 +53,14 @@ const clientesArchivosService = {
   },
  
 async descargarDocumento(id) {
-  const resp = await httpService.get(
+  const response = await httpService.get(
     `/clientes/archivos/descargar/${id}`,
-    { responseType: "blob" }
+    {
+      responseType: "arraybuffer",
+    }
   );
-  return resp.data;
+  const mime = response.type || "application/octet-stream";
+  return new Blob([response], { type: mime });
 },
   
   async descargarDirecto(id, { expiresIn = 60 } = {}) {

@@ -131,19 +131,16 @@ class HttpService {
     };
   }
 
-  // Métodos HTTP
-  async get(url, config = {}) {
-    const res = await this.api.get(url, config);
-    // Si es un blob, devolver el blob directamente
-    if (config.responseType === 'blob') {
-      return res.data;
-    }
-    // Si se usa validateStatus personalizado, devolver el objeto completo (incluye status)
-    if (config.validateStatus) {
-      return res;
-    }
-    return res.data;
+  // Modificacion para que descargue archivos clientes
+ async get(url, config = {}) {
+  const finalConfig = { ...config };
+  if (finalConfig.responseType === "blob" || finalConfig.responseType === "arraybuffer") {
+    delete finalConfig.headers;
   }
+  const res = await this.api.get(url, finalConfig);
+  return finalConfig.responseType ? res.data : res.data;
+}
+
 
   async post(url, data = {}, config = {}) {
     const res = await this.api.post(url, data, config);

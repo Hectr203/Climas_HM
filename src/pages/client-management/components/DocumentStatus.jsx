@@ -372,11 +372,6 @@ const DocumentStatus = ({ documents: propDocuments = [], clientId = null, onDocu
                     <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(doc?.status)}`}>
                       {doc?.status}
                     </span>
-                    {doc?.isComprobante && (
-                      <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded-full">
-                        Comprobante
-                      </span>
-                    )}
                     {isExpiringSoon(doc?.expirationDate) && (
                       <span className="px-2 py-1 text-xs bg-warning text-warning-foreground rounded-full">
                         Por Vencer
