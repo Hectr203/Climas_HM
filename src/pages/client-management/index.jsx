@@ -22,13 +22,13 @@ const ClientManagement = () => {
   const [showSidebar, setShowSidebar] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [clientCommunications, setClientCommunications] = useState([]);
-  
+
   const { clients, getClients, createClient, editClient, loading, error } = useClient();
   const { estados } = useEstados();
-  const { 
-    createCommunication, 
-    getComunicacionesByCliente, 
-    loading: loadingComm 
+  const {
+    createCommunication,
+    getComunicacionesByCliente,
+    loading: loadingComm
   } = useCommunication();
 
   // Cálculo de clientes activos (case-insensitive para 'estado')
@@ -247,10 +247,10 @@ const ClientManagement = () => {
         const municipioEmpresa = (client?.ubicacionEmpre?.municipio || '').toString().toLowerCase();
         const estadoDireccion = (client?.ubicacion?.estado || '').toString().toLowerCase();
         const municipioDireccion = (client?.ubicacion?.municipio || '').toString().toLowerCase();
-        return estadoEmpresa.includes(location) || 
-               municipioEmpresa.includes(location) || 
-               estadoDireccion.includes(location) || 
-               municipioDireccion.includes(location);
+        return estadoEmpresa.includes(location) ||
+          municipioEmpresa.includes(location) ||
+          estadoDireccion.includes(location) ||
+          municipioDireccion.includes(location);
       });
     }
 
@@ -329,7 +329,7 @@ const ClientManagement = () => {
     const headers = Object.keys(dataToExport[0]);
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(row => 
+      ...dataToExport.map(row =>
         headers.map(header => {
           const value = row[header];
           // Escapar comillas y envolver en comillas si contiene comas
@@ -343,12 +343,12 @@ const ClientManagement = () => {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     const fecha = new Date().toISOString().split('T')[0];
     link.setAttribute('href', url);
     link.setAttribute('download', `clientes_${fecha}.csv`);
     link.style.visibility = 'hidden';
-    
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -364,7 +364,7 @@ const ClientManagement = () => {
   // Función para cargar comunicaciones del cliente
   const loadClientCommunications = async (clientId) => {
     if (!clientId) return;
-    
+
     try {
       const response = await getComunicacionesByCliente(clientId);
       if (response && response.data && response.data.comunicaciones) {
@@ -478,49 +478,53 @@ const ClientManagement = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMenuOpen={mobileMenuOpen}
+        sidebarCollapsed={sidebarCollapsed}
+      />
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
-        <Sidebar 
-          isCollapsed={sidebarCollapsed} 
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
           onToggle={handleSidebarToggle}
         />
       </div>
 
       {/* Mobile Header */}
       <div className="lg:hidden">
-        <Header 
+        <Header
           onMenuToggle={handleMobileMenuToggle}
           isMenuOpen={mobileMenuOpen}
         />
       </div>
 
       {/* Main Content */}
-      <div className={`transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
-      }`}>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
+        }`}>
         <div className="flex">
-              {/* Main Content */}
-              <div className={`flex-1 transition-all duration-300`}>
-                <div className="p-6">
-                  {/* Modals */}
-                  <NewClientModal
-                   isOpen={showNewClientModal}
-                   onClose={() => setShowNewClientModal(false)}
-                   onSubmit={handleSubmitNewClient}
-                   mode="create"
-                   createClient={createClient}
-                   editClient={editClient}
-                  />
-                  <NewClientModal
-                   isOpen={editModalState.open}
-                   onClose={() => setEditModalState({ open: false, client: null })}
-                   onSubmit={handleSubmitEditClient}
-                   initialData={editModalState.client}
-                   mode="edit"
-                   createClient={createClient}
-                   editClient={editClient}
-                  />
-                  {/* Breadcrumb */}
+          {/* Main Content */}
+          <div className={`flex-1 transition-all duration-300`}>
+            <div className="p-6">
+              {/* Modals */}
+              <NewClientModal
+                isOpen={showNewClientModal}
+                onClose={() => setShowNewClientModal(false)}
+                onSubmit={handleSubmitNewClient}
+                mode="create"
+                createClient={createClient}
+                editClient={editClient}
+              />
+              <NewClientModal
+                isOpen={editModalState.open}
+                onClose={() => setEditModalState({ open: false, client: null })}
+                onSubmit={handleSubmitEditClient}
+                initialData={editModalState.client}
+                mode="edit"
+                createClient={createClient}
+                editClient={editClient}
+              />
+              {/* Breadcrumb */}
               <div className="mb-6">
                 <Breadcrumb />
               </div>
@@ -647,7 +651,7 @@ const ClientManagement = () => {
 
               {/* Client List */}
               {viewMode === 'table' ? (
-                <div style={{overflowX: 'auto', width: '100%'}}>
+                <div style={{ overflowX: 'auto', width: '100%' }}>
                   <ClientTable
                     clients={filteredClients}
                     onViewDetails={handleViewDetails}

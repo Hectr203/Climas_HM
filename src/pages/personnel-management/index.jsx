@@ -10,7 +10,7 @@ import AddEmployeeModal from './components/AddEmployeeModal';
 import EditEmployeeModal from './components/EditEmployeeModal';
 import EditEPPModal from './components/EditEPPModal';
 import ViewEmployeeModal from './components/ViewEmployeeModal';
-import usePerson from '../../hooks/usePerson'; 
+import usePerson from '../../hooks/usePerson';
 
 const PersonnelManagement = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -72,7 +72,7 @@ const PersonnelManagement = () => {
       // Filtro de cumplimiento médico
       // Usar estadoEstudiosMedicos si existe, de lo contrario calcularlo
       let medicalStatus = 'Pendiente';
-      
+
       // Primero verificar si existe directamente en el objeto
       if (employee.estadoEstudiosMedicos) {
         medicalStatus = employee.estadoEstudiosMedicos;
@@ -81,21 +81,21 @@ const PersonnelManagement = () => {
         const medicalData = Array.isArray(employee.examenesMedicos) && employee.examenesMedicos[0]
           ? employee.examenesMedicos[0]
           : {};
-        
+
         if (medicalData.estadoEstudiosMedicos) {
           medicalStatus = medicalData.estadoEstudiosMedicos;
         } else {
           // Si tiene datos pero no tiene estadoEstudiosMedicos, marcar como "Actualizar datos"
-          if (medicalData.ultimoExamenMedico !== undefined || 
-              medicalData.proximoExamenMedico !== undefined ||
-              medicalData.urlDocumentoMedico !== undefined) {
+          if (medicalData.ultimoExamenMedico !== undefined ||
+            medicalData.proximoExamenMedico !== undefined ||
+            medicalData.urlDocumentoMedico !== undefined) {
             medicalStatus = 'Actualizar datos';
           } else {
             medicalStatus = 'Pendiente';
           }
         }
       }
-      
+
       const matchMedical =
         !filters.medicalCompliance ||
         (medicalStatus?.toLowerCase() === filters.medicalCompliance.toLowerCase());
@@ -103,7 +103,7 @@ const PersonnelManagement = () => {
       // Filtro de cumplimiento EPP
       // Usar estadoEquipoEPP si existe, de lo contrario calcularlo
       let ppeComplianceStatus = 'Pendiente';
-      
+
       if (employee.estadoEquipoEPP) {
         // Si existe el campo estadoEquipoEPP, usarlo directamente
         ppeComplianceStatus = employee.estadoEquipoEPP;
@@ -112,23 +112,23 @@ const PersonnelManagement = () => {
         const equiposData = Array.isArray(employee.equipos) && employee.equipos[0]
           ? employee.equipos[0]
           : {};
-        
+
         const equipoProteccionPersonal = equiposData.equipoProteccionPersonal || {};
         const equipoAdicional = equiposData.equipoAdicional || {};
-        
+
         // Si tiene datos pero no tiene estadoEquipoEPP, marcar como "Actualizar datos"
-        if (equipoProteccionPersonal.cascoSeguridad !== undefined || 
-            equipoProteccionPersonal.chalecoReflectivo !== undefined ||
-            equipoProteccionPersonal.botasSeguridad !== undefined ||
-            equipoAdicional.guantesTrabajo !== undefined ||
-            equipoAdicional.gafasSeguridad !== undefined ||
-            equipoAdicional.mascarilla !== undefined) {
+        if (equipoProteccionPersonal.cascoSeguridad !== undefined ||
+          equipoProteccionPersonal.chalecoReflectivo !== undefined ||
+          equipoProteccionPersonal.botasSeguridad !== undefined ||
+          equipoAdicional.guantesTrabajo !== undefined ||
+          equipoAdicional.gafasSeguridad !== undefined ||
+          equipoAdicional.mascarilla !== undefined) {
           ppeComplianceStatus = 'Actualizar datos';
         } else {
           ppeComplianceStatus = 'Pendiente';
         }
       }
-      
+
       const matchPPE =
         !filters.ppeCompliance ||
         (ppeComplianceStatus?.toLowerCase() === filters.ppeCompliance.toLowerCase());
@@ -136,7 +136,7 @@ const PersonnelManagement = () => {
       // Filtros de fecha de ingreso
       let matchHireDateFrom = true;
       let matchHireDateTo = true;
-      
+
       if (filters.hireDateFrom && employee?.fechaIngreso) {
         try {
           const hireDate = new Date(employee.fechaIngreso);
@@ -146,7 +146,7 @@ const PersonnelManagement = () => {
           matchHireDateFrom = true; // Si hay error en la fecha, no filtrar
         }
       }
-      
+
       if (filters.hireDateTo && employee?.fechaIngreso) {
         try {
           const hireDate = new Date(employee.fechaIngreso);
@@ -211,21 +211,21 @@ const PersonnelManagement = () => {
   // Eliminar duplicados: las funciones ya están arriba con initialStep
 
   const handleSavePersonnel = async (personnelData) => {
-  try {
-    // Si tienes create/update dentro del hook usePerson, puedes llamarlos así:
-    // await savePerson(personnelData);  // Ejemplo: si existe esa función
+    try {
+      // Si tienes create/update dentro del hook usePerson, puedes llamarlos así:
+      // await savePerson(personnelData);  // Ejemplo: si existe esa función
 
-    // 👇 Pero para asegurar que la tabla se actualiza:
-    await getPersons(); // 🔄 Refresca la lista actualizada desde el backend
+      // 👇 Pero para asegurar que la tabla se actualiza:
+      await getPersons(); // 🔄 Refresca la lista actualizada desde el backend
 
-    setIsModalOpen(false); // Cierra el modal
-    setSelectedEmployeeId(null);
-    setModalMode(null);
+      setIsModalOpen(false); // Cierra el modal
+      setSelectedEmployeeId(null);
+      setModalMode(null);
 
-  } catch (err) {
-    console.error("Error al guardar el empleado:", err);
-  }
-};
+    } catch (err) {
+      console.error("Error al guardar el empleado:", err);
+    }
+  };
 
 
   const handleClearFilters = () => {
@@ -250,14 +250,14 @@ const PersonnelManagement = () => {
     // Preparar los datos para exportar con TODOS los campos disponibles
     const dataToExport = filteredPersonnel.map(emp => {
       // Extraer datos de objetos anidados
-      const medicalStudies = Array.isArray(emp.examenesMedicos) && emp.examenesMedicos[0] 
-        ? emp.examenesMedicos[0] 
+      const medicalStudies = Array.isArray(emp.examenesMedicos) && emp.examenesMedicos[0]
+        ? emp.examenesMedicos[0]
         : emp.medicalStudies || {};
-      
+
       const ppe = Array.isArray(emp.equipos) && emp.equipos[0]
         ? emp.equipos[0]
         : emp.ppe || {};
-      
+
       const emergencyContact = Array.isArray(emp.contactoEmergencia) && emp.contactoEmergencia[0]
         ? emp.contactoEmergencia[0]
         : emp.emergencyContact || {};
@@ -296,7 +296,7 @@ const PersonnelManagement = () => {
     const headers = Object.keys(dataToExport[0]);
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(row => 
+      ...dataToExport.map(row =>
         headers.map(header => {
           const value = row[header];
           // Escapar comillas y envolver en comillas si contiene comas
@@ -310,23 +310,23 @@ const PersonnelManagement = () => {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     const fecha = new Date().toISOString().split('T')[0];
     link.setAttribute('href', url);
     link.setAttribute('download', `personal_${fecha}.csv`);
     link.style.visibility = 'hidden';
-    
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const handleViewComplianceDetails = (type) => {
-  // console.log eliminado
+    // console.log eliminado
   };
 
   const handleScheduleTraining = () => {
-  // console.log eliminado
+    // console.log eliminado
   };
 
   const handleSidebarToggle = () => {
@@ -396,6 +396,11 @@ const PersonnelManagement = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMenuOpen={mobileMenuOpen}
+        sidebarCollapsed={sidebarCollapsed}
+      />
       {/* Sidebar */}
       <div className="hidden lg:block">
         <Sidebar isCollapsed={sidebarCollapsed} onToggle={handleSidebarToggle} />
@@ -408,9 +413,8 @@ const PersonnelManagement = () => {
 
       {/* Contenido principal */}
       <div
-        className={`transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
-        } lg:pt-0`}
+        className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
+          } lg:pt-0`}
       >
         <div className="p-6">
           {/* Breadcrumb */}
@@ -429,7 +433,7 @@ const PersonnelManagement = () => {
 
             <div className="flex items-center space-x-3">
               {/* <div className="flex items-center bg-card border border-border rounded-lg p-1"> */}
-                {/* <Button
+              {/* <Button
                   variant={activeView === 'personnel' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setActiveView('personnel')}
@@ -439,8 +443,8 @@ const PersonnelManagement = () => {
                 >
                   Personal
                 </Button> */}
-                {/* TODO: Habilitar cuando se implemente cumplimiento */}
-                {/* <Button
+              {/* TODO: Habilitar cuando se implemente cumplimiento */}
+              {/* <Button
                   variant={activeView === 'compliance' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setActiveView('compliance')}
@@ -450,7 +454,7 @@ const PersonnelManagement = () => {
                 >
                   Cumplimiento
                 </Button> */}
-                {/* </div> */}
+              {/* </div> */}
 
               <Button
                 onClick={handleCreatePersonnel}
@@ -514,7 +518,7 @@ const PersonnelManagement = () => {
             }}
             onSave={handleSavePersonnel}
           />
-          
+
           <EditEmployeeModal
             isOpen={isModalOpen && modalMode === 'edit' && !openedFromEPP}
             onClose={() => {
@@ -527,7 +531,7 @@ const PersonnelManagement = () => {
             employeeId={selectedEmployeeId}
             onSave={handleSavePersonnel}
           />
-          
+
           <EditEPPModal
             isOpen={isModalOpen && modalMode === 'edit' && openedFromEPP}
             onClose={() => {
@@ -540,7 +544,7 @@ const PersonnelManagement = () => {
             employeeId={selectedEmployeeId}
             onSave={handleSavePersonnel}
           />
-          
+
           <ViewEmployeeModal
             isOpen={isModalOpen && modalMode === 'view'}
             onClose={() => {

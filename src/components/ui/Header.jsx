@@ -5,9 +5,8 @@ import { useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import Icon from '../AppIcon';
 import Button from './Button';
-import AppImage from '../AppImage';
 
-const Header = ({ onMenuToggle, isMenuOpen = false }) => {
+const Header = ({ onMenuToggle, isMenuOpen = false, sidebarCollapsed = false }) => {
   const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -52,10 +51,10 @@ const Header = ({ onMenuToggle, isMenuOpen = false }) => {
   };
 
   // Ocultar Header temporalmente
-  return null;
+  // return null;
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-card border-b border-border z-1000">
+    <header className={`fixed top-0 bg-card border-b border-border z-1000 transition-all duration-300 ${sidebarCollapsed ? 'left-16 right-0' : 'left-60 right-0'}`}>
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
         {/* Left Section - Logo and Mobile Menu */}
         <div className="flex items-center space-x-4">
@@ -69,20 +68,6 @@ const Header = ({ onMenuToggle, isMenuOpen = false }) => {
           >
             <Icon name={isMenuOpen ? 'X' : 'Menu'} size={20} />
           </Button>
-
-          {/* Logo */}
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 flex items-center justify-center">
-              <AppImage
-                src="assets/images/WhatsApp_Image_2025-09-24_at_8.13.50_PM-1759346787603.jpeg"
-                alt="CLIMAS H.M. Logo"
-                className="w-8 h-8 object-contain"
-              />
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-semibold text-foreground">CLIMAS H.M.</h1>
-            </div>
-          </div>
         </div>
 
         {/* Right Section - User Profile */}

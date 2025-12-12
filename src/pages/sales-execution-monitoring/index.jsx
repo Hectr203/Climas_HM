@@ -109,7 +109,7 @@ const SalesExecutionMonitoring = () => {
           progress: 0
         },
         {
-          id: "milestone-2", 
+          id: "milestone-2",
           name: "Ductos y conexiones completadas",
           targetDate: "2024-06-30",
           status: "pending",
@@ -119,7 +119,7 @@ const SalesExecutionMonitoring = () => {
           id: "milestone-3",
           name: "Pruebas y puesta en marcha",
           targetDate: "2024-07-15",
-          status: "pending", 
+          status: "pending",
           progress: 0
         },
         {
@@ -153,7 +153,7 @@ const SalesExecutionMonitoring = () => {
       clientName: "Corporación ABC",
       projectType: "construction",
       salesRep: "María García",
-      phase: "execution-monitoring", 
+      phase: "execution-monitoring",
       priority: "urgent",
       contractValue: 2500000,
       startDate: "2024-03-20",
@@ -197,7 +197,7 @@ const SalesExecutionMonitoring = () => {
           id: "milestone-2",
           name: "Instalación pisos 1-6",
           targetDate: "2024-04-30",
-          status: "completed", 
+          status: "completed",
           progress: 100,
           completedDate: "2024-04-28"
         },
@@ -226,7 +226,7 @@ const SalesExecutionMonitoring = () => {
           urgency: "normal"
         },
         {
-          id: "comm-exec-3", 
+          id: "comm-exec-3",
           type: "email",
           date: "2024-04-25",
           content: "Envío de fotos de progreso y actualización de cronograma",
@@ -270,7 +270,7 @@ const SalesExecutionMonitoring = () => {
       projectType: "pieces",
       salesRep: "Patricia Morales",
       phase: "delivery-coordination",
-      priority: "medium", 
+      priority: "medium",
       contractValue: 1950000,
       startDate: "2024-02-15",
       estimatedEndDate: "2024-04-30",
@@ -281,7 +281,7 @@ const SalesExecutionMonitoring = () => {
       },
       projectDetails: {
         description: "Modernización de sistema de climatización para oficinas",
-        location: "Puebla, Puebla", 
+        location: "Puebla, Puebla",
         scope: "Reemplazo de equipos obsoletos y optimización energética"
       },
       fieldSupervisor: {
@@ -324,15 +324,15 @@ const SalesExecutionMonitoring = () => {
           completedDate: "2024-03-05"
         },
         {
-          id: "milestone-2", 
+          id: "milestone-2",
           name: "Instalación nuevos equipos",
           status: "completed",
-          progress: 100, 
+          progress: 100,
           completedDate: "2024-04-10"
         },
         {
           id: "milestone-3",
-          name: "Pruebas y optimización", 
+          name: "Pruebas y optimización",
           status: "completed",
           progress: 100,
           completedDate: "2024-04-25"
@@ -340,7 +340,7 @@ const SalesExecutionMonitoring = () => {
         {
           id: "milestone-4",
           name: "Documentación y entrega",
-          status: "in_progress", 
+          status: "in_progress",
           progress: 80
         }
       ],
@@ -368,7 +368,7 @@ const SalesExecutionMonitoring = () => {
     },
     {
       id: "EXEC-004",
-      workOrderRef: "WO-2024-GRN-004", 
+      workOrderRef: "WO-2024-GRN-004",
       clientName: "Green Energy México",
       projectType: "construction",
       salesRep: "Carmen Díaz",
@@ -376,7 +376,7 @@ const SalesExecutionMonitoring = () => {
       priority: "low",
       contractValue: 4200000,
       startDate: "2024-01-15",
-      estimatedEndDate: "2024-03-31", 
+      estimatedEndDate: "2024-03-31",
       clientContact: {
         name: "Ing. Fernando López",
         phone: "+52 55 4567 8901",
@@ -444,54 +444,54 @@ const SalesExecutionMonitoring = () => {
   };
 
   const handlePhaseTransition = (projectId, newPhase) => {
-    setProjects(prev => prev?.map(proj => 
-      proj?.id === projectId 
+    setProjects(prev => prev?.map(proj =>
+      proj?.id === projectId
         ? { ...proj, phase: newPhase }
         : proj
     ));
   };
 
   const handleStartupConfirmation = (projectId, startupData) => {
-    setProjects(prev => prev?.map(proj => 
-      proj?.id === projectId 
+    setProjects(prev => prev?.map(proj =>
+      proj?.id === projectId
         ? { ...proj, startup: { ...proj?.startup, ...startupData } }
         : proj
     ));
   };
 
   const handleProgressUpdate = (projectId, progressData) => {
-    setProjects(prev => prev?.map(proj => 
-      proj?.id === projectId 
+    setProjects(prev => prev?.map(proj =>
+      proj?.id === projectId
         ? { ...proj, progress: { ...proj?.progress, ...progressData } }
         : proj
     ));
   };
 
   const handleCommunicationAdd = (projectId, communication) => {
-    setProjects(prev => prev?.map(proj => 
-      proj?.id === projectId 
-        ? { 
-            ...proj, 
-            communications: [...(proj?.communications || []), communication]
-          }
+    setProjects(prev => prev?.map(proj =>
+      proj?.id === projectId
+        ? {
+          ...proj,
+          communications: [...(proj?.communications || []), communication]
+        }
         : proj
     ));
   };
 
   const handleChangeRequest = (projectId, changeRequest) => {
-    setProjects(prev => prev?.map(proj => 
-      proj?.id === projectId 
-        ? { 
-            ...proj, 
-            changeRequests: [...(proj?.changeRequests || []), changeRequest]
-          }
+    setProjects(prev => prev?.map(proj =>
+      proj?.id === projectId
+        ? {
+          ...proj,
+          changeRequests: [...(proj?.changeRequests || []), changeRequest]
+        }
         : proj
     ));
   };
 
   const handleDeliveryUpdate = (projectId, deliveryData) => {
-    setProjects(prev => prev?.map(proj => 
-      proj?.id === projectId 
+    setProjects(prev => prev?.map(proj =>
+      proj?.id === projectId
         ? { ...proj, delivery: { ...proj?.delivery, ...deliveryData } }
         : proj
     ));
@@ -538,10 +538,10 @@ const SalesExecutionMonitoring = () => {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      
+
       <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} />
-        
+        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} sidebarCollapsed={sidebarCollapsed} />
+
         <div className="">
           <div className="container mx-auto px-4 py-8">
             {/* Breadcrumb */}
@@ -557,7 +557,7 @@ const SalesExecutionMonitoring = () => {
                   Supervisión integral de proyectos desde WorkOrder hasta facturación final
                 </p>
               </div>
-              
+
               <div className="flex items-center space-x-4 mt-4 lg:mt-0">
                 <Button
                   variant="outline"
@@ -596,7 +596,7 @@ const SalesExecutionMonitoring = () => {
                           Paso {phase?.step}
                         </div>
                       </div>
-                      
+
                       <div className="p-4 space-y-3 min-h-[500px]">
                         {getProjectsByPhase(phase?.id)?.map((project) => (
                           <div
@@ -608,22 +608,21 @@ const SalesExecutionMonitoring = () => {
                               <h4 className="font-medium text-sm text-foreground line-clamp-2">
                                 {project?.clientName}
                               </h4>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                project?.priority === 'urgent' ? 'bg-red-100 text-red-800' :
-                                project?.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                                project?.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                              }`}>
+                              <span className={`text-xs px-2 py-1 rounded-full ${project?.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                                  project?.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                    project?.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                                }`}>
                                 {project?.priority === 'urgent' ? 'Urgente' :
-                                 project?.priority === 'high' ? 'Alta' :
-                                 project?.priority === 'medium' ? 'Media' : 'Baja'}
+                                  project?.priority === 'high' ? 'Alta' :
+                                    project?.priority === 'medium' ? 'Media' : 'Baja'}
                               </span>
                             </div>
-                            
+
                             <div className="flex items-center space-x-2 mb-2">
                               <Icon name="FileText" size={12} className="text-muted-foreground" />
                               <span className="text-xs text-muted-foreground">{project?.workOrderRef}</span>
                             </div>
-                            
+
                             <div className="flex items-center space-x-2 mb-2">
                               <Icon name="User" size={12} className="text-muted-foreground" />
                               <span className="text-xs text-muted-foreground">{project?.salesRep}</span>
@@ -638,23 +637,23 @@ const SalesExecutionMonitoring = () => {
                                   </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div 
+                                  <div
                                     className="bg-blue-600 h-2 rounded-full transition-all"
                                     style={{ width: `${project?.progress?.overallProgress}%` }}
                                   ></div>
                                 </div>
                               </div>
                             )}
-                            
+
                             <div className="flex items-center justify-between">
                               <div className="text-xs font-medium text-foreground">
                                 ${project?.contractValue?.toLocaleString()}
                               </div>
                               <div className="flex items-center space-x-1">
-                                <Icon 
-                                  name={project?.projectType === 'construction' ? 'Building' : 'Package'} 
-                                  size={12} 
-                                  className="text-muted-foreground" 
+                                <Icon
+                                  name={project?.projectType === 'construction' ? 'Building' : 'Package'}
+                                  size={12}
+                                  className="text-muted-foreground"
                                 />
                                 <span className="text-xs text-muted-foreground capitalize">
                                   {project?.projectType === 'construction' ? 'Obra' : 'Piezas'}
@@ -679,7 +678,7 @@ const SalesExecutionMonitoring = () => {
                             )}
                           </div>
                         ))}
-                        
+
                         {getProjectsByPhase(phase?.id)?.length === 0 && (
                           <div className="text-center py-8">
                             <Icon name="Inbox" size={32} className="text-muted-foreground mx-auto mb-2" />
@@ -706,7 +705,7 @@ const SalesExecutionMonitoring = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {/* Panel Tabs */}
                   <div className="border-b">
                     <div className="flex">
@@ -720,10 +719,9 @@ const SalesExecutionMonitoring = () => {
                         <button
                           key={tab?.id}
                           onClick={() => setActivePanel(tab?.id)}
-                          className={`flex-1 px-3 py-2 text-xs border-b-2 flex items-center justify-center space-x-1 ${
-                            activePanel === tab?.id 
-                              ? 'border-blue-600 text-blue-600 bg-blue-50' :'border-transparent text-muted-foreground hover:text-foreground'
-                          }`}
+                          className={`flex-1 px-3 py-2 text-xs border-b-2 flex items-center justify-center space-x-1 ${activePanel === tab?.id
+                              ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-muted-foreground hover:text-foreground'
+                            }`}
                         >
                           <Icon name={tab?.icon} size={14} />
                           <span className="hidden sm:block">{tab?.label}</span>
@@ -731,7 +729,7 @@ const SalesExecutionMonitoring = () => {
                       ))}
                     </div>
                   </div>
-                  
+
                   <div className="p-4 space-y-6">
                     {/* Project Info */}
                     <div className="space-y-2">
@@ -782,7 +780,7 @@ const SalesExecutionMonitoring = () => {
                     {activePanel === 'traceability' && (
                       <TraceabilityPanel
                         project={selectedProject}
-                        // console.log eliminado
+                      // console.log eliminado
                       />
                     )}
 

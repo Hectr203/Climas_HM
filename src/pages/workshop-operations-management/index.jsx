@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import Sidebar from '../../components/ui/Sidebar';
+import Header from '../../components/ui/Header';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import WorkflowBoard from './components/WorkflowBoard';
 import useOperacAlt from '../../hooks/useOperacAlt';
@@ -381,28 +382,22 @@ const WorkshopOperationsManagement = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop Sidebar */}
+      <Header
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMenuOpen={mobileMenuOpen}
+        sidebarCollapsed={sidebarCollapsed}
+      />
       <div className="hidden lg:block">
-        <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
       </div>
-
-      {/* Mobile Header Placeholder */}
       <div className="lg:hidden">
-        <div className="p-4 bg-background border-b">
-          <div className="flex items-center justify-between">
-            <div className="text-lg font-semibold">Gestión Operativa - Taller</div>
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded bg-muted">
-              <Icon name="Menu" size={18} />
-            </button>
-          </div>
-        </div>
+        <Header onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} isMenuOpen={mobileMenuOpen} />
       </div>
-      <React.StrictMode>
-        {null}
-      </React.StrictMode>
 
-      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
-        } lg:pt-0`}>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
         <div className="container mx-auto px-4 py-8">
           {/* Breadcrumb */}
           <div className="mb-6">
@@ -439,8 +434,8 @@ const WorkshopOperationsManagement = () => {
                     key={option?.value}
                     onClick={() => setActivePanel(option?.value)}
                     className={`flex items-center justify-center space-x-2 px-3 py-2 rounded-md transition-smooth whitespace-nowrap min-w-[96px] ${activePanel === option?.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                       }`}
                   >
                     <Icon name={option?.icon} size={28} />
