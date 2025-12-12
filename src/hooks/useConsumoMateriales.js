@@ -71,6 +71,7 @@ const useConsumoMateriales = () => {
           articuloId: m.articuloId,
           cantidad: parseFloat(m.cantidad),
           unidad: m.unidad || 'pcs',
+          ordenTrabajo: m.ordenTrabajo || null, // Incluir ordenTrabajo si existe
           notas: m.notas || ''
         }))
       };
