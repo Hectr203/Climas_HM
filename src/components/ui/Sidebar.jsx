@@ -1,3 +1,5 @@
+// Comentado temporalmente para necesidades futuras
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
@@ -8,9 +10,10 @@ import { getAllowedNavigationItems } from '../../utils/auth';
 import useAuth from '../../hooks/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
 import { useConfirmDialog } from '../../ui/ConfirmDialogContext';
-import { useSignalR } from '../../hooks/useSignalR';
-import { useNotificaciones } from '../../hooks/useNotificaciones';
-import NotificationsModal from './NotificationsModal';
+// Comentado temporalmente para necesidades futuras
+// import { useSignalR } from '../../hooks/useSignalR';
+// import { useNotificaciones } from '../../hooks/useNotificaciones';
+// import NotificationsModal from './NotificationsModal';
 
 const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const location = useLocation();
@@ -19,33 +22,36 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [navigationItems, setNavigationItems] = useState([]);
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [totalUnread, setTotalUnread] = useState(0);
-  const [allowSignalRNotifications, setAllowSignalRNotifications] = useState(false);
+  // Comentado temporalmente para necesidades futuras
+  // const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  // const [totalUnread, setTotalUnread] = useState(0);
+  // const [allowSignalRNotifications, setAllowSignalRNotifications] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const { showSuccess } = useNotifications();
-  const { notificaciones, newCount, resetearContador, limpiarNotificaciones } = useSignalR(true, allowSignalRNotifications);
-  const { obtenerTotalNotificacionesSinLeer } = useNotificaciones();
+  // Comentado temporalmente para necesidades futuras
+  // const { notificaciones, newCount, resetearContador, limpiarNotificaciones } = useSignalR(true, allowSignalRNotifications);
+  // const { obtenerTotalNotificacionesSinLeer } = useNotificaciones();
 
-  // Manejar el estado del modal de notificaciones para controlar SignalR
-  const handleModalStateChange = useCallback((isModalOpen) => {
-    setAllowSignalRNotifications(isModalOpen);
+  // Comentado temporalmente para necesidades futuras
+  // // Manejar el estado del modal de notificaciones para controlar SignalR
+  // const handleModalStateChange = useCallback((isModalOpen) => {
+  //   setAllowSignalRNotifications(isModalOpen);
 
-    // Cuando se cierra el modal, limpiar las notificaciones de SignalR
-    if (!isModalOpen) {
-      limpiarNotificaciones();
-    }
-  }, [limpiarNotificaciones]);
+  //   // Cuando se cierra el modal, limpiar las notificaciones de SignalR
+  //   if (!isModalOpen) {
+  //     limpiarNotificaciones();
+  //   }
+  // }, [limpiarNotificaciones]);
 
-  // Manejar cuando se marca una notificación como leída
-  const handleNotificationRead = useCallback(async () => {
-    try {
-      const result = await obtenerTotalNotificacionesSinLeer();
-      const total = result.data?.total || result.total || 0;
-      setTotalUnread(total);
-    } catch (err) {
-    }
-  }, [obtenerTotalNotificacionesSinLeer]);
+  // // Manejar cuando se marca una notificación como leída
+  // const handleNotificationRead = useCallback(async () => {
+  //   try {
+  //     const result = await obtenerTotalNotificacionesSinLeer();
+  //     const total = result.data?.total || result.total || 0;
+  //     setTotalUnread(total);
+  //   } catch (err) {
+  //   }
+  // }, [obtenerTotalNotificacionesSinLeer]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -56,64 +62,66 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Cargar el total de notificaciones sin leer solo una vez cuando el usuario esté autenticado
-  useEffect(() => {
-    let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
+  // Comentado temporalmente para necesidades futuras
+  // // Cargar el total de notificaciones sin leer solo una vez cuando el usuario esté autenticado
+  // useEffect(() => {
+  //   let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
 
-    if (isAuthenticated) {
-      const loadTotal = async () => {
-        try {
-          // Ahora no necesitamos pasar userId, el hook lo extraerá del token automáticamente
-          const result = await obtenerTotalNotificacionesSinLeer();
+  //   if (isAuthenticated) {
+  //     const loadTotal = async () => {
+  //       try {
+  //         // Ahora no necesitamos pasar userId, el hook lo extraerá del token automáticamente
+  //         const result = await obtenerTotalNotificacionesSinLeer();
 
-          // Solo actualizar el estado si el componente aún está montado
-          if (isMounted) {
-            const total = result.data?.total || result.total || 0;
-            setTotalUnread(total);
-          }
-        } catch (err) {
-          if (isMounted) {
-            setTotalUnread(0);
-          }
-        }
-      };
-      loadTotal();
-    } else {
-      if (isMounted) {
-        setTotalUnread(0);
-      }
-    }
+  //         // Solo actualizar el estado si el componente aún está montado
+  //         if (isMounted) {
+  //           const total = result.data?.total || result.total || 0;
+  //           setTotalUnread(total);
+  //         }
+  //       } catch (err) {
+  //         if (isMounted) {
+  //           setTotalUnread(0);
+  //         }
+  //       }
+  //     };
+  //     loadTotal();
+  //   } else {
+  //     if (isMounted) {
+  //       setTotalUnread(0);
+  //     }
+  //   }
 
-    // Cleanup function
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated]); // Solo depende de isAuthenticated
+  //   // Cleanup function
+  //   return () => {
+  //     isMounted = false;
+  //   };
+  // }, [isAuthenticated]); // Solo depende de isAuthenticated
 
-  // Escuchar eventos de notificaciones marcadas como leídas
-  useEffect(() => {
-    const handleNotificationReadEvent = async () => {
-      try {
-        const result = await obtenerTotalNotificacionesSinLeer();
-        const total = result.data?.total || result.total || 0;
-        setTotalUnread(total);
-      } catch (err) {
-      }
-    };
+  // Comentado temporalmente para necesidades futuras
+  // // Escuchar eventos de notificaciones marcadas como leídas
+  // useEffect(() => {
+  //   const handleNotificationReadEvent = async () => {
+  //     try {
+  //       const result = await obtenerTotalNotificacionesSinLeer();
+  //       const total = result.data?.total || result.total || 0;
+  //       setTotalUnread(total);
+  //     } catch (err) {
+  //     }
+  //   };
 
-    window.addEventListener('notificationRead', handleNotificationReadEvent);
+  //   window.addEventListener('notificationRead', handleNotificationReadEvent);
 
-    return () => {
-      window.removeEventListener('notificationRead', handleNotificationReadEvent);
-    };
-  }, [obtenerTotalNotificacionesSinLeer]);  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
-  useEffect(() => {
-    if (newCount > 0) {
-      setTotalUnread(prev => prev + newCount);
-      // Resetear el contador de nuevas notificaciones después de sumarlo
-      resetearContador();
-    }
-  }, [newCount, resetearContador]);
+  //   return () => {
+  //     window.removeEventListener('notificationRead', handleNotificationReadEvent);
+  //   };
+  // }, [obtenerTotalNotificacionesSinLeer]);  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
+  // useEffect(() => {
+  //   if (newCount > 0) {
+  //     setTotalUnread(prev => prev + newCount);
+  //     // Resetear el contador de nuevas notificaciones después de sumarlo
+  //     resetearContador();
+  //   }
+  // }, [newCount, resetearContador]);
 
   const [expandedItems, setExpandedItems] = useState(['Recursos', 'Negocio']);
 
@@ -174,17 +182,20 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     const hasChildren = item?.children && item?.children?.length > 0;
     const isExpanded = expandedItems?.includes(item?.label);
 
-    // Dynamic badge for notifications
-    const badge = item?.path === '/notificaciones' ? (totalUnread + newCount) : item?.badge;
+    // Comentado temporalmente para necesidades futuras
+    // // Dynamic badge for notifications
+    // const badge = item?.path === '/notificaciones' ? (totalUnread + newCount) : item?.badge;
+    const badge = item?.badge;
 
     const handleItemClick = (e) => {
       e.preventDefault();
       e.stopPropagation();
 
-      if (item?.path === '/notificaciones') {
-        setShowNotificationsModal(true);
-        return;
-      }
+      // Comentado temporalmente para necesidades futuras
+      // if (item?.path === '/notificaciones') {
+      //   setShowNotificationsModal(true);
+      //   return;
+      // }
 
       if (hasChildren) {
         toggleExpanded(item?.label);
@@ -252,7 +263,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     <>
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full bg-card border-r border-border sidebar-shadow z-1000 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-60'
+        className={`fixed left-0 top-0 h-full bg-card border-r border-border sidebar-shadow z-[9999] transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-60'
           }`}
       >
         <div className="flex flex-col h-full">
@@ -378,8 +389,8 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
           onClick={onToggle}
         />
       )}
-      {/* Notifications Modal */}
-      <NotificationsModal
+      {/* Comentado temporalmente para necesidades futuras */}
+      {/* <NotificationsModal
         isOpen={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
         notificaciones={notificaciones}
@@ -389,7 +400,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
           setShowNotificationsModal(false);
           navigate('/notificaciones');
         }}
-      />
+      /> */}
     </>
   );
 };

@@ -193,7 +193,7 @@ const ProjectGalleryViewer = () => {
 
     if (filters?.search) {
       const searchTerm = filters?.search?.toLowerCase();
-      filtered = filtered?.filter(img => 
+      filtered = filtered?.filter(img =>
         img?.title?.toLowerCase()?.includes(searchTerm) ||
         img?.description?.toLowerCase()?.includes(searchTerm) ||
         img?.tags?.some(tag => tag?.toLowerCase()?.includes(searchTerm))
@@ -209,13 +209,13 @@ const ProjectGalleryViewer = () => {
     }
 
     if (filters?.dateFrom) {
-      filtered = filtered?.filter(img => 
+      filtered = filtered?.filter(img =>
         new Date(img?.uploadDate) >= new Date(filters?.dateFrom)
       );
     }
 
     if (filters?.dateTo) {
-      filtered = filtered?.filter(img => 
+      filtered = filtered?.filter(img =>
         new Date(img?.uploadDate) <= new Date(filters?.dateTo)
       );
     }
@@ -224,7 +224,7 @@ const ProjectGalleryViewer = () => {
   };
 
   const handleImageSelect = (imageId) => {
-    setSelectedImages(prev => 
+    setSelectedImages(prev =>
       prev?.includes(imageId)
         ? prev?.filter(id => id !== imageId)
         : [...prev, imageId]
@@ -247,22 +247,22 @@ const ProjectGalleryViewer = () => {
   const handleImageUpload = async () => {
     try {
       setIsUploadingImages(true);
-      
+
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*';
       fileInput.multiple = true;
-      
+
       fileInput.onchange = async (event) => {
         const files = Array.from(event?.target?.files || []);
-        
+
         if (files?.length > 0) {
           const newImages = [];
-          
+
           for (const file of files) {
             if (!file?.type?.startsWith('image/')) continue;
             if (file?.size > 10 * 1024 * 1024) continue; // 10MB limit
-            
+
             const reader = new FileReader();
             reader.onload = (e) => {
               const newImage = {
@@ -282,25 +282,25 @@ const ProjectGalleryViewer = () => {
                 description: `Imagen subida: ${file?.name}`,
                 tags: ["nueva", "upload", "reciente"]
               };
-              
+
               newImages?.push(newImage);
-              
+
               if (newImages?.length === files?.length) {
                 setImages(prev => [...newImages, ...prev]);
                 setFilteredImages(prev => [...newImages, ...prev]);
                 console.log(`${files?.length} imágenes cargadas exitosamente`);
               }
             };
-            
+
             reader?.readAsDataURL(file);
           }
         }
-        
+
         setIsUploadingImages(false);
       };
-      
+
       fileInput?.click();
-      
+
     } catch (error) {
       console.error('Error al subir imágenes:', error);
       setIsUploadingImages(false);
@@ -309,10 +309,10 @@ const ProjectGalleryViewer = () => {
 
   const handleBulkDownload = async () => {
     if (selectedImages?.length === 0) return;
-    
+
     try {
       const selectedImageData = images?.filter(img => selectedImages?.includes(img?.id));
-      
+
       for (const image of selectedImageData) {
         const link = document.createElement('a');
         link.href = image?.url;
@@ -320,11 +320,11 @@ const ProjectGalleryViewer = () => {
         document.body?.appendChild(link);
         link?.click();
         document.body?.removeChild(link);
-        
+
         // Add delay between downloads
         await new Promise(resolve => setTimeout(resolve, 200));
       }
-      
+
       console.log(`${selectedImages?.length} imágenes descargadas`);
     } catch (error) {
       console.error('Error al descargar imágenes:', error);
@@ -333,11 +333,11 @@ const ProjectGalleryViewer = () => {
 
   const handleBulkDelete = () => {
     if (selectedImages?.length === 0) return;
-    
+
     const confirmed = window.confirm(
       `¿Está seguro de que desea eliminar ${selectedImages?.length} imagen(es) seleccionada(s)?\n\nEsta acción no se puede deshacer.`
     );
-    
+
     if (confirmed) {
       setImages(prev => prev?.filter(img => !selectedImages?.includes(img?.id)));
       setFilteredImages(prev => prev?.filter(img => !selectedImages?.includes(img?.id)));
@@ -374,10 +374,10 @@ const ProjectGalleryViewer = () => {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      
+
       <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} />
-        
+        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} sidebarCollapsed={sidebarCollapsed} />
+
         <div className="">
           <div className="container mx-auto px-4 py-8">
             {/* Breadcrumb */}
@@ -402,23 +402,21 @@ const ProjectGalleryViewer = () => {
                   <p className="text-muted-foreground">{project?.name} - {project?.code}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 {/* View Mode Toggle */}
                 <div className="flex bg-muted rounded-lg p-1">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`px-3 py-2 rounded-md transition-smooth ${
-                      viewMode === 'grid' ?'bg-primary text-primary-foreground' :'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`px-3 py-2 rounded-md transition-smooth ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
                   >
                     <Icon name="Grid3X3" size={16} />
                   </button>
                   <button
                     onClick={() => setViewMode('list')}
-                    className={`px-3 py-2 rounded-md transition-smooth ${
-                      viewMode === 'list' ?'bg-primary text-primary-foreground' :'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`px-3 py-2 rounded-md transition-smooth ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
                   >
                     <Icon name="List" size={16} />
                   </button>
@@ -449,7 +447,7 @@ const ProjectGalleryViewer = () => {
             <ProjectInfo project={project} imageCount={filteredImages?.length} />
 
             {/* Filter Toolbar */}
-            <FilterToolbar 
+            <FilterToolbar
               onFilterChange={handleFilterChange}
               totalImages={images?.length}
               filteredImages={filteredImages?.length}
@@ -484,7 +482,7 @@ const ProjectGalleryViewer = () => {
                   {images?.length === 0 ? 'No hay imágenes en este proyecto' : 'No se encontraron imágenes'}
                 </h3>
                 <p className="text-muted-foreground mb-6">
-                  {images?.length === 0 
+                  {images?.length === 0
                     ? 'Comience subiendo las primeras imágenes del proyecto'
                     : 'Intente ajustar los filtros para encontrar las imágenes deseadas'
                   }

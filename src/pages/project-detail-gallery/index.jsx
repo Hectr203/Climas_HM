@@ -27,11 +27,11 @@ const ProjectDetailGallery = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
-  const { 
-    imagenes, 
-    loading: imagenesLoading, 
-    subirImagen, 
-    listarImagenes, 
+  const {
+    imagenes,
+    loading: imagenesLoading,
+    subirImagen,
+    listarImagenes,
     obtenerImagenUrl,
     eliminarImagen,
     actualizarImagen,
@@ -161,45 +161,45 @@ const ProjectDetailGallery = () => {
   useEffect(() => {
     const loadProjectData = async () => {
       setIsLoading(true);
-      
+
       try {
         // Cargar datos del proyecto desde el backend
         const proyectoData = await getProyectoById(projectId);
-        
+
         if (!proyectoData) {
           navigate('/project-management');
           return;
         }
-        
+
         setProject(proyectoData);
-        
+
         // Si el proyecto tiene un clienteId, cargar la información completa del cliente
         // Buscar en: clienteId, clientId, o dentro del objeto cliente
-        const clienteId = proyectoData.clienteId 
-          || proyectoData.clientId 
-          || proyectoData.cliente?.id 
+        const clienteId = proyectoData.clienteId
+          || proyectoData.clientId
+          || proyectoData.cliente?.id
           || proyectoData.cliente?._id
-          || proyectoData.client?.id 
+          || proyectoData.client?.id
           || proyectoData.client?._id;
-        
+
         if (clienteId) {
           const clientesList = await getClients();
-          
+
           if (clientesList && clientesList.length > 0) {
             const clienteCompleto = clientesList.find(
               c => c.id === clienteId || c._id === clienteId
             );
-            
+
             if (clienteCompleto) {
               setClientInfo(clienteCompleto);
             }
           }
         }
-        
+
         // Cargar imágenes del proyecto
         await listarImagenes(projectId);
         await listarImagenesTaller(projectId);
-        
+
       } catch (error) {
         console.error('Error loading project data:', error);
         navigate('/project-management');
@@ -221,23 +221,23 @@ const ProjectDetailGallery = () => {
           categoria: img.category || img.categoria || '',
           nombre: img.name || img.nombre || ''
         };
-        
+
         const result = await subirImagen(projectId, img.file, metadata);
         return result;
       });
 
       const results = await Promise.all(uploadPromises);
-      
+
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
 
       if (successCount > 0) {
         // Recargar imágenes después de subir
         await listarImagenes(projectId);
-        
+
         // Switch to gallery view after upload
         setActiveTab('gallery');
-        
+
         if (failCount > 0) {
           showWarning(`${successCount} imagen(es) subida(s) exitosamente. ${failCount} imagen(es) fallaron`);
         } else {
@@ -246,7 +246,7 @@ const ProjectDetailGallery = () => {
       } else {
         showError('Error al subir las imágenes');
       }
-      
+
     } catch (error) {
       console.error('Error uploading images:', error);
       showError('Error al subir las imágenes');
@@ -262,23 +262,23 @@ const ProjectDetailGallery = () => {
           categoria: img.category || img.categoria || '',
           nombre: img.name || img.nombre || ''
         };
-        
+
         const result = await subirImagenTaller(projectId, img.file, metadata);
         return result;
       });
 
       const results = await Promise.all(uploadPromises);
-      
+
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
 
       if (successCount > 0) {
         // Recargar imágenes de taller después de subir
         await listarImagenesTaller(projectId);
-        
+
         // Switch to taller view after upload
         setActiveTab('taller');
-        
+
         if (failCount > 0) {
           showWarning(`${successCount} imagen(es) de taller subida(s) exitosamente. ${failCount} imagen(es) fallaron`);
         } else {
@@ -287,7 +287,7 @@ const ProjectDetailGallery = () => {
       } else {
         showError('Error al subir las imágenes de taller');
       }
-      
+
     } catch (error) {
       console.error('Error uploading taller images:', error);
       showError('Error al subir las imágenes de taller');
@@ -298,7 +298,7 @@ const ProjectDetailGallery = () => {
   const handleDeleteImage = async (imageId) => {
     try {
       const result = await eliminarImagen(projectId, imageId);
-      
+
       if (result.success) {
         // Recargar imágenes después de eliminar
         await listarImagenes(projectId);
@@ -306,7 +306,7 @@ const ProjectDetailGallery = () => {
       } else {
         throw new Error(result.message || 'Error al eliminar la imagen');
       }
-      
+
     } catch (error) {
       console.error('Error deleting image:', error);
       throw error;
@@ -316,7 +316,7 @@ const ProjectDetailGallery = () => {
   const handleUpdateImage = async (imageId, updates) => {
     try {
       const result = await actualizarImagen(projectId, imageId, updates);
-      
+
       if (result.success) {
         // Recargar imágenes para obtener datos actualizados del servidor
         await listarImagenes(projectId);
@@ -324,7 +324,7 @@ const ProjectDetailGallery = () => {
       } else {
         throw new Error(result.message || 'Error al actualizar la imagen');
       }
-      
+
     } catch (error) {
       console.error('Error updating image:', error);
       throw error;
@@ -365,13 +365,13 @@ const ProjectDetailGallery = () => {
     <div className="min-h-screen bg-background flex">
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} />
-        
+        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} sidebarCollapsed={sidebarCollapsed} />
+
         <div className="">
           <div className="container mx-auto px-4 py-8">
             {/* Breadcrumb */}
             <Breadcrumb items={breadcrumbItems} />
-            
+
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
               <div>
@@ -391,7 +391,7 @@ const ProjectDetailGallery = () => {
                   Documentación visual y gestión de imágenes del proyecto
                 </p>
               </div>
-              
+
               <div className="flex items-center space-x-4 mt-4 lg:mt-0">
                 <div className="text-sm text-muted-foreground">
                   {activeTab === 'taller' ? (
@@ -429,10 +429,9 @@ const ProjectDetailGallery = () => {
                   <button
                     key={tab?.id}
                     onClick={() => setActiveTab(tab?.id)}
-                    className={`flex items-center space-x-2 pb-4 border-b-2 transition-colors ${
-                      activeTab === tab?.id
-                        ? 'border-primary text-primary' :'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`flex items-center space-x-2 pb-4 border-b-2 transition-colors ${activeTab === tab?.id
+                        ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
                   >
                     <Icon name={tab?.icon} size={18} />
                     <span className="font-medium">{tab?.label}</span>

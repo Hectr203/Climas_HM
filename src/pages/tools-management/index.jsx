@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import Sidebar from '../../components/ui/Sidebar';
+import Header from '../../components/ui/Header';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import useHerramientas from '../../hooks/useHerramientas';
 import NewToolModal from './components/NewToolModal';
@@ -49,11 +50,11 @@ const ToolsManagement = () => {
   // Filtrar herramientas según búsqueda y ubicación
   const filteredTools = herramientas.filter(tool => {
     const matchesSearch = tool.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         tool.numero_pieza?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         tool.descripcion?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      tool.numero_pieza?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tool.descripcion?.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesLocation = filterLocation === 'all' || tool.ubicacion_tipo === filterLocation;
-    
+
     return matchesSearch && matchesLocation;
   });
 
@@ -114,40 +115,27 @@ const ToolsManagement = () => {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar 
-        collapsed={sidebarCollapsed} 
-        mobileMenuOpen={mobileMenuOpen}
-        onCollapsedChange={setSidebarCollapsed}
-        onMobileMenuOpenChange={setMobileMenuOpen}
+    <div className="min-h-screen bg-background">
+      <Header
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMenuOpen={mobileMenuOpen}
+        sidebarCollapsed={sidebarCollapsed}
       />
+      <div className="hidden lg:block">
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
+      <div className="lg:hidden">
+        <Header onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} isMenuOpen={mobileMenuOpen} />
+      </div>
 
-      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
-        sidebarCollapsed ? 'ml-0 lg:ml-20' : 'ml-0 lg:ml-64'
-      }`}>
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 flex-shrink-0"
-            >
-              <Icon name="Menu" className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hidden lg:block p-2 rounded-lg hover:bg-gray-100 flex-shrink-0"
-            >
-              <Icon name={sidebarCollapsed ? "ChevronRight" : "ChevronLeft"} className="w-5 h-5" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <Breadcrumb items={breadcrumbItems} />
-            </div>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
+        <div className="p-6">
+          <div className="mb-6">
+            <Breadcrumb items={breadcrumbItems} />
           </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 overflow-auto p-4 sm:p-6">
           {/* Title and Actions */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -218,7 +206,7 @@ const ToolsManagement = () => {
                 No se encontraron herramientas
               </h3>
               <p className="text-gray-600 mb-6">
-                {searchTerm || filterLocation !== 'all' 
+                {searchTerm || filterLocation !== 'all'
                   ? 'Intenta ajustar los filtros de búsqueda'
                   : 'Comienza registrando tu primera herramienta'}
               </p>
@@ -311,7 +299,7 @@ const ToolsManagement = () => {
               ))}
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       {/* Modals */}

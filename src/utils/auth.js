@@ -302,14 +302,16 @@ export const getAllowedNavigationItems = (userRole) => {
       badge: null,
       roles: [AUTH_ROLES?.ADMIN],
     },
-    {
-      label: "Notificaciones",
-      path: "/notificaciones",
-      icon: "Bell",
-      tooltip: "Centro de notificaciones",
-      badge: null,
-      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.PROYECTOS, AUTH_ROLES?.VENTAS, AUTH_ROLES?.TALLER],
-    },
+
+    // Comentado temporalmente para necesidades futuras
+    // {
+    //   label: "Notificaciones",
+    //   path: "/notificaciones",
+    //   icon: "Bell",
+    //   tooltip: "Centro de notificaciones",
+    //   badge: null,
+    //   roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.PROYECTOS, AUTH_ROLES?.VENTAS, AUTH_ROLES?.TALLER],
+    // },
   ];
 
   // Filter navigation items based on user role and allowed paths

@@ -14,7 +14,7 @@ import ComprobantesModal from './components/ComprobantesModal';
 import useProyect from '../../hooks/useProyect';
 
 /* =========================================================================
-   Cache local para el estado visual (UI) de cada proyecto
+   Cache local para el estado visual (UI) de cada proyecto 
    - Persistimos en localStorage el "estado UI" (planificación / en proceso)
    - Esto permite mantener el estado visible aunque el backend use otros labels
    ========================================================================= */
@@ -134,7 +134,7 @@ const ProjectManagement = () => {
     // 1. Primero intentar obtener del cache local
     const estadoCache = uiEstadoCache.get(id);
     if (estadoCache) return estadoCache;
-    
+
     // 2. Si no hay en cache, obtener del backend (puede venir en diferentes campos)
     const estadoBackend = p?.estado ?? p?.status ?? p?.estadoProyecto ?? p?.statusLabel ?? '';
     if (estadoBackend) {
@@ -145,7 +145,7 @@ const ProjectManagement = () => {
       }
       return estadoNormalizado;
     }
-    
+
     // 3. Default (sin tilde para consistencia)
     return 'planificacion';
   };
@@ -189,7 +189,7 @@ const ProjectManagement = () => {
   const estadoCanonico = (raw) => {
     if (!raw) return 'planificacion';
     const v = normalizar(String(raw));
-    
+
     // Orden de verificación: de más específico a más general
     // "en pausa" debe verificarse antes de "en proceso" para evitar conflictos
     if (v.includes('pausa') || v.includes('pause') || v.includes('hold')) return 'en pausa';
@@ -198,7 +198,7 @@ const ProjectManagement = () => {
     if (v.includes('cancelado') || v.includes('canceled') || v.includes('cancelled') || v.includes('cancel')) return 'cancelado';
     if (v.includes('proceso') || v.includes('progress') || v.includes('process')) return 'en proceso';
     if (v.includes('planific') || v.includes('planning') || v.includes('activo') || v.includes('active')) return 'planificacion';
-    
+
     return v || 'planificacion';
   };
 
@@ -227,7 +227,7 @@ const ProjectManagement = () => {
       filtrados = filtrados.filter(proy => {
         const presupuesto = obtenerPresupuesto(proy);
         const totalRestante = obtenerTotalRestante(proy);
-        
+
         if (filtros.paymentStatus === 'pagado') {
           // Pagados: Total restante = 0
           return totalRestante === 0;
@@ -255,17 +255,17 @@ const ProjectManagement = () => {
       };
       const estadoObjetivo = mapaEstado[filtros.status] || estadoCanonico(filtros.status);
       const estadoObjetivoNormalizado = normalizar(estadoObjetivo);
-      
+
       filtrados = filtrados.filter(proy => {
         // Obtener estado del proyecto - intentar múltiples fuentes
         let estadoProyecto = null;
-        
+
         // 1. Intentar desde el objeto raw (datos originales del backend)
         const estadoRaw = proy?.raw?.estado ?? proy?.raw?.status ?? proy?.raw?.estadoProyecto ?? proy?.raw?.statusLabel;
         if (estadoRaw) {
           estadoProyecto = backendToUiDefault(estadoRaw);
         }
-        
+
         // 2. Si no hay raw, intentar desde los campos directos del proyecto
         if (!estadoProyecto) {
           const estadoDirecto = proy?.estado ?? proy?.status ?? proy?.estadoProyecto ?? proy?.statusLabel;
@@ -273,21 +273,21 @@ const ProjectManagement = () => {
             estadoProyecto = backendToUiDefault(estadoDirecto);
           }
         }
-        
+
         // 3. Si aún no hay estado, usar la función obtenerEstadoUi (cache + backend)
         if (!estadoProyecto) {
           estadoProyecto = obtenerEstadoUi(proy);
         }
-        
+
         // Normalizar el estado del proyecto a formato canónico
         const estadoProyectoCanonico = estadoCanonico(estadoProyecto);
-        
+
         // Normalizar ambos para comparación (sin acentos, minúsculas)
         const estadoProyectoNormalizado = normalizar(estadoProyectoCanonico);
-        
+
         // Comparar estados normalizados
         const coincide = estadoProyectoNormalizado === estadoObjetivoNormalizado;
-        
+
         return coincide;
       });
     }
@@ -352,7 +352,7 @@ const ProjectManagement = () => {
       const estadoBackend = mapUiToBackend(nuevoEstadoUi);
       await updateProyecto(proyectoId, { estado: estadoBackend });
       uiEstadoCache.set(proyectoId, nuevoEstadoUi);
-      await getProyectos({ force: true }).catch(() => {});
+      await getProyectos({ force: true }).catch(() => { });
     } catch (error) {
       console.error('Error al actualizar estado del proyecto:', error);
       alert('Error al actualizar el estado del proyecto');
@@ -427,7 +427,7 @@ const ProjectManagement = () => {
       const siguiente = { ...prev };
       const lista = Array.isArray(siguiente[projectId]) ? siguiente[projectId] : [];
       siguiente[projectId] = [...lista, { fecha, monto, saldoRestante }];
-      try { localStorage.setItem('abonos_proyectos_v1', JSON.stringify(siguiente)); } catch {}
+      try { localStorage.setItem('abonos_proyectos_v1', JSON.stringify(siguiente)); } catch { }
       return siguiente;
     });
 
@@ -461,11 +461,11 @@ const ProjectManagement = () => {
   const manejarExportarDesdeFiltros = () => {
     const lista = proyectosFiltrados || [];
     if (!lista.length) { alert('No hay proyectos para exportar.'); return; }
-    const encabezados = ['Código','Nombre','Cliente','Estado','Prioridad','Presupuesto (MXN)','Inicio','Fin'];
+    const encabezados = ['Código', 'Nombre', 'Cliente', 'Estado', 'Prioridad', 'Presupuesto (MXN)', 'Inicio', 'Fin'];
     const escapar = (s) => {
       const v = String(s ?? '');
       const necesita = /[",\n]/.test(v);
-      const e = v.replace(/"/g,'""');
+      const e = v.replace(/"/g, '""');
       return necesita ? `"${e}"` : e;
     };
     const filas = lista.map(p => {
@@ -477,13 +477,13 @@ const ProjectManagement = () => {
       const presupuesto = Number(p?.totalPresupuesto ?? p?.presupuesto?.total ?? p?.budget ?? 0).toLocaleString('es-MX');
       const ini = new Date(p?.cronograma?.fechaInicio ?? p?.startDate ?? '').toLocaleDateString('es-MX');
       const fin = new Date(p?.cronograma?.fechaFin ?? p?.endDate ?? '').toLocaleDateString('es-MX');
-      return [codigo,nombre,cliente,estado,prioridad,presupuesto,ini,fin].map(escapar).join(',');
+      return [codigo, nombre, cliente, estado, prioridad, presupuesto, ini, fin].map(escapar).join(',');
     });
     const csv = [encabezados.join(','), ...filas].join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `proyectos_filtrados_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `proyectos_filtrados_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
   };
@@ -518,7 +518,7 @@ const ProjectManagement = () => {
       <Sidebar isCollapsed={barraLateralColapsada} onToggle={() => setBarraLateralColapsada(!barraLateralColapsada)} />
 
       <div className={`flex-1 transition-all duration-300 ${barraLateralColapsada ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setMenuEncabezadoAbierto(!menuEncabezadoAbierto)} isMenuOpen={menuEncabezadoAbierto} />
+        <Header onMenuToggle={() => setMenuEncabezadoAbierto(!menuEncabezadoAbierto)} isMenuOpen={menuEncabezadoAbierto} sidebarCollapsed={barraLateralColapsada} />
 
         <div className="">
           <div className="container mx-auto px-4 py-8">
@@ -537,8 +537,8 @@ const ProjectManagement = () => {
 
             {/* Resumen de estadísticas (usa proyectos filtrados y total pagado calculado localmente) */}
             {proyectosFiltrados?.length > 0 && (
-              <ProjectStats 
-                projects={proyectosFiltrados} 
+              <ProjectStats
+                projects={proyectosFiltrados}
                 getTotalPagado={obtenerTotalPagado}
                 refreshTrigger={refreshAbonosStats}
               />
@@ -628,8 +628,8 @@ const ProjectManagement = () => {
                                     Código: {obtenerCodigo(proy)}
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    Presupuesto: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(presupuesto)} | 
-                                    Pagado: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(pagado)} | 
+                                    Presupuesto: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(presupuesto)} |
+                                    Pagado: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(pagado)} |
                                     Restante: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(restante)}
                                   </div>
                                 </div>
@@ -669,7 +669,7 @@ const ProjectManagement = () => {
                 onAbonoUpdated={async (proyecto, abonoActualizado) => {
                   // Refrescar las estadísticas de abonos
                   setRefreshAbonosStats(prev => prev + 1);
-                  
+
                   // Recargar los proyectos para actualizar la tabla
                   try {
                     await getProyectos({ force: true });
