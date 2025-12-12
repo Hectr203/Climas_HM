@@ -2,8 +2,10 @@ import React, { useState, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Image from '../../../components/AppImage';
+import { useNotifications } from '../../../context/NotificationContext';
 
-const ImageUploadPanel = ({ onImagesUploaded, projectId, isUploading = false }) => {
+const ImageUploadPanel = ({ onImagesUploaded, projectId, isUploading = false, uploadType = 'proyecto' }) => {
+  const { showError, showWarning } = useNotifications();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [previewImages, setPreviewImages] = useState([]);
@@ -40,7 +42,7 @@ const ImageUploadPanel = ({ onImagesUploaded, projectId, isUploading = false }) 
           file,
           src: e?.target?.result,
           name: file?.name,
-          category: 'general',
+          category: uploadType === 'taller' ? 'recepcion' : 'general',
           description: ''
         }]);
       };
@@ -90,14 +92,14 @@ const ImageUploadPanel = ({ onImagesUploaded, projectId, isUploading = false }) 
 
   const handleUpload = async () => {
     if (previewImages?.length === 0) {
-      alert('Seleccione al menos una imagen para subir');
+      showWarning('Seleccione al menos una imagen para subir');
       return;
     }
 
     // Prepare images with metadata
     const imagesToUpload = previewImages?.map(img => ({
       file: img?.file,
-      name: img?.name,
+      name: img?.name, // Nombre personalizado editado por el usuario
       category: img?.category,
       description: img?.description,
       projectId,
@@ -116,26 +118,36 @@ const ImageUploadPanel = ({ onImagesUploaded, projectId, isUploading = false }) 
         fileInputRef.current.value = '';
       }
     } catch (error) {
-      console.error('Error uploading images:', error);
-      alert('Error al subir las imágenes. Por favor intente nuevamente.');
+      showError('Error al subir las imágenes. Por favor intente nuevamente.');
     }
   };
 
-  const categoryOptions = [
-    { value: 'general', label: 'General' },
-    { value: 'construction', label: 'Construcción' },
-    { value: 'installation', label: 'Instalación' },
-    { value: 'testing', label: 'Pruebas' },
-    { value: 'completion', label: 'Finalización' },
-    { value: 'quality-control', label: 'Control de Calidad' },
-    { value: 'safety', label: 'Seguridad' },
-    { value: 'documentation', label: 'Documentación' }
-  ];
+  // Categorías diferentes según el tipo de upload
+  const categoryOptions = uploadType === 'taller' 
+    ? [
+        { value: 'recepcion', label: 'Recepción de Material' },
+        { value: 'seguridad', label: 'Lista de Seguridad' },
+        { value: 'fabricacion', label: 'Fabricación' },
+        { value: 'calidad', label: 'Control de Calidad' },
+        { value: 'envio', label: 'Listo para Envío' }
+      ]
+    : [
+        { value: 'general', label: 'General' },
+        { value: 'construction', label: 'Construcción' },
+        { value: 'installation', label: 'Instalación' },
+        { value: 'testing', label: 'Pruebas' },
+        { value: 'completion', label: 'Finalización' },
+        { value: 'quality-control', label: 'Control de Calidad' },
+        { value: 'safety', label: 'Seguridad' },
+        { value: 'documentation', label: 'Documentación' }
+      ];
 
   return (
     <div className="bg-card border border-border rounded-lg p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-foreground">Subir Imágenes</h3>
+        <h3 className="text-lg font-semibold text-foreground">
+          {uploadType === 'taller' ? 'Subir Imágenes de Taller' : 'Subir Imágenes del Proyecto'}
+        </h3>
         <div className="text-sm text-muted-foreground">
           Formatos: JPG, PNG, GIF, WebP • Máximo: 5MB
         </div>

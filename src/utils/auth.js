@@ -5,13 +5,15 @@ export const AUTH_ROLES = {
   PROYECTOS: "proyectos",
   VENTAS: "ventas",
   TALLER: "taller",
+  OBRA: "obra",
 };
 
 export const ROLE_PERMISSIONS = {
   // Admin - Acceso total al sistema
   [AUTH_ROLES?.ADMIN]: {
     allowedPaths: [
-      // '/dashboard', // TODO: Habilitar cuando se implemente
+      '/dashboard',
+      '/panel-principal',
       "/oportunidades",
       "/cotizaciones",
       "/proyectos",
@@ -21,21 +23,25 @@ export const ROLE_PERMISSIONS = {
       "/inventario",
       "/clientes",
       "/finanzas",
+      "/precios",
       "/usuarios",
       "/visor-galeria",
       "/galeria-proyecto",
+      "/project-detail-gallery",
       "/documentacion-proyectos",
       "/flujo-proyecto",
       "/constructor-cotizaciones",
       "/operaciones-taller",
       "/centro-operaciones-taller",
       "/monitoreo-ventas",
+      "/herramientas",
+      "/notificaciones",
     ],
-    defaultPath: "/oportunidades",
+    defaultPath: "/panel-principal",
   },
   // Administración - Negocio, Personal y Abonos
   [AUTH_ROLES?.ADMINISTRACION]: {
-    allowedPaths: ["/clientes", "/finanzas", "/personal", "/abonos"],
+    allowedPaths: ["/clientes", "/finanzas", "/precios", "/personal", "/abonos", "/notificaciones"],
     defaultPath: "/clientes",
   },
   // Proyectos - Cotizaciones y Proyectos
@@ -45,9 +51,12 @@ export const ROLE_PERMISSIONS = {
       "/proyectos",
       "/visor-galeria",
       "/galeria-proyecto",
+      "/project-detail-gallery",
       "/documentacion-proyectos",
       "/flujo-proyecto",
       "/constructor-cotizaciones",
+      "/herramientas",
+      "/notificaciones",
     ],
     defaultPath: "/cotizaciones",
   },
@@ -60,23 +69,36 @@ export const ROLE_PERMISSIONS = {
       "/monitoreo-ventas",
       "/abonos",
       "/clientes",
+      "/precios",
       "/proyectos",
       "/visor-galeria",
       "/galeria-proyecto",
+      "/project-detail-gallery",
       "/documentacion-proyectos",
       "/flujo-proyecto",
+      "/notificaciones",
     ],
     defaultPath: "/oportunidades",
   },
-  // Taller - Operaciones, Operaciones de Taller e Inventario
+  // Taller - Operaciones, Operaciones de Taller, Inventario y Herramientas
   [AUTH_ROLES?.TALLER]: {
     allowedPaths: [
       "/operaciones",
       "/operaciones-taller",
       "/centro-operaciones-taller",
       "/inventario",
+      "/herramientas",
+      "/notificaciones",
     ],
     defaultPath: "/operaciones",
+  },
+  // Obra - Personal de campo, solo puede ver y devolver sus herramientas
+  [AUTH_ROLES?.OBRA]: {
+    allowedPaths: [
+      "/my-tools",
+      "/dashboard",
+    ],
+    defaultPath: "/my-tools",
   },
 };
 
@@ -149,15 +171,14 @@ export const getAllowedNavigationItems = (userRole) => {
   const allowedPaths = ROLE_PERMISSIONS?.[userRole]?.allowedPaths;
 
   const allNavigationItems = [
-    // TODO: Habilitar cuando se implemente el dashboard
-    // {
-    //   label: 'Dashboard',
-    //   path: '/dashboard',
-    //   icon: 'LayoutDashboard',
-    //   tooltip: 'Resumen operacional y KPIs',
-    //   badge: null,
-    //   roles: [AUTH_ROLES?.ADMIN]
-    // },
+    {
+      label: 'Dashboard',
+      path: '/dashboard',
+      icon: 'LayoutDashboard',
+      tooltip: 'Resumen operacional y KPIs',
+      badge: null,
+      roles: [AUTH_ROLES?.ADMIN]
+    },
     {
       label: "Oportunidades",
       path: "/oportunidades",
@@ -214,7 +235,7 @@ export const getAllowedNavigationItems = (userRole) => {
     {
       label: "Recursos",
       icon: "Users",
-      tooltip: "Gestión de personal e inventario",
+      tooltip: "Gestión de personal, inventario y herramientas",
       children: [
         {
           label: "Personal",
@@ -229,6 +250,13 @@ export const getAllowedNavigationItems = (userRole) => {
           icon: "Package",
           tooltip: "Seguimiento de equipos y repuestos",
           roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.TALLER],
+        },
+        {
+          label: "Herramientas",
+          path: "/herramientas",
+          icon: "Wrench",
+          tooltip: "Control y localización de herramientas",
+          roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.TALLER, AUTH_ROLES?.PROYECTOS],
         },
       ],
     },
@@ -257,6 +285,13 @@ export const getAllowedNavigationItems = (userRole) => {
           // badge: 3,
           roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION],
         },
+        {
+          label: "Precios",
+          path: "/precios",
+          icon: "TrendingUp",
+          tooltip: "Gestión y consulta de precios de productos",
+          roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.VENTAS],
+        },
       ],
     },
     {
@@ -267,6 +302,16 @@ export const getAllowedNavigationItems = (userRole) => {
       badge: null,
       roles: [AUTH_ROLES?.ADMIN],
     },
+
+    // Comentado temporalmente para necesidades futuras
+    // {
+    //   label: "Notificaciones",
+    //   path: "/notificaciones",
+    //   icon: "Bell",
+    //   tooltip: "Centro de notificaciones",
+    //   badge: null,
+    //   roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION, AUTH_ROLES?.PROYECTOS, AUTH_ROLES?.VENTAS, AUTH_ROLES?.TALLER],
+    // },
   ];
 
   // Filter navigation items based on user role and allowed paths

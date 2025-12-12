@@ -123,7 +123,10 @@ const useQuotation = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await quotationService.updateMateriales(idCotizacion, materiales);
+      const response = await quotationService.updateMateriales(
+        idCotizacion,
+        materiales
+      );
       return response;
     } catch (err) {
       setError(err);
@@ -138,7 +141,135 @@ const useQuotation = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await quotationService.updateMaterialesYRiesgos(idCotizacion, data);
+      const response = await quotationService.updateMaterialesYRiesgos(
+        idCotizacion,
+        data
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Gestión de versiones
+  const createVersion = async (idCotizacion, versionData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.createVersion(
+        idCotizacion,
+        versionData
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getQuotationVersions = async (idCotizacion) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getQuotationVersions(
+        idCotizacion
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getVersionById = async (idCotizacion, versionId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getVersionById(
+        idCotizacion,
+        versionId
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const restoreVersion = async (idCotizacion, versionId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.restoreVersion(
+        idCotizacion,
+        versionId
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funciones para manejo de estados de aprobación
+  const updateEstadoAprobacion = async (
+    id,
+    estadoAprobacion,
+    comentarios = "",
+    modificadoPor = ""
+  ) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.updateEstadoAprobacion(
+        id,
+        estadoAprobacion,
+        comentarios,
+        modificadoPor
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCotizacionesByEstado = async (estado, limite = 50, pagina = 1) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getCotizacionesByEstado(
+        estado,
+        limite,
+        pagina
+      );
+      return response;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getEstadisticasEstados = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await quotationService.getEstadisticasEstados();
       return response;
     } catch (err) {
       setError(err);
@@ -159,6 +290,15 @@ const useQuotation = () => {
     getRevision,
     updateMateriales,
     updateMaterialesYRiesgos,
+    // Métodos de versionado
+    createVersion,
+    getQuotationVersions,
+    getVersionById,
+    restoreVersion,
+    // Métodos de aprobación
+    updateEstadoAprobacion,
+    getCotizacionesByEstado,
+    getEstadisticasEstados,
     loading,
     error,
   };

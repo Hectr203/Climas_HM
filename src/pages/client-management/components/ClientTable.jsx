@@ -181,18 +181,18 @@ const ClientTable = ({ clients, onViewDetails, onEditClient, onViewProjects, onV
               </td> */}
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex items-center justify-end space-x-2">
-                  {/* <Button variant="ghost" size="sm" onClick={() => onViewProjects(client)} title="Ver proyectos">
+                   <Button variant="ghost" size="sm" onClick={() => onViewProjects(client)} title="Ver proyectos">
                     <Icon name="FolderOpen" size={16} />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => onViewContracts(client)} title="Ver contratos">
                     <Icon name="FileText" size={16} />
-                  </Button> */}
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => onEditClient(client)} title="Editar cliente">
                     <Icon name="Edit" size={16} />
                   </Button>
-                  {/* <Button variant="ghost" size="sm" onClick={() => onViewDetails(client)} title="Ver detalles">
+                 <Button variant="ghost" size="sm" onClick={() => onViewDetails(client)} title="Ver detalles">
                     <Icon name="Eye" size={16} />
-                  </Button> */}
+                  </Button> 
                 </div>
               </td>
             </tr>

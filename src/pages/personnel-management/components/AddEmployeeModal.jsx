@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNotifications } from '../../../context/NotificationContext';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
@@ -16,8 +16,12 @@ import {
 const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
   const [localError, setLocalError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const { createPerson } = usePerson();
+  const { createPerson, uploadEmployeeImage, uploadEmployeeDocument } = usePerson();
   const { showSuccess, showWarning, showError } = useNotifications();
+  
+  // Referencias para los inputs de archivo
+  const profileImageInputRef = useRef(null);
+  const documentInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -50,9 +54,71 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
     }
   });
 
+  // Estados para archivos
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [documents, setDocuments] = useState([]);
+
+  // Tipos de documentos disponibles
+  const documentTypes = [
+    { value: 'INE', label: 'INE (Identificación)' },
+    { value: 'ComprobanteD', label: 'Comprobante de Domicilio' },
+    { value: 'Contrato', label: 'Contrato Laboral' },
+    { value: 'CURP', label: 'CURP' },
+    { value: 'RFC', label: 'RFC' },
+    { value: 'NSS', label: 'Número de Seguridad Social' },
+    { value: 'ActaNacimiento', label: 'Acta de Nacimiento' },
+    { value: 'Curriculum', label: 'Currículum Vitae' },
+    { value: 'CartaRecomendacion', label: 'Carta de Recomendación' },
+    { value: 'ComprobanteBancario', label: 'Comprobante Bancario' },
+    { value: 'ComprobantEstudios', label: 'Comprobante de Estudios' }
+  ];
+
   const [step, setStep] = useState(0);
-  // Mapeo de steps: 0=general, 1=ppe, 2=emergency (medical está oculto)
-  const steps = ['general', 'ppe', 'emergency'];
+  // Mapeo de steps: 0=general, 1=imagen, 2=documentos, 3=ppe, 4=emergency
+  const steps = ['general', 'imagen', 'documentos', 'ppe', 'emergency'];
+
+  // Limpiar estados cuando se cierra el modal
+  useEffect(() => {
+    if (!isOpen) {
+      // Resetear todo al cerrar
+      setFormData({
+        name: '',
+        employeeId: '',
+        email: '',
+        phone: '',
+        department: '',
+        position: '',
+        hireDate: '',
+        status: 'Activo',
+        medicalStudies: {
+          lastExam: '',
+          nextExam: '',
+          status: 'Pendiente',
+          documents: []
+        },
+        ppe: {
+          helmet: false,
+          vest: false,
+          boots: false,
+          gloves: false,
+          glasses: false,
+          mask: false
+        },
+        certifications: [],
+        emergencyContact: {
+          name: '',
+          phone: '',
+          relationship: ''
+        }
+      });
+      setProfileImage(null);
+      setProfileImagePreview(null);
+      setDocuments([]);
+      setStep(0);
+      setLocalError(null);
+    }
+  }, [isOpen]);
 
   const handleInputChange = (field, value) => {
     if (field.includes('.')) {
@@ -77,6 +143,101 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
         [item]: checked
       }
     }));
+  };
+
+  // Manejadores de imagen de perfil
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tipo de archivo
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        showWarning('Solo se permiten imágenes (JPG, PNG, WEBP)');
+        return;
+      }
+      // Validar tamaño (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showWarning('La imagen no debe superar los 5MB');
+        return;
+      }
+      
+      setProfileImage(file);
+      
+      // Crear preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveProfileImage = () => {
+    setProfileImage(null);
+    setProfileImagePreview(null);
+    if (profileImageInputRef.current) {
+      profileImageInputRef.current.value = '';
+    }
+  };
+
+  // Manejadores de documentos
+  const handleAddDocument = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tipo de archivo
+      const validTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      if (!validTypes.includes(file.type)) {
+        showWarning('Solo se permiten archivos PDF, imágenes (JPG, PNG) o documentos Word');
+        return;
+      }
+      // Validar tamaño (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showWarning('El documento no debe superar los 10MB');
+        return;
+      }
+      
+      setDocuments(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          file,
+          tipoDocumento: '',
+          descripcion: ''
+        }
+      ]);
+      
+      // Limpiar input
+      if (documentInputRef.current) {
+        documentInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDocumentTypeChange = (docId, tipoDocumento) => {
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === docId ? { ...doc, tipoDocumento } : doc
+      )
+    );
+  };
+
+  const handleDocumentDescriptionChange = (docId, descripcion) => {
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === docId ? { ...doc, descripcion } : doc
+      )
+    );
+  };
+
+  const handleRemoveDocument = (docId) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== docId));
   };
 
   const handleApiError = (error) => {
@@ -295,6 +456,48 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
       };
 
       const result = await createPerson(payload);
+      const empleadoId = result?.id || result?.data?.id;
+
+      if (!empleadoId) {
+        throw new Error('No se pudo obtener el ID del empleado creado');
+      }
+
+      // Subir imagen de perfil si existe
+      if (profileImage) {
+        try {
+          await uploadEmployeeImage(profileImage, empleadoId, 'Foto de perfil');
+        } catch (imgError) {
+          console.error('Error al subir imagen de perfil:', imgError);
+          showWarning('Empleado creado, pero hubo un error al subir la imagen de perfil');
+        }
+      }
+
+      // Subir documentos si existen
+      if (documents.length > 0) {
+        let uploadedCount = 0;
+        for (const doc of documents) {
+          if (!doc.tipoDocumento) {
+            showWarning(`Documento "${doc.file.name}" omitido: tipo de documento no especificado`);
+            continue;
+          }
+          try {
+            await uploadEmployeeDocument(
+              doc.file,
+              empleadoId,
+              doc.tipoDocumento,
+              doc.descripcion || `${doc.tipoDocumento} del empleado`
+            );
+            uploadedCount++;
+          } catch (docError) {
+            console.error(`Error al subir documento ${doc.file.name}:`, docError);
+            showWarning(`Error al subir documento "${doc.file.name}"`);
+          }
+        }
+        if (uploadedCount > 0) {
+          showSuccess(`${uploadedCount} documento(s) subido(s) exitosamente`);
+        }
+      }
+
       setIsSaving(false);
       showSuccess('Personal registrado exitosamente.');
 
@@ -311,10 +514,11 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
 
   const tabs = [
     { id: 'general', label: 'Información General', icon: 'User' },
-    { id: 'medical', label: 'Archivos', icon: 'FileText', hidden: true }, // Oculto temporalmente
+    { id: 'imagen', label: 'Imagen de Perfil', icon: 'Image' },
+    { id: 'documentos', label: 'Documentos', icon: 'FileText' },
     { id: 'ppe', label: 'EPP', icon: 'Shield' },
     { id: 'emergency', label: 'Contacto de Emergencia', icon: 'Phone' }
-  ].filter(tab => !tab.hidden); // Filtrar pestañas ocultas
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-1050 flex items-center justify-center p-4">
@@ -441,11 +645,171 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
             </div>
           )}
 
-          {/* Estudios Médicos - OCULTO TEMPORALMENTE */}
-          {/* La sección de Archivos está oculta hasta que se complete la implementación */}
+          {/* Imagen de Perfil */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div className="flex flex-col items-center space-y-4">
+                {/* Preview de la imagen */}
+                <div className="relative">
+                  {profileImagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={profileImagePreview}
+                        alt="Preview"
+                        className="w-40 h-40 rounded-full object-cover border-4 border-border"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveProfileImage}
+                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-smooth"
+                        disabled={isSaving}
+                      >
+                        <Icon name="X" size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-40 h-40 rounded-full bg-muted border-4 border-border flex items-center justify-center">
+                      <Icon name="User" size={48} className="text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón para subir imagen */}
+                <div className="text-center space-y-2">
+                  <input
+                    ref={profileImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleProfileImageChange}
+                    className="hidden"
+                    disabled={isSaving}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => profileImageInputRef.current?.click()}
+                    iconName="Upload"
+                    iconPosition="left"
+                    disabled={isSaving}
+                  >
+                    {profileImage ? 'Cambiar Imagen' : 'Seleccionar Imagen'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Formatos: JPG, PNG, WEBP • Tamaño máximo: 5MB
+                  </p>
+                  {profileImage && (
+                    <p className="text-xs text-primary font-medium">
+                      {profileImage.name} ({(profileImage.size / 1024).toFixed(0)} KB)
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Documentos */}
+          {step === 2 && (
+            <div className="space-y-6">
+              {/* Botón para agregar documento */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-foreground">Documentos del Empleado</h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Agrega documentos importantes (INE, contratos, comprobantes, etc.)
+                  </p>
+                </div>
+                <div>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/jpg,image/png,.doc,.docx"
+                    onChange={handleAddDocument}
+                    className="hidden"
+                    disabled={isSaving}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => documentInputRef.current?.click()}
+                    iconName="Plus"
+                    iconPosition="left"
+                    disabled={isSaving}
+                  >
+                    Agregar Documento
+                  </Button>
+                </div>
+              </div>
+
+              {/* Lista de documentos */}
+              {documents.length > 0 ? (
+                <div className="space-y-4">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-4 border border-border rounded-lg space-y-3"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <Icon name="FileText" size={20} className="text-primary" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground">{doc.file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(doc.file.size / 1024).toFixed(0)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleRemoveDocument(doc.id)}
+                          disabled={isSaving}
+                        >
+                          <Icon name="Trash2" size={16} className="text-red-500" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Select
+                          label="Tipo de Documento"
+                          options={documentTypes}
+                          value={doc.tipoDocumento}
+                          onChange={(value) => handleDocumentTypeChange(doc.id, value)}
+                          placeholder="Seleccionar tipo..."
+                          required
+                        />
+                        <Input
+                          label="Descripción (opcional)"
+                          value={doc.descripcion}
+                          onChange={(e) => handleDocumentDescriptionChange(doc.id, e.target.value)}
+                          placeholder="Ej: INE actualizada 2025"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
+                  <Icon name="FileText" size={48} className="text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No hay documentos agregados</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Haz clic en "Agregar Documento" para comenzar
+                  </p>
+                </div>
+              )}
+
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground">
+                  💡 <strong>Nota:</strong> Puedes agregar múltiples documentos. Asegúrate de especificar
+                  el tipo de documento para cada uno antes de guardar.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* EPP */}
-          {step === 1 && (
+          {step === 3 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
@@ -493,7 +857,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSave }) => {
           )}
 
           {/* Contacto de Emergencia */}
-          {step === 2 && (
+          {step === 4 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input

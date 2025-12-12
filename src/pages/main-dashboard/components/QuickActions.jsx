@@ -1,79 +1,144 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
+import useGastos from '../../../hooks/useGastos';
+import useInventario from '../../../hooks/useInventario';
+import { useNotifications } from '../../../context/NotificationContext';
 
-const QuickActions = () => {
+const QuickActions = ({ onRefresh }) => {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotifications();
+  const { getGastos } = useGastos();
+  const { inventario, loading: inventarioLoading, getInventario } = useInventario();
+  
+  const [pendingExpenses, setPendingExpenses] = useState(0);
+  const [lowStockItems, setLowStockItems] = useState(0);
+  const [gastosLoading, setGastosLoading] = useState(false);
+
+  useEffect(() => {
+    // Cargar gastos y calcular pendientes
+    const loadGastos = async () => {
+      setGastosLoading(true);
+      try {
+        const gastosData = await getGastos();
+        const gastos = Array.isArray(gastosData) ? gastosData : [];
+        const pending = gastos.filter(gasto => 
+          gasto.estado === 'pendiente' || gasto.estado === 'no aprobado'
+        ).length;
+        setPendingExpenses(pending);
+      } catch (error) {
+        console.error('Error al cargar gastos:', error);
+        setPendingExpenses(0);
+      }
+      setGastosLoading(false);
+    };
+    
+    loadGastos();
+  }, [getGastos]);
+
+  useEffect(() => {
+    // Cargar inventario inicial
+    getInventario();
+  }, []);
+
+  useEffect(() => {
+    // Calcular artículos con stock bajo (menos de 10 unidades)
+    if (inventario && Array.isArray(inventario)) {
+      const lowStock = inventario.filter(articulo => 
+        (articulo.cantidad || articulo.stock || 0) < 10
+      ).length;
+      setLowStockItems(lowStock);
+    }
+  }, [inventario]);
 
   const quickActions = [
     {
       id: 'new-project',
-      title: 'Nuevo Proyecto',
-      description: 'Crear proyecto desde cotización',
+      title: 'Crear Proyecto',
+      description: 'Ir a la gestión de proyectos',
       icon: 'Plus',
       color: 'bg-primary text-primary-foreground',
-      path: '/proyectos'
+      action: () => navigate('/proyectos')
     },
     {
       id: 'approve-expenses',
-      title: 'Aprobar Gastos',
-      description: '3 solicitudes pendientes',
+      title: 'Revisar Gastos',
+      description: 'Gestionar solicitudes de gastos',
       icon: 'CheckCircle',
       color: 'bg-success text-success-foreground',
-      badge: '3',
-      path: '/finanzas'
+      action: () => navigate('/finanzas'),
+      disabled: gastosLoading
     },
     {
       id: 'generate-report',
-      title: 'Generar Reporte',
-      description: 'Reportes financieros y operativos',
+      title: 'Generar Reportes',
+      description: 'Crear reportes financieros, gastos y estados de proyectos',
       icon: 'FileText',
       color: 'bg-accent text-accent-foreground',
-      path: '/finanzas'
+      action: () => navigate('/finanzas')
     },
     {
       id: 'inventory-check',
-      title: 'Revisar Inventario',
-      description: 'Stock bajo en 5 artículos',
+      title: 'Gestionar Inventario',
+      description: 'Revisar y gestionar inventario de artículos',
       icon: 'Package',
       color: 'bg-warning text-warning-foreground',
-      badge: '5',
-      path: '/inventario'
+      action: () => navigate('/inventario'),
+      disabled: inventarioLoading
     },
     {
       id: 'client-contact',
-      title: 'Contactar Cliente',
-      description: 'Seguimiento de propuestas',
+      title: 'Gestionar Clientes',
+      description: 'Ver clientes, contactar y dar seguimiento a cotizaciones',
       icon: 'Phone',
       color: 'bg-secondary text-secondary-foreground',
-      path: '/clientes'
+      action: () => navigate('/clientes')
     },
-    {
-      id: 'schedule-maintenance',
-      title: 'Programar Mantenimiento',
-      description: 'Equipos requieren servicio',
-      icon: 'Calendar',
-      color: 'bg-muted text-foreground',
-      path: '/operaciones'
-    }
+    // {
+    //   id: 'schedule-maintenance',
+    //   title: 'Programar Mantenimiento',
+    //   description: 'Equipos requieren servicio',
+    //   icon: 'Calendar',
+    //   color: 'bg-muted text-foreground',
+    //   action: () => navigate('/operaciones')
+    // }
   ];
 
   const handleActionClick = (action) => {
-    if (action?.path) {
-      navigate(action?.path);
+    try {
+      if (action?.disabled) {
+        showError('Esta función está cargando, por favor espera un momento');
+        return;
+      }
+      
+      if (action?.action) {
+        action.action();
+      }
+    } catch (error) {
+      showError(`Error al ejecutar ${action.title}`);
+      console.error(`Error en acción ${action.id}:`, error);
     }
   };
 
   const handleRefreshData = async () => {
     try {
-  // console.log eliminado
-      // Simulate refresh action
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // In a real app, you would refetch data here
-  // console.log eliminado
+
+      // Refrescar datos locales
+      await Promise.all([
+        getGastos(),
+        getInventario()
+      ]);
+      
+      // Refrescar datos del dashboard principal si está disponible
+      if (onRefresh) {
+        await onRefresh();
+      }
+      
+      showSuccess('Datos actualizados correctamente');
     } catch (error) {
       console.error('Error al actualizar datos:', error);
+      showError('Error al actualizar los datos');
     }
   };
 
@@ -90,9 +155,9 @@ const QuickActions = () => {
             <h3 className="text-lg font-semibold text-foreground">Acciones Rápidas</h3>
             <p className="text-sm text-muted-foreground">Funciones críticas de acceso directo</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleMoreOptions}>
+          {/* <Button variant="ghost" size="icon" onClick={handleMoreOptions}>
             <Icon name="MoreHorizontal" size={20} />
-          </Button>
+          </Button> */}
         </div>
       </div>
       <div className="p-6">
@@ -101,7 +166,10 @@ const QuickActions = () => {
             <button
               key={action?.id}
               onClick={() => handleActionClick(action)}
-              className="p-4 border border-border rounded-lg hover:border-primary hover:shadow-md transition-all duration-200 text-left group"
+              disabled={action?.disabled}
+              className={`p-4 border border-border rounded-lg hover:border-primary hover:shadow-md transition-all duration-200 text-left group ${
+                action?.disabled ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               <div className="flex items-start space-x-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action?.color} group-hover:scale-110 transition-transform`}>
@@ -126,20 +194,7 @@ const QuickActions = () => {
           ))}
         </div>
       </div>
-      <div className="p-6 border-t border-border">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Última actualización: 30/09/2024 00:23</span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            iconName="RefreshCw" 
-            iconPosition="left"
-            onClick={handleRefreshData}
-          >
-            Actualizar
-          </Button>
-        </div>
-      </div>
+
     </div>
   );
 };

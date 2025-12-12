@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
+import AttachmentsModal from './AttachmentsModal';
 
-const CommunicationTimeline = ({ communications, onAddCommunication, onViewDetails }) => {
+const CommunicationTimeline = ({ communications, onAddCommunication, onViewDetails, onUploadAttachments }) => {
+  const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
+  const [selectedComm, setSelectedComm] = useState(null);
   const getTypeIcon = (type) => {
     switch (type) {
       case 'email':
@@ -49,7 +52,8 @@ const CommunicationTimeline = ({ communications, onAddCommunication, onViewDetai
   };
 
   return (
-  <div className="bg-card border border-border rounded-lg p-6 card-shadow" style={{minWidth: '370px', maxWidth: '440px'}}>
+    <>
+      <div className="bg-card border border-border rounded-lg p-6 card-shadow" style={{minWidth: '370px', maxWidth: '440px'}}>
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-foreground">Historial de Comunicación</h3>
         <Button
@@ -120,10 +124,10 @@ const CommunicationTimeline = ({ communications, onAddCommunication, onViewDetai
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onViewDetails(comm)}
+                        onClick={() => { setSelectedComm(comm); setIsAttachmentsOpen(true); }}
                         className="text-xs"
                       >
-                        Ver Detalles
+                        Archivos
                       </Button>
                     </div>
                   </div>
@@ -133,7 +137,16 @@ const CommunicationTimeline = ({ communications, onAddCommunication, onViewDetai
           ))
         )}
       </div>
-    </div>
+      </div>
+
+      <AttachmentsModal
+        isOpen={isAttachmentsOpen}
+        onClose={() => { setIsAttachmentsOpen(false); setSelectedComm(null); }}
+        attachments={selectedComm?.attachments || selectedComm?.files || []}
+        onUpload={onUploadAttachments}
+        communication={selectedComm}
+      />
+    </>
   );
 };
 

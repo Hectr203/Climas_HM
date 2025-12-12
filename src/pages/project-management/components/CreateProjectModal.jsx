@@ -118,6 +118,9 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
   const { estados, loading: loadingEstados, error: errorEstados } = useEstados();
   const { municipios, loading: loadingMunicipios, error: errorMunicipios } = useMunicipios(formData.estado);
 
+  // ✅ NUEVO: check para mostrar total en USD
+  const [showTotalInUSD, setShowTotalInUSD] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     let mounted = true;
@@ -134,7 +137,9 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         if (mounted) setLoadingClients(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, handleError]);
 
   const fetchedPersonsRef = useRef(false);
@@ -264,14 +269,14 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         return null;
       }
     } catch (e) {
-      const msg = e?.message || 'Error llamando currencyapi';
-      setFxError(msg);
       handleError(e, 'Tipo de cambio');
       return null;
     } finally {
       setLoadingFx(false);
     }
-  }, [handleError, showError]);
+  },
+  [handleError, showError]
+  );
 
   const toggleEquipmentUSD = (checked) => {
     setIsEquipmentInUSD(checked);
@@ -384,6 +389,9 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
     (Number(b?.transportation) || 0) +
     (Number(b?.other) || 0) +
     otherExpensesTotal;
+
+  // ✅ Total en USD cuando el check está activo
+  const totalUSD = showTotalInUSD && exchangeRate > 0 ? totalMXN / exchangeRate : 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-1050 p-4">
@@ -541,10 +549,12 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                       : [
                           { value: '', label: 'Selecciona un municipio' },
                           ...(municipios
-                            ? Object.entries(municipios.municipios || {}).map(([code, name]) => ({
-                                value: code,
-                                label: name,
-                              }))
+                            ? Object.entries(municipios.municipios || {}).map(
+                                ([code, name]) => ({
+                                  value: code,
+                                  label: name,
+                                })
+                              )
                             : []),
                         ]
                   }
@@ -830,6 +840,23 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                     ${formatWithCommas(totalMXN, 2)} MXN
                   </span>
                 </div>
+
+                {showTotalInUSD && (
+                  <div className="mt-2 flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                      Total estimado en USD (usando tipo de cambio actual):
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {exchangeRate > 0 ? `$${formatWithCommas(totalUSD, 2)} USD` : '—'}
+                    </span>
+                  </div>
+                )}
+
+                {showTotalInUSD && exchangeRate <= 0 && (
+                  <div className="mt-1 text-xs text-destructive">
+                    No hay un tipo de cambio válido para calcular el total en USD.
+                  </div>
+                )}
               </div>
             </div>
 

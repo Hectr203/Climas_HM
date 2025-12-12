@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Image from '../../../components/AppImage';
+import { useNotifications } from '../../../context/NotificationContext';
 
-const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate }) => {
+const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate, onDownload }) => {
+  const { showSuccess, showError, showConfirm } = useNotifications();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -30,9 +32,9 @@ const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate 
 
   useEffect(() => {
     setEditForm({
-      name: image?.name || '',
-      category: image?.category || 'general',
-      description: image?.description || ''
+      name: image?.nombre || image?.name || image?.originalFileName || '',
+      category: image?.categoria || image?.category || 'general',
+      description: image?.descripcion || image?.description || ''
     });
   }, [image]);
 
@@ -62,7 +64,9 @@ const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate 
     if (images?.length && currentIndex < images?.length - 1) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
-      onNavigate(images?.[nextIndex]);
+      const nextImage = images?.[nextIndex];
+      // Pasar la imagen al callback para que se cargue su URL
+      onNavigate?.(nextImage);
     }
   };
 
@@ -70,30 +74,44 @@ const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate 
     if (images?.length && currentIndex > 0) {
       const prevIndex = currentIndex - 1;
       setCurrentIndex(prevIndex);
-      onNavigate(images?.[prevIndex]);
+      const prevImage = images?.[prevIndex];
+      // Pasar la imagen al callback para que se cargue su URL
+      onNavigate?.(prevImage);
     }
   };
 
   const handleSaveEdit = async () => {
     try {
       await onUpdate(image?.id, editForm);
+      showSuccess('Imagen actualizada exitosamente');
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating image:', error);
-      alert('Error al actualizar la imagen');
+      showError('Error al actualizar la imagen');
     }
   };
 
   const handleDelete = async () => {
-    if (window.confirm(`¿Está seguro de que desea eliminar la imagen "${image?.name}"?`)) {
-      try {
-        await onDelete(image);
-        onClose();
-      } catch (error) {
-        console.error('Error deleting image:', error);
-        alert('Error al eliminar la imagen');
-      }
-    }
+    const imageName = image?.nombre || image?.name || image?.originalFileName || 'esta imagen';
+    
+    // Cerrar el lightbox primero
+    onClose();
+    
+    // Usar un delay para que el lightbox se cierre antes de mostrar el confirm
+    setTimeout(() => {
+      showConfirm(
+        `¿Está seguro de que desea eliminar "${imageName}"?`,
+        {
+          onConfirm: async () => {
+            try {
+              await onDelete(image);
+              showSuccess('Imagen eliminada exitosamente');
+            } catch (error) {
+              showError(error?.message || 'Error al eliminar la imagen');
+            }
+          }
+        }
+      );
+    }, 100);
   };
 
   const formatDate = (timestamp) => {
@@ -247,21 +265,24 @@ const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate 
               (<div className="space-y-6">
                 <div>
                   <h4 className="font-semibold text-foreground text-lg mb-2">
-                    {image?.name}
+                    {image?.nombre || image?.name || image?.originalFileName || 'Sin nombre'}
                   </h4>
                   
                   <div className="space-y-3">
                     <div className="flex items-center space-x-2">
                       <Icon name="Tag" size={16} className="text-muted-foreground" />
                       <span className="text-sm text-foreground">
-                        {getCategoryLabel(image?.category)}
+                        {getCategoryLabel(image?.categoria || image?.category)}
                       </span>
                     </div>
                     
                     <div className="flex items-center space-x-2">
                       <Icon name="Calendar" size={16} className="text-muted-foreground" />
                       <span className="text-sm text-foreground">
-                        {formatDate(image?.timestamp)}
+                        {image?.createdAt || image?.fechaCreacion || image?.timestamp 
+                          ? formatDate(image?.createdAt || image?.fechaCreacion || image?.timestamp)
+                          : 'Invalid Date'
+                        }
                       </span>
                     </div>
                     
@@ -275,11 +296,11 @@ const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate 
                     )}
                   </div>
                 </div>
-                {image?.description && (
+                {(image?.descripcion || image?.description) && (
                   <div>
                     <h5 className="font-medium text-foreground mb-2">Descripción</h5>
                     <p className="text-sm text-muted-foreground">
-                      {image?.description}
+                      {image?.descripcion || image?.description}
                     </p>
                   </div>
                 )}
@@ -290,14 +311,30 @@ const ImageLightbox = ({ image, images, onClose, onNavigate, onDelete, onUpdate 
                     className="w-full"
                     iconName="Download"
                     iconPosition="left"
-                    onClick={() => {
-                      // Create download link
-                      const link = document.createElement('a');
-                      link.href = image?.src || image?.url;
-                      link.download = image?.name || 'imagen';
-                      document.body?.appendChild(link);
-                      link?.click();
-                      document.body?.removeChild(link);
+                    onClick={async () => {
+                      try {
+                        const imageName = image?.nombre || image?.name || image?.originalFileName || 'imagen.jpg';
+                        
+                        // Usar el método de descarga del hook (endpoint proxy del backend)
+                        if (onDownload) {
+                          await onDownload(image?.id, imageName);
+                          showSuccess('Imagen descargada exitosamente');
+                        } else {
+                          // Fallback: usar link directo si no hay método disponible
+                          const imageUrl = image?.url || image?.src;
+                          const link = document.createElement('a');
+                          link.href = imageUrl;
+                          link.download = imageName;
+                          link.target = '_blank';
+                          link.rel = 'noopener noreferrer';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          showSuccess('Imagen descargada exitosamente');
+                        }
+                      } catch (error) {
+                        showError('No se pudo descargar la imagen');
+                      }
                     }}
                   >
                     Descargar

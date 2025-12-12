@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useQuotation from '../../../hooks/useQuotation';
+import usePagosProgramados from '../../../hooks/usePagosProgramados';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -7,7 +8,18 @@ import { useNotification } from '../../../context/NotificationContext';
 
 const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
   const { crearConstructor, getConstructorByCotizacionId } = useQuotation();
+  const { 
+    crearPagosProgramados, 
+    obtenerPagosProgramadosPorId,
+    obtenerPagosPorCotizacion,
+    actualizarPagosProgramados,
+    loading: pagosProgramadosLoading 
+  } = usePagosProgramados();
   const notification = useNotification();
+  const [constructorId, setConstructorId] = useState(null);
+  const [existingPaymentPlan, setExistingPaymentPlan] = useState(null);
+  const [isEditingPayments, setIsEditingPayments] = useState(false);
+  const [paymentErrors, setPaymentErrors] = useState({});
           const [formData, setFormData] = useState({
             scope: cotizacion?.quotationData?.scope || '',
             assumptions: cotizacion?.quotationData?.assumptions || [],
@@ -42,6 +54,7 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                 // Solo mostramos en consola si existe
                 if (existing) {
                   // console.log eliminado
+                  setConstructorId(existing.id); // Guardar ID del constructor
                   setFormData({
                     scope: existing.alcance || '',
                     assumptions: existing.supuestos || [],
@@ -52,6 +65,9 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                     validity: existing.vigencia || '30 días',
                     discountPercentage: existing.porcentaje_descuento || 0
                   });
+                  
+                  // Verificar si existe un plan de pagos programados
+                  checkExistingPaymentPlan(existing.id);
                 } else {
                   setFormData({
                     scope: cotizacion?.quotationData?.scope || '',
@@ -65,7 +81,22 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                   });
                 }
               } catch (err) {
-                setError('Error al cargar constructor');
+                // Solo mostrar error si NO es 404 (constructor no existe aún es normal)
+                if (err?.response?.status !== 404 && err?.message !== 'Request failed with status code 404') {
+                  console.error('Error al cargar constructor:', err);
+                  setError('Error al cargar constructor');
+                }
+                // Si es 404, usar datos por defecto de cotizacion
+                setFormData({
+                  scope: cotizacion?.quotationData?.scope || '',
+                  assumptions: cotizacion?.quotationData?.assumptions || [],
+                  timeline: cotizacion?.quotationData?.timeline || '',
+                  conditions: cotizacion?.quotationData?.conditions || '',
+                  warranty: cotizacion?.quotationData?.warranty || '',
+                  totalAmount: cotizacion?.quotationData?.totalAmount || 0,
+                  validity: cotizacion?.quotationData?.validity || '30 días',
+                  discountPercentage: cotizacion?.quotationData?.discountPercentage || 0
+                });
               } finally {
                 setLoading(false);
               }
@@ -77,6 +108,12 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
           const [hasChanges, setHasChanges] = useState(false);
           const [showDiscountModal, setShowDiscountModal] = useState(false);
           const [tempDiscountPercentage, setTempDiscountPercentage] = useState(0);
+          const [showPaymentModal, setShowPaymentModal] = useState(false);
+          const [paymentConfig, setPaymentConfig] = useState({
+            startDate: '',
+            intervalDays: 30,
+            numberOfPayments: 5
+          });
 
           const handleInputChange = (field, value) => {
             setFormData(prev => ({ ...prev, [field]: value }));
@@ -126,7 +163,210 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
             setShowDiscountModal(false);
           };
 
+          // Verificar si existe un plan de pagos programados
+          const checkExistingPaymentPlan = async (constructorIdParam) => {
+            if (!constructorIdParam || !cotizacion?.id) return;
+            
+            try {
+              const existingPlan = await obtenerPagosPorCotizacion(cotizacion.id);
+              
+              if (existingPlan) {
+                // Si el backend devuelve un objeto directamente (cuando hay solo uno)
+                if (existingPlan.id) {
+                  setExistingPaymentPlan(existingPlan);
+                }
+                // Si el backend devuelve un array
+                else if (Array.isArray(existingPlan) && existingPlan.length > 0) {
+                  setExistingPaymentPlan(existingPlan[0]);
+                }
+                // Si no hay pagos programados
+                else {
+                  setExistingPaymentPlan(null);
+                }
+              } else {
+                setExistingPaymentPlan(null);
+              }
+            } catch (error) {
+              console.error('Error al verificar plan de pagos existente:', error);
+              setExistingPaymentPlan(null);
+            }
+          };
+
+          // Funciones para manejar pagos programados
+          const handlePaymentModal = async () => {
+            setShowPaymentModal(true);
+            
+            // Intentar cargar plan de pagos existente
+            if (constructorId) {
+              try {
+                // Buscar plan existente por cotización
+                const existingPlan = await obtenerPagosPorCotizacion(cotizacion?.id);
+                
+                let plan = null;
+                
+                // Manejar diferentes formatos de respuesta del backend
+                if (existingPlan) {
+                  if (existingPlan.id) {
+                    // El backend devolvió un objeto directamente
+                    plan = existingPlan;
+                  } else if (Array.isArray(existingPlan) && existingPlan.length > 0) {
+                    // El backend devolvió un array
+                    plan = existingPlan[0];
+                  }
+                }
+                
+                if (plan) {
+                  setExistingPaymentPlan(plan);
+                  setIsEditingPayments(true);
+                  
+                  // Cargar datos en el formulario
+                  setPaymentConfig({
+                    startDate: plan.fechaInicioPagos ? new Date(plan.fechaInicioPagos).toISOString().split('T')[0] : '',
+                    intervalDays: plan.intervaloDias || 30,
+                    numberOfPayments: plan.numeroPagos || 5
+                  });
+                } else {
+                  // No hay plan existente, modo creación
+                  setExistingPaymentPlan(null);
+                  setIsEditingPayments(false);
+                  // Resetear formulario a valores por defecto
+                  setPaymentConfig({
+                    startDate: '',
+                    intervalDays: 30,
+                    numberOfPayments: 5
+                  });
+                }
+              } catch (error) {
+                console.error('Error al cargar plan existente:', error);
+                setExistingPaymentPlan(null);
+                setIsEditingPayments(false);
+              }
+            }
+          };
+
+          const calculatePaymentSchedule = () => {
+            const payments = [];
+            const totalAmount = calculateDiscountedTotal();
+            const paymentAmount = totalAmount / paymentConfig.numberOfPayments;
+            
+            for (let i = 0; i < paymentConfig.numberOfPayments; i++) {
+              const paymentDate = new Date(paymentConfig.startDate);
+              paymentDate.setDate(paymentDate.getDate() + (i * paymentConfig.intervalDays));
+              
+              payments.push({
+                paymentNumber: i + 1,
+                date: paymentDate.toLocaleDateString('es-MX'),
+                amount: paymentAmount
+              });
+            }
+            
+            return payments;
+          };
+
+          const savePaymentConfiguration = async () => {
+            try {
+              // Validar formulario
+              if (!validatePaymentConfig()) {
+                return;
+              }
+              
+              // Validar que tenemos todos los datos necesarios
+              if (!constructorId || !cotizacion?.id) {
+                notification?.showError('Faltan datos necesarios para guardar la configuración');
+                return;
+              }
+
+              // Preparar datos según el formato del backend
+              const pagosProgramadosData = {
+                idCotizacion: cotizacion.id,
+                idConstructor: constructorId,
+                fechaInicioPagos: paymentConfig.startDate,
+                intervaloDias: paymentConfig.intervalDays,
+                numeroPagos: paymentConfig.numberOfPayments,
+                montoTotal: calculateDiscountedTotal()
+              };
+
+              if (isEditingPayments && existingPaymentPlan) {
+                // Actualizar plan existente usando el ID de la cotización
+                await actualizarPagosProgramados(cotizacion.id, pagosProgramadosData);
+              } else {
+                // Crear nuevo plan
+                await crearPagosProgramados(pagosProgramadosData);
+              }
+              
+              // Cerrar modal si todo salió bien
+              closePaymentModal();
+              
+            } catch (error) {
+              console.error('Error al guardar configuración de pagos:', error);
+              // El error ya se muestra a través del hook usePagosProgramados
+            }
+          };
+
+          // Función para validar el modal de pagos
+          const validatePaymentConfig = () => {
+            const errors = {};
+            
+            if (!paymentConfig.startDate) {
+              errors.startDate = 'La fecha de inicio es requerida';
+            } else {
+              const selectedDate = new Date(paymentConfig.startDate);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (selectedDate < today) {
+                errors.startDate = 'La fecha debe ser hoy o posterior';
+              }
+            }
+            
+            if (!paymentConfig.intervalDays || paymentConfig.intervalDays < 1) {
+              errors.intervalDays = 'El intervalo debe ser mayor a 0 días';
+            } else if (paymentConfig.intervalDays > 365) {
+              errors.intervalDays = 'El intervalo no puede ser mayor a 365 días';
+            }
+            
+            if (!paymentConfig.numberOfPayments || paymentConfig.numberOfPayments < 1) {
+              errors.numberOfPayments = 'Debe tener al menos 1 pago';
+            } else if (paymentConfig.numberOfPayments > 12) {
+              errors.numberOfPayments = 'No puede tener más de 12 pagos';
+            }
+            
+            setPaymentErrors(errors);
+            return Object.keys(errors).length === 0;
+          };
+
+          // Función para cerrar modal y limpiar estados
+          const closePaymentModal = () => {
+            setShowPaymentModal(false);
+            setExistingPaymentPlan(null);
+            setIsEditingPayments(false);
+            setPaymentErrors({});
+            // Resetear formulario
+            setPaymentConfig({
+              startDate: '',
+              intervalDays: 30,
+              numberOfPayments: 5
+            });
+          };
+
   const handleSave = async () => {
+    // Validar campos requeridos
+    const requiredFields = {
+      'Alcance': formData?.scope,
+      'Condiciones de pago': formData?.conditions,
+      'Garantía': formData?.warranty,
+      'Tiempo de ejecución': formData?.timeline,
+      'Vigencia': formData?.validity
+    };
+    
+    const missingFields = Object.entries(requiredFields)
+      .filter(([name, value]) => !value || value.toString().trim() === '')
+      .map(([name]) => name);
+    
+    if (missingFields.length > 0) {
+      notification?.showError(`Faltan campos por rellenar: ${missingFields.join(', ')}`);
+      return;
+    }
+    
     onUpdate?.({ quotationData: formData });
     const payload = {
       Constructor: {
@@ -144,8 +384,10 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
     };
     try {
       await crearConstructor(payload);
-      notification.showSuccess('guardado');
+      notification.showSuccess('Constructor guardado exitosamente');
     } catch (err) {
+      // Solo mostrar error genérico si no es por campos faltantes
+      console.error('Error al guardar:', err);
       notification.showError('Error al guardar el constructor');
     }
     setHasChanges(false);
@@ -161,6 +403,24 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
           };
 
           const handleSaveConstructor = async () => {
+            // Validar campos requeridos
+            const requiredFields = {
+              'Alcance': formData?.scope,
+              'Condiciones de pago': formData?.conditions,
+              'Garantía': formData?.warranty,
+              'Tiempo de ejecución': formData?.timeline,
+              'Vigencia': formData?.validity
+            };
+            
+            const missingFields = Object.entries(requiredFields)
+              .filter(([name, value]) => !value || value.toString().trim() === '')
+              .map(([name]) => name);
+            
+            if (missingFields.length > 0) {
+              notification?.showError(`Faltan campos por rellenar: ${missingFields.join(', ')}`);
+              return;
+            }
+            
             const payload = {
               Constructor: {
                 cotizacionId: cotizacion?.id,
@@ -178,9 +438,9 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
             try {
               const res = await crearConstructor(payload);
               // console.log eliminado
-              alert('Constructor guardado exitosamente');
+              notification?.showSuccess('Constructor guardado exitosamente');
             } catch (err) {
-              alert('Error al guardar el constructor');
+              notification?.showError('Error al guardar el constructor');
             }
           };
 
@@ -376,11 +636,14 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                     <label className="text-sm font-medium mb-2 block">Descuento</label>
                     <div className="flex items-center space-x-2">
                       <Button
-                        variant="outline"
+                        variant={formData?.discountPercentage > 0 ? "default" : "outline"}
                         size="sm"
                         onClick={handleDiscountModal}
                         iconName={formData?.discountPercentage > 0 ? "Edit" : "Percent"}
                         iconPosition="left"
+                        className={formData?.discountPercentage > 0 
+                          ? "bg-orange-500 hover:bg-orange-600 text-white shadow-md border-orange-600" 
+                          : "border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700"}
                       >
                         {formData?.discountPercentage > 0 ? `${formData?.discountPercentage}% Aplicado` : 'Aplicar Descuento'}
                       </Button>
@@ -394,6 +657,30 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                         >
                           Quitar
                         </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Configuration Section */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Pagos Programados</label>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant={existingPaymentPlan ? "default" : "outline"}
+                        size="sm"
+                        onClick={handlePaymentModal}
+                        iconName={existingPaymentPlan ? "Edit" : "Calendar"}
+                        iconPosition="left"
+                        className={existingPaymentPlan 
+                          ? "bg-green-500 hover:bg-green-600 text-white shadow-md border-green-600" 
+                          : "border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"}
+                      >
+                        {existingPaymentPlan ? 'Editar Pagos Programados' : 'Configurar Pagos Programados'}
+                      </Button>
+                      {hasChanges && (
+                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                          Cambios sin guardar
+                        </span>
                       )}
                     </div>
                   </div>
@@ -485,6 +772,130 @@ const QuotationBuilder = ({ cotizacion, onUpdate, onAddRevision }) => {
                         disabled={tempDiscountPercentage < 0 || tempDiscountPercentage > 100}
                       >
                         Aplicar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal de Pagos Programados */}
+              {showPaymentModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">
+                        {isEditingPayments ? 'Editar Pagos Programados' : 'Configurar Pagos Programados'}
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={closePaymentModal}
+                        iconName="X"
+                        className="text-gray-400 hover:text-gray-600"
+                      />
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Fecha de Inicio de Pagos *</label>
+                        <Input
+                          type="date"
+                          value={paymentConfig.startDate}
+                          onChange={(e) => {
+                            setPaymentConfig(prev => ({ ...prev, startDate: e.target.value }));
+                            if (paymentErrors.startDate) {
+                              setPaymentErrors(prev => ({ ...prev, startDate: undefined }));
+                            }
+                          }}
+                          className={paymentErrors.startDate ? 'border-red-500' : ''}
+                        />
+                        {paymentErrors.startDate && (
+                          <p className="text-red-500 text-xs mt-1">{paymentErrors.startDate}</p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Intervalo entre Pagos (días) *</label>
+                        <Input
+                          type="number"
+                          value={paymentConfig.intervalDays}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? '' : parseInt(e.target.value) || 1;
+                            setPaymentConfig(prev => ({ ...prev, intervalDays: value }));
+                            if (paymentErrors.intervalDays) {
+                              setPaymentErrors(prev => ({ ...prev, intervalDays: undefined }));
+                            }
+                          }}
+                          min="1"
+                          max="365"
+                          placeholder="30"
+                          className={paymentErrors.intervalDays ? 'border-red-500' : ''}
+                        />
+                        {paymentErrors.intervalDays && (
+                          <p className="text-red-500 text-xs mt-1">{paymentErrors.intervalDays}</p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Número de Pagos *</label>
+                        <Input
+                          type="number"
+                          value={paymentConfig.numberOfPayments}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? '' : parseInt(e.target.value) || 1;
+                            setPaymentConfig(prev => ({ ...prev, numberOfPayments: value }));
+                            if (paymentErrors.numberOfPayments) {
+                              setPaymentErrors(prev => ({ ...prev, numberOfPayments: undefined }));
+                            }
+                          }}
+                          min="1"
+                          max="12"
+                          placeholder="5"
+                          className={paymentErrors.numberOfPayments ? 'border-red-500' : ''}
+                        />
+                        {paymentErrors.numberOfPayments && (
+                          <p className="text-red-500 text-xs mt-1">{paymentErrors.numberOfPayments}</p>
+                        )}
+                      </div>
+                      
+                      {paymentConfig.startDate && paymentConfig.numberOfPayments > 0 && (
+                        <div className="mt-4">
+                          <label className="text-sm font-medium mb-2 block">Vista Previa de Pagos</label>
+                          <div className="bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center text-xs font-medium text-gray-600 border-b pb-2">
+                                <span>Pago #</span>
+                                <span>Fecha de Vencimiento</span>
+                                <span>Monto</span>
+                              </div>
+                              {calculatePaymentSchedule().map((payment, index) => (
+                                <div key={index} className="flex justify-between items-center text-sm">
+                                  <span>Pago {payment.paymentNumber}</span>
+                                  <span>{payment.date}</span>
+                                  <span>${payment.amount?.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-end space-x-2 mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={closePaymentModal}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={savePaymentConfiguration}
+                        disabled={Object.keys(paymentErrors).length > 0 || !paymentConfig.startDate || !paymentConfig.intervalDays || !paymentConfig.numberOfPayments || pagosProgramadosLoading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        iconName={pagosProgramadosLoading ? "Loader2" : undefined}
+                        iconPosition="left"
+                      >
+                        {pagosProgramadosLoading ? 'Guardando...' : isEditingPayments ? 'Actualizar Configuración' : 'Guardar Configuración'}
                       </Button>
                     </div>
                   </div>

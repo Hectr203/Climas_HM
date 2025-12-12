@@ -193,8 +193,8 @@ const EditItemModal = ({ isOpen, onClose, item, onUpdateSuccess }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-background rounded-lg shadow-xl w-full max-w-6xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center sm:justify-end p-2 sm:p-4 sm:pr-8">
+      <div className="bg-background rounded-lg shadow-xl w-full max-w-6xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden sm:mr-4">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border flex-shrink-0">
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
