@@ -470,8 +470,12 @@ const SalesOpportunityManagement = () => {
     <div className="min-h-screen bg-background flex">
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
-      <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} sidebarCollapsed={sidebarCollapsed} />
+      <div className={`flex-1 transition-all duration-300 ml-60 lg:${sidebarCollapsed ? 'ml-16' : 'ml-60'}`}>
+        <Header
+          onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)}
+          isMenuOpen={headerMenuOpen}
+          sidebarCollapsed={sidebarCollapsed}
+        />
 
         <main className="">
           <div className="container mx-auto px-4 py-8">
@@ -554,12 +558,12 @@ const SalesOpportunityManagement = () => {
                                 </h4>
                                 <span
                                   className={`text-xs px-2 py-1 rounded-full ${opportunity.priority === 'urgent'
-                                      ? 'bg-red-100 text-red-800'
-                                      : opportunity.priority === 'high'
-                                        ? 'bg-orange-100 text-orange-800'
-                                        : opportunity.priority === 'medium'
-                                          ? 'bg-yellow-100 text-yellow-800'
-                                          : 'bg-green-100 text-green-800'
+                                    ? 'bg-red-100 text-red-800'
+                                    : opportunity.priority === 'high'
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : opportunity.priority === 'medium'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-green-100 text-green-800'
                                     }`}
                                 >
                                   {opportunity.priority === 'urgent'
@@ -581,8 +585,8 @@ const SalesOpportunityManagement = () => {
                                   <span className="capitalize">{opportunity.contactChannel}</span>
                                   <span
                                     className={`px-2 py-0.5 rounded text-xs ${opportunity.projectType === 'project'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-purple-100 text-purple-800'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-purple-100 text-purple-800'
                                       }`}
                                   >
                                     {opportunity.projectType === 'project' ? 'Proyecto' : 'Pieza'}
