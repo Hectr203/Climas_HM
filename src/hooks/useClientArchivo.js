@@ -10,20 +10,16 @@ export default function useClientArchivo(clientId) {
 
   const mountedRef = useRef(false);
   const { showConfirm, showSuccess, showError, showInfo } = useNotifications();
-
-  // ------------------------------------------
+  
   // MONTAJE
-  // ------------------------------------------
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
   }, []);
-
-  // ------------------------------------------
+  
   // CARGAR DOCUMENTOS
-  // ------------------------------------------
   const loadDocuments = useCallback(async () => {
     if (!clientId) {
       setDocuments([]);
@@ -52,10 +48,8 @@ export default function useClientArchivo(clientId) {
 
   const refresh = useCallback(() => loadDocuments(), [loadDocuments]);
 
-
-  // ============================================================
+  
   //  SUBIR ARCHIVO
-  // ============================================================
   const uploadFiles = useCallback(async (files, meta) => {
     if (!clientId) throw new Error("clientId es requerido para subir archivos");
     if (!files || files.length === 0) return [];
@@ -88,67 +82,65 @@ export default function useClientArchivo(clientId) {
       if (mountedRef.current) setLoading(false);
     }
   }, [clientId]);
-
-  // ============================================================
+  
   //   VER DOCUMENTO
-  // ============================================================
   const viewDocument = useCallback(async (doc) => {
-    if (!doc || !doc.id) return;
+  if (!doc || !doc.id) return;
 
-    try {
-      const blob = await clientesArchivosService.descargarDocumento(doc.id);
-      if (!blob) throw new Error("No se pudo obtener el archivo");
+  try {
+    const blob = await clientesArchivosService.descargarDocumento(doc.id);
 
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (err) {
-      console.error("viewDocument error:", err);
-      showError("No se pudo abrir el documento");
-    }
-  }, [showError]);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
 
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    console.error("viewDocument error:", err);
+    showError("No se pudo abrir el documento");
+  }
+}, [showError]);
 
-  // ============================================================
   //   DESCARGAR DOCUMENTO (SIEMPRE FUNCIONA)
-  // ============================================================
   const downloadDocument = useCallback(async (doc) => {
-    if (!doc || !doc.id) {
-      showError("Documento inválido");
-      return false;
+  if (!doc || !doc.id) {
+    showError("Documento inválido");
+    return false;
+  }
+
+  setLoading(true);
+  setError(null);
+
+  try {
+    // 1) Traemos el blob real desde backend
+    const blob = await clientesArchivosService.descargarDocumento(doc.id);
+
+    if (!(blob instanceof Blob)) {
+      throw new Error("El backend no devolvió un archivo válido");
     }
 
-    setLoading(true);
-    setError(null);
+    // 2) Nombre final del archivo
+    const fileName =
+      doc.nombreOriginal ||
+      doc.nombreAsignado ||
+      doc.name ||
+      `archivo_${doc.id}`;
 
-    try {
-      // ÚNICO método real y estable
-      const blob = await clientesArchivosService.descargarDocumento(doc.id);
+    // 3) Descargar correctamente
+    saveAs(blob, fileName);
 
-      if (!blob) throw new Error("El backend no devolvió un archivo");
+    return true;
 
-      const fileName =
-        doc.nombreOriginal ||
-        doc.name ||
-        `archivo_${doc.id}`;
-
-      saveAs(blob, fileName);
-      return true;
-
-    } catch (err) {
-      console.error("downloadDocument error:", err);
-      showError("No se pudo descargar el archivo");
-      setError(err);
-      return false;
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [showError]);
-
-
-  // ============================================================
+  } catch (err) {
+    console.error("downloadDocument error:", err);
+    showError("No se pudo descargar el archivo");
+    setError(err);
+    return false;
+  } finally {
+    if (mountedRef.current) setLoading(false);
+  }
+}, [showError]);
+  
 //   ELIMINAR DOCUMENTO (con notificación global)
-// ============================================================
 const deleteDocument = useCallback(
   async (docId) => {
     if (!docId) return;
