@@ -15,6 +15,7 @@ export const ROLE_PERMISSIONS = {
       "/oportunidades",
       "/cotizaciones",
       "/proyectos",
+      "/proveedores",
       "/abonos",
       "/operaciones",
       "/personal",
@@ -44,6 +45,7 @@ export const ROLE_PERMISSIONS = {
     allowedPaths: [
       "/cotizaciones",
       "/proyectos",
+      "/proveedores",
       "/visor-galeria",
       "/galeria-proyecto",
       "/project-detail-gallery",
@@ -58,6 +60,7 @@ export const ROLE_PERMISSIONS = {
     allowedPaths: [
       "/oportunidades",
       "/cotizaciones",
+      "/proveedores",
       "/constructor-cotizaciones",
       "/monitoreo-ventas",
       "/abonos",
@@ -261,6 +264,14 @@ export const getAllowedNavigationItems = (userRole) => {
           roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.ADMINISTRACION],
         },
       ],
+    },
+    {
+      label: "Proveedores",
+      path: "/proveedores",
+      icon: "UserCog",
+      tooltip: "Gestión de proveedores del sistema",
+      badge: null,
+      roles: [AUTH_ROLES?.ADMIN, AUTH_ROLES?.PROYECTOS, AUTH_ROLES?.VENTAS],
     },
     {
       label: "Usuarios",
