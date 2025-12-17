@@ -1,24 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Icon from "../../../components/AppIcon";
 import Button from "../../../components/ui/Button";
-import useSupplier from "../../../hooks/useSuppliers";
-import { useNotifications } from "context/NotificationContext";
+import { useNotifications } from "context/NotificationContext"; // ✅ AGREGADO
 
-/* === Config === */
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
-
-/* === Helpers === */
-const safeUUID = () => {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-};
 
 const asText = (v, fallback = "—") => {
   const s = v == null ? "" : String(v).trim();
   return s ? s : fallback;
 };
-
-const normalizePhone = (v) => (v || "").toString().replace(/[^\d+]/g, "");
 
 const norm = (s) =>
   (s ?? "")
@@ -27,6 +17,8 @@ const norm = (s) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+
+const normalizePhone = (v) => (v || "").toString().replace(/[^\d+]/g, "");
 
 const OCCUPATION_OPTIONS = [
   { key: "Proveedor", label: "Proveedor" },
@@ -38,9 +30,11 @@ const OCCUPATION_OPTIONS = [
 ];
 
 const occupationKeyFromAny = (raw) => {
-  if (!raw) return null;
+  if (!raw) return "";
   const v = norm(raw);
-  const hit = OCCUPATION_OPTIONS.find((o) => norm(o.key) === v || norm(o.label) === v);
+  const hit = OCCUPATION_OPTIONS.find(
+    (o) => norm(o.key) === v || norm(o.label) === v
+  );
   return hit?.key || String(raw);
 };
 
@@ -58,124 +52,76 @@ const getOccupationPill = (key) => {
   return map[v] || "bg-gray-100 text-gray-800";
 };
 
-/* Normalizador Proveedor */
-const mapSupplierDocStrict = (doc) => {
-  const id = doc?.id ?? doc?._id ?? safeUUID();
+const mapSupplier = (doc) => {
+  const raw = doc || {};
   return {
-    id,
-    nombre: doc?.nombre ?? "",
-    empresa: doc?.empresa ?? "",
-    tel: doc?.numero ?? doc?.tel ?? "",
-    correo: doc?.correo ?? "",
-    ocupacion: doc?.ocupacion ?? "",
-    raw: doc,
+    id: raw.id ?? raw._id ?? "",
+    nombre: raw.nombre ?? raw.name ?? "",
+    empresa: raw.empresa ?? raw.company ?? "",
+    tel: raw.numero ?? raw.tel ?? raw.telefono ?? raw.phone ?? "",
+    correo: raw.correo ?? raw.email ?? "",
+    ocupacion: raw.ocupacion ?? raw.role ?? raw.occupation ?? "",
+    raw,
   };
 };
 
-const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
-  const { showConfirm, showSuccess, showError } = useNotifications();
-  const { getSuppliers, deleteSupplier, loading } = useSupplier();
+const SuppliersTable = ({
+  suppliers = [],
+  loading = false,
+  errorMsg = "",
+  onEdit,
+  onDelete,
+}) => {
+  const { showConfirm } = useNotifications(); // ✅ AGREGADO
 
-  // ✅ ÚNICA fuente de verdad para lo renderizado
-  const [docs, setDocs] = useState([]);
-  const [errorMsg, setErrorMsg] = useState("");
-
-  const [sortConfig] = useState({ key: "empresa", direction: "asc" });
-  const [selectedSuppliers, setSelectedSuppliers] = useState([]);
-  const [expandedRows, setExpandedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
 
-  // ✅ Si vienen por props, sincroniza a docs
+  // ✅ si cambia la lista, reinicia paginación (evita “loops visuales”)
   useEffect(() => {
-    if (Array.isArray(suppliers)) {
-      setDocs(suppliers);
-      setErrorMsg("");
-      setCurrentPage(1);
-    }
+    setCurrentPage(1);
+  }, [suppliers?.length]);
+
+  const rows = useMemo(() => {
+    const list = Array.isArray(suppliers) ? suppliers : [];
+    return list.map(mapSupplier);
   }, [suppliers]);
 
-  // ✅ Si NO vienen por props, cargar del backend
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (Array.isArray(suppliers)) return;
-      try {
-        const res = await getSuppliers();
-        if (!mounted) return;
-
-        const data = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        setDocs(data);
-        setErrorMsg("");
-        setCurrentPage(1);
-      } catch {
-        if (mounted) setErrorMsg("No se pudieron cargar los proveedores.");
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [suppliers, getSuppliers]);
-
-  const suppliersNorm = useMemo(() => docs.map(mapSupplierDocStrict), [docs]);
-
-  const sortedSuppliers = useMemo(() => {
-    const list = [...suppliersNorm];
-    const { key, direction } = sortConfig;
-    return list.sort((a, b) => {
-      const av = (a[key] ?? "").toString().toLowerCase();
-      const bv = (b[key] ?? "").toString().toLowerCase();
-      if (av < bv) return direction === "asc" ? -1 : 1;
-      if (av > bv) return direction === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [suppliersNorm, sortConfig]);
-
-  const totalItems = sortedSuppliers.length;
+  const totalItems = rows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(currentPage, totalPages);
 
-  const pageItems = sortedSuppliers.slice(
-    (safePage - 1) * pageSize,
-    safePage * pageSize
-  );
+  const pageItems = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [rows, safePage, pageSize]);
 
-  // ✅ Mantener la página válida cuando cambia totalPages
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [totalPages, currentPage]);
+  // ✅ Confirmación de eliminación usando tu NotificationContext.showConfirm
+  const handleConfirmDelete = (supplier) => {
+    const empresa = asText(supplier?.empresa, "Sin empresa");
+    const nombre = asText(supplier?.nombre, "—");
+    const tel = normalizePhone(supplier?.tel);
+    const correo = asText(supplier?.correo, "—");
 
-  const removeFromDocsById = (supplierId) => {
-    setDocs((prev) =>
-      (Array.isArray(prev) ? prev : []).filter((x) => (x?.id ?? x?._id) !== supplierId)
-    );
+    const msg =
+      `¿Seguro que deseas eliminar este proveedor?\n\n` +
+      `Empresa: ${empresa}\n` +
+      `Nombre: ${nombre}\n` +
+      `Tel: ${tel || "—"}\n` +
+      `Correo: ${correo}\n\n` +
+      `Esta acción no se puede deshacer.`;
 
-    setSelectedSuppliers((prev) => prev.filter((id) => id !== supplierId));
-    setExpandedRows((prev) => prev.filter((id) => id !== supplierId));
-  };
-
-  const handleDelete = (supplier) => {
-    showConfirm(`¿Eliminar proveedor "${supplier.empresa}"?`, {
-      onConfirm: async () => {
-        const snapshot = docs; // rollback sencillo
-        // ✅ Optimista: quita de UI al instante
-        removeFromDocsById(supplier.id);
-
-        try {
-          await deleteSupplier(supplier.id);
-          showSuccess("Proveedor eliminado");
-        } catch {
-          // ✅ Si falla, regresamos el estado anterior
-          setDocs(snapshot);
-          showError("No se pudo eliminar el proveedor");
-        }
+    showConfirm(msg, {
+      onConfirm: () => {
+        // delega al padre (tu flujo actual)
+        onDelete?.(supplier.raw);
       },
+      onCancel: () => {},
     });
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-visible">
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
       {loading && (
         <div className="p-4 border-b border-border text-sm text-muted-foreground">
           Cargando proveedores…
@@ -183,23 +129,21 @@ const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
       )}
 
       {!!errorMsg && (
-        <div className="p-4 border-b border-border text-sm text-red-600">
+        <div className="p-4 border-b border-border text-sm text-destructive">
           {errorMsg}
         </div>
       )}
 
-      {/* Desktop */}
-      <div className="hidden lg:block overflow-x-auto">
+      <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
-              <th className="w-12 p-4"></th>
               <th className="text-left p-4 font-medium">Empresa</th>
               <th className="text-left p-4 font-medium">Nombre</th>
               <th className="text-left p-4 font-medium">Tel</th>
               <th className="text-left p-4 font-medium">Correo</th>
               <th className="text-left p-4 font-medium">Ocupación</th>
-              <th className="w-24 p-4 font-medium">Acciones</th>
+              <th className="w-28 p-4 font-medium text-right">Acciones</th>
             </tr>
           </thead>
 
@@ -209,18 +153,16 @@ const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
 
               return (
                 <tr
-                  key={supplier.id}
+                  key={supplier.id || supplier.correo || supplier.tel}
                   className="border-b border-border hover:bg-muted/30"
                 >
-                  <td className="p-4"></td>
-
                   <td className="p-4">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <Icon name="Building2" size={20} className="text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <div className="font-medium text-foreground">
+                        <div className="font-medium text-foreground truncate">
                           {asText(supplier.empresa, "Sin empresa")}
                         </div>
                       </div>
@@ -229,7 +171,7 @@ const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
 
                   <td className="p-4">{asText(supplier.nombre)}</td>
                   <td className="p-4 font-mono">{asText(normalizePhone(supplier.tel))}</td>
-                  <td className="p-4 truncate max-w-[260px]">{asText(supplier.correo)}</td>
+                  <td className="p-4 max-w-[280px] truncate">{asText(supplier.correo)}</td>
 
                   <td className="p-4">
                     <span
@@ -242,11 +184,11 @@ const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
                   </td>
 
                   <td className="p-4">
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => onSupplierSelect?.(supplier.raw)}
+                        onClick={() => onEdit?.(supplier.raw)}
                         title="Editar proveedor"
                       >
                         <Icon name="Edit" size={16} />
@@ -255,7 +197,7 @@ const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(supplier)}
+                        onClick={() => handleConfirmDelete(supplier)} // ✅ CAMBIADO
                         title="Eliminar proveedor"
                       >
                         <Icon name="Trash2" size={16} />
@@ -268,13 +210,57 @@ const SuppliersTable = ({ suppliers, onSupplierSelect }) => {
 
             {pageItems.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <td colSpan={6} className="p-8 text-center text-muted-foreground">
                   No hay proveedores para mostrar.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Footer paginación */}
+      <div className="flex items-center justify-between p-4 text-sm">
+        <div className="text-muted-foreground">{totalItems} proveedor(es)</div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Por página:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="h-9 rounded-md border border-input bg-background px-2"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+          >
+            Anterior
+          </button>
+
+          <span className="text-muted-foreground">
+            {safePage} / {totalPages}
+          </span>
+
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+          >
+            Siguiente
+          </button>
+        </div>
       </div>
     </div>
   );

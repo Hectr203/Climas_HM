@@ -222,13 +222,11 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
     }
 
     if (editingExpenseIndex !== null) {
-      // Editar gasto existente
       const updatedExpenses = [...otherExpenses];
       updatedExpenses[editingExpenseIndex] = { concept: newExpense.concept, amount };
       setOtherExpenses(updatedExpenses);
       setEditingExpenseIndex(null);
     } else {
-      // Agregar nuevo gasto
       setOtherExpenses([...otherExpenses, { concept: newExpense.concept, amount }]);
     }
     setNewExpense({ concept: '', amount: '' });
@@ -252,27 +250,34 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
     }
   };
 
+  // ✅ FIX: función corregida (era lo que te rompía el build)
   const fetchUsdMxnRate = useCallback(async () => {
     try {
       setFxError(null);
       setLoadingFx(true);
+
       const resp = await proyectoService.getCurrencyRates({ base: 'USD', currencies: ['MXN'] });
-      const mxnInfo = resp?.data?.MXN || resp?.MXN;
+
+      const mxnInfo = resp?.data?.MXN ?? resp?.MXN;
       const rate = Number(mxnInfo?.value ?? mxnInfo ?? 0);
+
       if (rate > 0) {
         setExchangeRate(rate);
         return rate;
-      } else {
-        const msg = 'No llegó una tasa válida.';
-        setFxError(msg);
-        handleError(e, 'Tipo de cambio');
-        return null;
-      } finally {
-        setLoadingFx(false);
       }
-    },
-    [handleError, showError]
-  );
+
+      const msg = 'No llegó una tasa válida.';
+      setFxError(msg);
+      showError(msg);
+      return null;
+    } catch (err) {
+      setFxError('Error consultando tipo de cambio.');
+      handleError(err, 'Tipo de cambio');
+      return null;
+    } finally {
+      setLoadingFx(false);
+    }
+  }, [handleError, showError]);
 
   const toggleEquipmentUSD = (checked) => {
     setIsEquipmentInUSD(checked);
@@ -294,11 +299,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
 
     if (!formData.startDate) e.startDate = 'Requerido';
     if (!formData.endDate) e.endDate = 'Requerido';
-    if (
-      formData.startDate &&
-      formData.endDate &&
-      new Date(formData.endDate) < new Date(formData.startDate)
-    ) {
+    if (formData.startDate && formData.endDate && new Date(formData.endDate) < new Date(formData.startDate)) {
       e.endDate = 'La fecha de fin no puede ser anterior al inicio';
     }
     if (isEquipmentInUSD && !(exchangeRate > 0)) {
@@ -325,9 +326,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         direccion: formData.direccion || '',
       },
       descripcion: formData.description || '',
-      personalAsignado: Array.isArray(formData.assignedPersonnel)
-        ? formData.assignedPersonnel
-        : [],
+      personalAsignado: Array.isArray(formData.assignedPersonnel) ? formData.assignedPersonnel : [],
       cronograma: {
         fechaInicio: formData.startDate || '',
         fechaFin: formData.endDate || '',
@@ -342,12 +341,14 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         otros: Number(b.other) || 0,
         _metaEquipos: { capturadoEn: isEquipmentInUSD ? 'USD' : 'MXN' },
       },
-      ...(otherExpenses.length > 0 ? {
-        desgloseOtrosGastos: otherExpenses.map(expense => ({
-          concepto: expense.concept,
-          monto: expense.amount
-        }))
-      } : {}),
+      ...(otherExpenses.length > 0
+        ? {
+            desgloseOtrosGastos: otherExpenses.map((expense) => ({
+              concepto: expense.concept,
+              monto: expense.amount,
+            })),
+          }
+        : {}),
       estado: formData.status,
     };
   };
@@ -386,7 +387,6 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
     (Number(b?.other) || 0) +
     otherExpensesTotal;
 
-  // ✅ Total en USD cuando el check está activo
   const totalUSD = showTotalInUSD && exchangeRate > 0 ? totalMXN / exchangeRate : 0;
 
   return (
@@ -395,9 +395,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Crear Nuevo Proyecto</h2>
-            <p className="text-sm text-muted-foreground">
-              Complete la información del proyecto
-            </p>
+            <p className="text-sm text-muted-foreground">Complete la información del proyecto</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <Icon name="X" size={20} />
@@ -406,11 +404,8 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
 
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Información básica */}
             <div className="md:col-span-2">
-              <h3 className="text-lg font-medium text-foreground mb-4">
-                Información Básica
-              </h3>
+              <h3 className="text-lg font-medium text-foreground mb-4">Información Básica</h3>
             </div>
 
             <Input
@@ -480,11 +475,8 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               required
             />
 
-            {/* Ubicación */}
             <div className="md:col-span-2 mt-2">
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                Ubicación del Proyecto
-              </h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">Ubicación del Proyecto</h3>
               <p className="text-xs text-muted-foreground">
                 Seleccione estado y municipio, luego escriba la dirección completa del sitio.
               </p>
@@ -505,22 +497,14 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                   }}
                   options={
                     estados
-                      ? [
-                          { value: '', label: 'Selecciona un estado' },
-                          ...estados.map((e) => ({
-                            value: e.code,
-                            label: e.name,
-                          })),
-                        ]
+                      ? [{ value: '', label: 'Selecciona un estado' }, ...estados.map((e) => ({ value: e.code, label: e.name }))]
                       : []
                   }
                   loading={loadingEstados}
                   error={errors?.estado}
                   required
                   disabled={loadingEstados || !!errorEstados}
-                  placeholder={
-                    loadingEstados ? 'Cargando estados...' : 'Selecciona un estado'
-                  }
+                  placeholder={loadingEstados ? 'Cargando estados...' : 'Selecciona un estado'}
                   searchable
                   className="h-12 md:h-14 w-full text-base"
                 />
@@ -544,24 +528,13 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                       ? [{ value: '', label: 'Error al cargar municipios' }]
                       : [
                           { value: '', label: 'Selecciona un municipio' },
-                          ...(municipios
-                            ? Object.entries(municipios.municipios || {}).map(
-                                ([code, name]) => ({
-                                  value: code,
-                                  label: name,
-                                })
-                              )
-                            : []),
+                          ...(municipios ? Object.entries(municipios.municipios || {}).map(([code, name]) => ({ value: code, label: name })) : []),
                         ]
                   }
                   loading={loadingMunicipios}
                   error={errors?.municipio}
                   required
-                  disabled={
-                    formData.estado === '' ||
-                    loadingMunicipios ||
-                    !!errorMunicipios
-                  }
+                  disabled={formData.estado === '' || loadingMunicipios || !!errorMunicipios}
                   placeholder={
                     formData.estado === ''
                       ? 'Selecciona un estado primero'
@@ -587,11 +560,8 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               />
             </div>
 
-            {/* Presupuesto */}
             <div className="md:col-span-2 mt-6">
-              <h3 className="text-lg font-medium text-foreground mb-4">
-                Desglose de Presupuesto
-              </h3>
+              <h3 className="text-lg font-medium text-foreground mb-4">Desglose de Presupuesto</h3>
             </div>
 
             <Input
@@ -615,9 +585,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-foreground">
-                  {isEquipmentInUSD
-                    ? 'Equipos (USD se convierte a MXN)'
-                    : 'Equipos (MXN)'}
+                  {isEquipmentInUSD ? 'Equipos (USD se convierte a MXN)' : 'Equipos (MXN)'}
                 </label>
                 <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                   <input
@@ -634,11 +602,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                 type="text"
                 inputMode="decimal"
                 placeholder={isEquipmentInUSD ? '0.00 USD' : '0.00 MXN'}
-                value={
-                  isEquipmentInUSD
-                    ? uiEquipmentUSD
-                    : formatWithCommas(b?.equipment)
-                }
+                value={isEquipmentInUSD ? uiEquipmentUSD : formatWithCommas(b?.equipment)}
                 onChange={(e) => handleBudgetChange('equipment', e?.target?.value)}
                 readOnly={isEquipmentInUSD}
                 className={`w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
@@ -672,15 +636,10 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                   </Button>
 
                   <div className="text-sm text-muted-foreground whitespace-nowrap">
-                    Guardado en MXN:{' '}
-                    <span className="font-semibold">
-                      ${formatWithCommas(b?.equipment, 2)}
-                    </span>
+                    Guardado en MXN: <span className="font-semibold">${formatWithCommas(b?.equipment, 2)}</span>
                   </div>
 
-                  {fxError && (
-                    <div className="text-xs text-destructive">{fxError}</div>
-                  )}
+                  {fxError && <div className="text-xs text-destructive">{fxError}</div>}
                 </div>
               )}
             </div>
@@ -700,9 +659,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               inputMode="decimal"
               placeholder="0.00"
               value={formatWithCommas(b?.transportation)}
-              onChange={(e) =>
-                handleBudgetChange('transportation', e?.target?.value)
-              }
+              onChange={(e) => handleBudgetChange('transportation', e?.target?.value)}
             />
 
             <Input
@@ -714,27 +671,21 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               onChange={(e) => handleBudgetChange('other', e?.target?.value)}
             />
 
-            {/* Desglose de Otros Gastos */}
             <div className="md:col-span-2 mt-4">
               <h4 className="text-base font-medium text-foreground mb-3">Desglose de Otros Gastos</h4>
-              
+
               <div className="bg-muted border border-border rounded-lg p-4">
-                {/* Lista de gastos agregados */}
                 {otherExpenses.length > 0 && (
                   <div className="mb-4 space-y-2">
                     {otherExpenses.map((expense, index) => (
                       <div
                         key={index}
                         className={`flex items-center justify-between bg-card p-3 rounded-md border transition-all ${
-                          editingExpenseIndex === index
-                            ? 'border-blue-500 ring-2 ring-blue-200'
-                            : 'border-border'
+                          editingExpenseIndex === index ? 'border-blue-500 ring-2 ring-blue-200' : 'border-border'
                         }`}
                       >
                         <div className="flex-1">
-                          <span className="text-sm font-medium text-foreground">
-                            {expense.concept}
-                          </span>
+                          <span className="text-sm font-medium text-foreground">{expense.concept}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-primary">
@@ -769,13 +720,10 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                   </div>
                 )}
 
-                {/* Formulario para agregar/editar gasto */}
                 <div className="space-y-3">
                   {editingExpenseIndex !== null && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2 flex items-center justify-between">
-                      <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
-                        Editando gasto
-                      </span>
+                      <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Editando gasto</span>
                       <button
                         type="button"
                         onClick={handleCancelEdit}
@@ -787,9 +735,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end">
                     <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">
-                        Concepto
-                      </label>
+                      <label className="block text-sm font-medium text-foreground mb-1">Concepto</label>
                       <input
                         type="text"
                         placeholder="Ej. Viáticos, Hospedaje, Combustible"
@@ -800,9 +746,7 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">
-                        Monto
-                      </label>
+                      <label className="block text-sm font-medium text-foreground mb-1">Monto</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -818,8 +762,8 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                       onClick={handleAddExpense}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md whitespace-nowrap"
                     >
-                      <Icon name={editingExpenseIndex !== null ? "Check" : "Plus"} size={18} />
-                      {editingExpenseIndex !== null ? "Guardar" : "Agregar Gasto"}
+                      <Icon name={editingExpenseIndex !== null ? 'Check' : 'Plus'} size={18} />
+                      {editingExpenseIndex !== null ? 'Guardar' : 'Agregar Gasto'}
                     </button>
                   </div>
                 </div>
@@ -829,19 +773,13 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
             <div className="md:col-span-2 mt-4">
               <div className="bg-muted p-4 rounded-lg">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-foreground">
-                    Total del Presupuesto (MXN):
-                  </span>
-                  <span className="text-lg font-semibold text-primary">
-                    ${formatWithCommas(totalMXN, 2)} MXN
-                  </span>
+                  <span className="text-sm font-medium text-foreground">Total del Presupuesto (MXN):</span>
+                  <span className="text-lg font-semibold text-primary">${formatWithCommas(totalMXN, 2)} MXN</span>
                 </div>
 
                 {showTotalInUSD && (
                   <div className="mt-2 flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">
-                      Total estimado en USD (usando tipo de cambio actual):
-                    </span>
+                    <span className="text-xs text-muted-foreground">Total estimado en USD (usando tipo de cambio actual):</span>
                     <span className="text-sm font-semibold text-foreground">
                       {exchangeRate > 0 ? `$${formatWithCommas(totalUSD, 2)} USD` : '—'}
                     </span>
@@ -853,14 +791,22 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                     No hay un tipo de cambio válido para calcular el total en USD.
                   </div>
                 )}
+
+                {/* Si quieres el switch de Total en USD, aquí lo puedes poner (ya tienes el state) */}
+                {/* <label className="mt-3 inline-flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showTotalInUSD}
+                    onChange={(e) => setShowTotalInUSD(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  Mostrar total en USD
+                </label> */}
               </div>
             </div>
 
-            {/* Cronograma */}
             <div className="md:col-span-2 mt-6">
-              <h3 className="text-lg font-medium text-foreground mb-4">
-                Cronograma
-              </h3>
+              <h3 className="text-lg font-medium text-foreground mb-4">Cronograma</h3>
             </div>
 
             <Input
@@ -881,11 +827,8 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
               required
             />
 
-            {/* Asignación */}
             <div className="md:col-span-2 mt-6">
-              <h3 className="text-lg font-medium text-foreground mb-4">
-                Asignación de Personal
-              </h3>
+              <h3 className="text-lg font-medium text-foreground mb-4">Asignación de Personal</h3>
             </div>
 
             <div className="md:col-span-2">
@@ -893,47 +836,30 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
                 label="Personal Asignado"
                 options={personnelOptionsFinal}
                 value={formData?.assignedPersonnel}
-                onChange={(value) =>
-                  handleInputChange('assignedPersonnel', value)
-                }
+                onChange={(value) => handleInputChange('assignedPersonnel', value)}
                 multiple
                 searchable
                 description="Seleccione el personal que trabajará en este proyecto"
               />
             </div>
 
-            {/* Descripción */}
             <div className="md:col-span-2 mt-6">
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Descripción del Proyecto
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-2">Descripción del Proyecto</label>
               <textarea
                 rows={4}
                 placeholder="Describa los objetivos, alcance y detalles importantes del proyecto..."
                 value={formData?.description}
-                onChange={(e) =>
-                  handleInputChange('description', e?.target?.value)
-                }
+                onChange={(e) => handleInputChange('description', e?.target?.value)}
                 className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
               />
             </div>
           </div>
 
           <div className="flex items-center justify-end space-x-4 mt-8 pt-6 border-t border-border">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              loading={isSubmitting}
-              iconName="Plus"
-              iconPosition="left"
-            >
+            <Button type="submit" loading={isSubmitting} iconName="Plus" iconPosition="left">
               {isSubmitting ? 'Creando...' : 'Crear Proyecto'}
             </Button>
           </div>

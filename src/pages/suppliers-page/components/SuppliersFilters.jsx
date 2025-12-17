@@ -1,88 +1,50 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Search, X, ChevronUp, ChevronDown, Download } from "lucide-react";
 
+import Button from "../../../components/ui/Button";
+import Input from "../../../components/ui/Input";
+import Select from "../../../components/ui/Select";
+
 /* =========================
-   UI básicos
+   Helpers
 ========================= */
+const norm = (s) =>
+  (s ?? "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
-const Button = ({
-  children,
-  variant = "default",
-  size = "default",
-  onClick,
-  iconName,
-  iconPosition,
-  className = "",
-  disabled = false,
-  type = "button",
-  title,
-}) => {
-  const icons = {
-    X,
-    ChevronUp,
-    ChevronDown,
-    Download,
-  };
-  const Icon = icons[iconName] || null;
+/** ✅ Named export que tu index importa */
+export const applySupplierFilters = (suppliers, filters) => {
+  const list = Array.isArray(suppliers) ? suppliers : [];
+  const f = filters || {};
+  const q = norm(f.search);
+  const oc = norm(f.ocupacion);
 
-  const base =
-    "inline-flex items-center justify-center font-medium rounded-md transition-colors";
-  const variants = {
-    default: "bg-primary text-primary-foreground hover:bg-primary/90",
-    outline: "border border-input bg-background hover:bg-accent",
-    ghost: "hover:bg-accent",
-  };
-  const sizes = {
-    default: "h-10 px-4 py-2",
-    sm: "h-9 px-3 text-sm",
-  };
+  return list.filter((s) => {
+    const nombre = norm(s?.nombre ?? s?.name ?? s?.contacto ?? "");
+    const empresa = norm(s?.empresa ?? s?.company ?? "");
+    const tel = norm(s?.numero ?? s?.tel ?? s?.telefono ?? s?.phone ?? "");
+    const correo = norm(s?.correo ?? s?.email ?? "");
+    const ocupacion = norm(s?.ocupacion ?? s?.role ?? s?.puesto ?? s?.rol ?? "");
 
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={`${base} ${variants[variant]} ${sizes[size]} ${
-        disabled ? "opacity-60 cursor-not-allowed" : ""
-      } ${className}`}
-    >
-      {Icon && iconPosition === "left" && <Icon size={16} className="mr-2" />}
-      {children}
-      {Icon && iconPosition === "right" && <Icon size={16} className="ml-2" />}
-    </button>
-  );
+    const matchSearch =
+      !q ||
+      nombre.includes(q) ||
+      empresa.includes(q) ||
+      tel.includes(q) ||
+      correo.includes(q);
+
+    const matchOcupacion = !oc || ocupacion === oc || ocupacion.includes(oc);
+
+    return matchSearch && matchOcupacion;
+  });
 };
 
-const Input = ({ placeholder, value, onChange, className = "" }) => (
-  <input
-    type="search"
-    placeholder={placeholder}
-    value={value}
-    onChange={onChange}
-    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
-  />
-);
-
-const Select = ({ label, options, value, onChange }) => (
-  <div>
-    <label className="block text-sm font-medium mb-2">{label}</label>
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  </div>
-);
-
 /* =========================
-   SuppliersFilters
+   UI
 ========================= */
 
 const SuppliersFilters = ({
@@ -98,26 +60,30 @@ const SuppliersFilters = ({
 
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const ocupacionOptions = [
-    { value: "", label: "Todas las Ocupaciones" },
-    { value: "Proveedor", label: "Proveedor" },
-    { value: "Representante", label: "Representante" },
-    { value: "Ventas", label: "Ventas" },
-    { value: "Administración", label: "Administración" },
-    { value: "Compras", label: "Compras" },
-    { value: "Otro", label: "Otro" },
-  ];
+  // ✅ evita “rebotes” raros: avisa al padre SOLO cuando cambia filters
+  useEffect(() => {
+    onFiltersChange?.(filters);
+  }, [filters, onFiltersChange]);
+
+  const ocupacionOptions = useMemo(
+    () => [
+      { value: "", label: "Todas las Ocupaciones" },
+      { value: "Proveedor", label: "Proveedor" },
+      { value: "Representante", label: "Representante" },
+      { value: "Ventas", label: "Ventas" },
+      { value: "Administración", label: "Administración" },
+      { value: "Compras", label: "Compras" },
+      { value: "Otro", label: "Otro" },
+    ],
+    []
+  );
 
   const update = (key, value) => {
-    const next = { ...filters, [key]: value };
-    setFilters(next);
-    onFiltersChange?.(next);
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   const clear = () => {
-    const cleared = { search: "", ocupacion: "" };
-    setFilters(cleared);
-    onFiltersChange?.(cleared);
+    setFilters({ search: "", ocupacion: "" });
   };
 
   const hasActiveFilters = Object.values(filters).some(Boolean);
@@ -127,7 +93,9 @@ const SuppliersFilters = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-semibold">Filtros de Proveedores</h3>
+          <h3 className="text-lg font-semibold text-foreground">
+            Filtros de Proveedores
+          </h3>
           <span className="text-sm text-muted-foreground">
             Mostrando {filteredSuppliers} de {totalSuppliers}
           </span>
@@ -138,29 +106,29 @@ const SuppliersFilters = ({
             <Button
               variant="outline"
               size="sm"
+              onClick={clear}
               iconName="X"
               iconPosition="left"
-              onClick={clear}
             >
-              Limpiar Filtros
+              Limpiar
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            iconName={isExpanded ? "ChevronUp" : "ChevronDown"}
-            iconPosition="right"
-            onClick={() => setIsExpanded(!isExpanded)}
+          <button
+            type="button"
+            onClick={() => setIsExpanded((v) => !v)}
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             {isExpanded ? "Menos Filtros" : "Más Filtros"}
-          </Button>
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
         </div>
       </div>
 
       {/* Search */}
       <div className="relative mb-4">
         <Input
+          type="search"
           placeholder="Buscar por nombre, empresa, tel o correo…"
           value={filters.search}
           onChange={(e) => update("search", e.target.value)}
@@ -172,8 +140,8 @@ const SuppliersFilters = ({
         />
       </div>
 
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Filters row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
         <Select
           label="Ocupación"
           options={ocupacionOptions}
@@ -181,23 +149,28 @@ const SuppliersFilters = ({
           onChange={(v) => update("ocupacion", v)}
         />
 
-        <div className="flex items-end">
-          <Button
-            variant="outline"
-            iconName="Download"
-            iconPosition="left"
-            className="w-full"
-            disabled={!filteredSuppliers}
-            onClick={onExport}
-          >
-            Exportar
-          </Button>
-        </div>
+        {/* si luego agregas más filtros, los pones dentro de isExpanded */}
+        {isExpanded ? (
+          <div className="md:col-span-1" />
+        ) : (
+          <div className="md:col-span-1" />
+        )}
+
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={!filteredSuppliers}
+          onClick={onExport}
+          iconName="Download"
+          iconPosition="left"
+        >
+          Exportar
+        </Button>
       </div>
 
       {/* Pills */}
       {hasActiveFilters && (
-        <div className="flex gap-2 mt-4 pt-4 border-t">
+        <div className="flex gap-2 mt-4 pt-4 border-t border-border flex-wrap">
           {filters.search && (
             <span className="bg-primary/10 text-primary px-2 py-1 rounded text-sm">
               Búsqueda: {filters.search}

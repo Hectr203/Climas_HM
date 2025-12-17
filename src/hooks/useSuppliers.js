@@ -1,74 +1,47 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import SupplierService from "../services/supplierService";
 
 const useSupplier = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const createSupplier = async (data) => {
+  const withLoading = useCallback(async (fn) => {
     setLoading(true);
     setError(null);
     try {
-      return await SupplierService.createSupplier(data);
+      return await fn();
     } catch (err) {
       setError(err);
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const getSuppliers = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      return await SupplierService.getSuppliers();
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  const createSupplier = useCallback(
+    async (data) => withLoading(() => SupplierService.createSupplier(data)),
+    [withLoading]
+  );
 
-  const getSupplierById = async (id) => {
-    setLoading(true);
-    setError(null);
-    try {
-      return await SupplierService.getSupplierById(id);
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  const getSuppliers = useCallback(
+    async () => withLoading(() => SupplierService.getSuppliers()),
+    [withLoading]
+  );
 
-  const updateSupplier = async (id, data) => {
-    setLoading(true);
-    setError(null);
-    try {
-      return await SupplierService.updateSupplier(id, data);
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  const getSupplierById = useCallback(
+    async (id) => withLoading(() => SupplierService.getSupplierById(id)),
+    [withLoading]
+  );
 
-  const deleteSupplier = async (id) => {
-    setLoading(true);
-    setError(null);
-    try {
-      return await SupplierService.deleteSupplier(id);
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  const updateSupplier = useCallback(
+    async (id, data) => withLoading(() => SupplierService.updateSupplier(id, data)),
+    [withLoading]
+  );
+
+  const deleteSupplier = useCallback(
+    async (id) => withLoading(() => SupplierService.deleteSupplier(id)),
+    [withLoading]
+  );
 
   return {
     createSupplier,

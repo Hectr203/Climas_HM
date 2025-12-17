@@ -1,18 +1,35 @@
 import React, { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import "jspdf-autotable";
 
 import SuppliersFilters, { applySupplierFilters } from "./components/SuppliersFilters";
 import SuppliersTable from "./components/SuppliersTable";
 
+import CreateSuppliersModal from "./components/CreateSuppliersModal";
+import EditSuppliersModal from "./components/EditSuppliersModal";
+
 import useSupplier from "../../hooks/useSuppliers";
 import { useNotifications } from "context/NotificationContext";
 
+import Sidebar from "../../components/ui/Sidebar";
+import Header from "../../components/ui/Header";
+import Breadcrumb from "../../components/ui/Breadcrumb";
+
 /* =========================
-   Export PDF estilo imagen
+   PDF helpers (diseño reporte)
 ========================= */
 
-const toStr = (v) => (v == null ? "" : String(v));
+const safe = (v, fallback = "—") => {
+  const s = v == null ? "" : String(v);
+  return s.trim() ? s : fallback;
+};
+
+const formatDateMX = (d = new Date()) =>
+  new Date(d).toLocaleDateString("es-MX", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 
 const getPhoneMultiline = (s) => {
   const raw =
@@ -20,167 +37,244 @@ const getPhoneMultiline = (s) => {
     s?.tel ??
     s?.telefono ??
     s?.phone ??
-    s?.phones ??
-    s?.numeros ??
     "";
 
-  if (Array.isArray(raw)) return raw.filter(Boolean).map(toStr).join("\n");
+  if (Array.isArray(raw)) return raw.join("\n");
+  return safe(raw, "");
+};
 
-  const text = toStr(raw).trim();
+const drawHeader = (doc, title) => {
+  const pageW = doc.internal.pageSize.getWidth();
 
-  const parts = text
-    .split(/[\n,;/|]+/g)
-    .map((x) => x.trim())
-    .filter(Boolean);
+  doc.setFillColor(10, 74, 138);
+  doc.rect(0, 0, pageW, 44, "F");
 
-  if (parts.length <= 1) {
-    const alt = text
-      .split(/\s{2,}/g)
-      .map((x) => x.trim())
-      .filter(Boolean);
-    if (alt.length > 1) return alt.join("\n");
-  }
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text(title, pageW / 2, 28, { align: "center" });
 
-  return (parts.length ? parts : [text]).filter(Boolean).join("\n");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Generado el ${formatDateMX()}`, pageW - 40, 28, { align: "right" });
+
+  doc.setTextColor(51, 51, 51);
 };
 
 const exportSuppliersToPDF = (suppliers) => {
-  const rows = (Array.isArray(suppliers) ? suppliers : []).map((s, idx) => {
-    const nombre = toStr(s?.nombre ?? s?.name ?? "").trim();
-    const empresa = toStr(s?.empresa ?? s?.company ?? "").trim();
-    const numero = getPhoneMultiline(s);
-    const correo = toStr(s?.correo ?? s?.email ?? "").trim();
-    const ocup = toStr(s?.ocupacion ?? s?.role ?? s?.occupation ?? "").trim();
-
-    return [String(idx + 1), nombre, empresa, numero, correo, ocup];
-  });
+  const list = Array.isArray(suppliers) ? suppliers : [];
 
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
-    format: "letter", // si quieres A4: "a4"
+    format: "letter",
   });
 
+  drawHeader(doc, "REPORTE DE PROVEEDORES");
+
+  // ===== Resumen =====
+  let y = 70;
+  const pageW = doc.internal.pageSize.getWidth();
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("PROVEEDORES", 40, 32);
+  doc.setFontSize(13);
+  doc.text("Resumen General", pageW / 2, y, { align: "center" });
 
-  autoTable(doc, {
-    startY: 50,
-    head: [["", "NOMBRE", "EMPRESA", "NÚMERO", "CORREO", "OCUPACIÓN"]],
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(
+    `Total de Proveedores: ${list.length}`,
+    pageW / 2,
+    y + 20,
+    { align: "center" }
+  );
+
+  // ===== Tabla =====
+  const rows = list.map((s, idx) => [
+    idx + 1,
+    safe(s?.nombre ?? s?.name),
+    safe(s?.empresa ?? s?.company),
+    getPhoneMultiline(s),
+    safe(s?.correo ?? s?.email),
+    safe(s?.ocupacion ?? s?.role),
+  ]);
+
+  doc.autoTable({
+    startY: y + 45,
+    head: [["#", "NOMBRE", "EMPRESA", "NÚMERO", "CORREO", "OCUPACIÓN"]],
     body: rows,
-
     theme: "grid",
+    margin: { left: 30, right: 30 },
+
     styles: {
       font: "helvetica",
       fontSize: 9,
-      cellPadding: 6,
+      cellPadding: 5,
       valign: "middle",
+      overflow: "linebreak",
       lineColor: [0, 0, 0],
-      lineWidth: 0.8,
-      textColor: [0, 0, 0],
+      lineWidth: 0.6,
+      textColor: [50, 50, 50],
     },
+
     headStyles: {
-      fillColor: [255, 255, 255],
-      textColor: [0, 0, 0],
+      fillColor: [10, 74, 138],
+      textColor: 255,
       fontStyle: "bold",
       halign: "center",
-      lineWidth: 1,
     },
+
+    alternateRowStyles: {
+      fillColor: [245, 245, 245],
+    },
+
     columnStyles: {
-      0: { cellWidth: 26, halign: "center" }, // #
-      1: { cellWidth: 160 }, // NOMBRE
-      2: { cellWidth: 90, halign: "center" }, // EMPRESA
-      3: { cellWidth: 95, halign: "center" }, // NÚMERO
-      4: { cellWidth: 115 }, // CORREO
-      5: { cellWidth: 120 }, // OCUPACIÓN
+      0: { cellWidth: 30, halign: "center" },
+      1: { cellWidth: 140 },
+      2: { cellWidth: 90 },
+      3: { cellWidth: 90 },
+      4: { cellWidth: 120 },
+      5: { cellWidth: 110 },
     },
-
-    // correo azul + subrayado (estilo link del ejemplo)
-    didParseCell: function (data) {
-      if (data.section === "body" && data.column.index === 4) {
-        const email = (data.cell.raw ?? "").toString().trim();
-        if (email) data.cell.styles.textColor = [0, 0, 255];
-      }
-    },
-    didDrawCell: function (data) {
-      if (data.section === "body" && data.column.index === 4) {
-        const txt = data.cell.text?.join(" ") ?? "";
-        if (!txt) return;
-        const x = data.cell.textPos.x;
-        const y = data.cell.textPos.y + 2;
-        const w = doc.getTextWidth(txt);
-        doc.setDrawColor(0, 0, 255);
-        doc.setLineWidth(0.5);
-        doc.line(x, y, x + w, y);
-      }
-    },
-
-    margin: { left: 30, right: 30 },
-    rowPageBreak: "avoid",
-    pageBreak: "auto",
   });
 
-  doc.save("proveedores.pdf");
+  doc.save(`PROVEEDORES_${new Date().toISOString().split("T")[0]}.pdf`);
 };
 
 /* =========================
-   Página Padre
+   Página Proveedores
 ========================= */
 
 const SuppliersPage = () => {
-  const { showError, showSuccess } = useNotifications();
-  const { getSuppliers, loading } = useSupplier();
+  const { showError, showSuccess, showWarning, showConfirm } = useNotifications();
+  const { getSuppliers, deleteSupplier, loading } = useSupplier();
 
   const [suppliers, setSuppliers] = useState([]);
-  const [filters, setFilters] = useState({
-    search: "",
-    ocupacion: "",
-    hasEmail: "",
-  });
+  const [filters, setFilters] = useState({ search: "", ocupacion: "" });
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+
+  const [openCreate, setOpenCreate] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
 
   useEffect(() => {
-    let mounted = true;
     (async () => {
       try {
         const res = await getSuppliers();
-        const data = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        if (mounted) setSuppliers(data);
-      } catch (e) {
-        if (mounted) showError?.("No se pudieron cargar los proveedores");
+        const data = Array.isArray(res) ? res : res?.data ?? [];
+        setSuppliers(data);
+      } catch {
+        showError?.("No se pudieron cargar los proveedores");
       }
     })();
-    return () => (mounted = false);
   }, [getSuppliers, showError]);
 
-  const filteredSuppliers = useMemo(() => {
-    return applySupplierFilters(suppliers, filters);
-  }, [suppliers, filters]);
+  const filteredSuppliers = useMemo(
+    () => applySupplierFilters(suppliers, filters),
+    [suppliers, filters]
+  );
 
   const handleExport = () => {
     try {
       exportSuppliersToPDF(filteredSuppliers);
       showSuccess?.("PDF generado");
-    } catch (e) {
+    } catch {
       showError?.("No se pudo exportar a PDF");
     }
   };
 
+  const getId = (s) => s?.id ?? s?._id ?? s?.Id;
+
+  const handleDelete = (supplier) => {
+    const id = getId(supplier);
+    if (!id) return showWarning?.("ID no válido");
+
+    showConfirm?.(`¿Eliminar proveedor "${supplier?.empresa}"?`, {
+      onConfirm: async () => {
+        setSuppliers((prev) => prev.filter((x) => getId(x) !== id));
+        try {
+          await deleteSupplier(id);
+          showSuccess?.("Proveedor eliminado");
+        } catch {
+          showError?.("No se pudo eliminar");
+        }
+      },
+    });
+  };
+
   return (
-    <div className="p-6">
-      <SuppliersFilters
-        onFiltersChange={setFilters}
-        totalSuppliers={suppliers.length}
-        filteredSuppliers={filteredSuppliers.length}
-        onExport={handleExport}
+    <div className="min-h-screen bg-background flex w-full overflow-x-hidden">
+      <Sidebar
+        isCollapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((s) => !s)}
       />
 
-      {/* IMPORTANTE: la tabla recibe LOS FILTRADOS */}
-      <SuppliersTable suppliers={filteredSuppliers} />
+      <div
+        className={`flex-1 transition-all duration-300 ${
+          sidebarCollapsed ? "lg:ml-16" : "lg:ml-60"
+        }`}
+      >
+        <Header
+          onMenuToggle={() => setHeaderMenuOpen((s) => !s)}
+          isMenuOpen={headerMenuOpen}
+        />
 
-      {loading && (
-        <div className="mt-4 text-sm text-muted-foreground">Cargando…</div>
-      )}
+        <div className="container mx-auto px-4 py-8">
+          <Breadcrumb />
+
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-3xl font-bold">Proveedores</h1>
+              <p className="text-muted-foreground">
+                Administre su lista de proveedores
+              </p>
+            </div>
+
+            <button
+              onClick={() => setOpenCreate(true)}
+              className="h-10 px-4 rounded-md bg-primary text-primary-foreground"
+            >
+              + Crear Proveedor
+            </button>
+          </div>
+
+          <SuppliersFilters
+            onFiltersChange={setFilters}
+            totalSuppliers={suppliers.length}
+            filteredSuppliers={filteredSuppliers.length}
+            onExport={handleExport}
+          />
+
+          <SuppliersTable
+            suppliers={filteredSuppliers}
+            loading={loading}
+            onEdit={(s) => {
+              setSelectedSupplier(s);
+              setOpenEdit(true);
+            }}
+            onDelete={handleDelete}
+          />
+        </div>
+      </div>
+
+      <CreateSuppliersModal
+        isOpen={openCreate}
+        onClose={() => setOpenCreate(false)}
+        onSubmit={(s) => setSuppliers((p) => [s, ...p])}
+      />
+
+      <EditSuppliersModal
+        isOpen={openEdit}
+        supplier={selectedSupplier}
+        onClose={() => setOpenEdit(false)}
+        onSubmit={(s) =>
+          setSuppliers((p) =>
+            p.map((x) => (getId(x) === getId(s) ? s : x))
+          )
+        }
+      />
     </div>
   );
 };
