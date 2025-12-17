@@ -7,6 +7,7 @@ import SuppliersTable from "./components/SuppliersTable";
 
 import CreateSuppliersModal from "./components/CreateSuppliersModal";
 import EditSuppliersModal from "./components/EditSuppliersModal";
+import CreateOccupationModal from "./components/CreateOccupationModal";
 
 import useSupplier from "../../hooks/useSuppliers";
 import { useNotifications } from "context/NotificationContext";
@@ -16,7 +17,65 @@ import Header from "../../components/ui/Header";
 import Breadcrumb from "../../components/ui/Breadcrumb";
 
 /* =========================
-   PDF helpers (diseño reporte)
+   Ocupaciones (fijas + localStorage)
+========================= */
+const FIXED_OCCUPATIONS = [
+  "Mantenimiento de HVAC/R",
+  "Refrigerantes",
+  "Aislamiento",
+  "Rejillas",
+  "Difusores",
+  "Multimarcas",
+  "Filtros",
+  "Tubería de cobre para instalaciones",
+  "Minisplit",
+  "Sistemas hidrónicos para HVAC y plomería",
+  "Torres de enfriamiento",
+  "Servicio Integral de Aire Acondicionado e Instalaciones Electromecánicas",
+  "Louvers",
+  "Equipos de AC Minisplit",
+  "Accesorios",
+  "Herramientas",
+  "Gas",
+];
+
+const OCCUPATIONS_LS_KEY = "suppliers_custom_ocupaciones_v1";
+
+const cleanText = (v) =>
+  String(v ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const readCustomOccupations = () => {
+  try {
+    const raw = localStorage.getItem(OCCUPATIONS_LS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arr)) return [];
+    return arr.map(cleanText).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const writeCustomOccupations = (arr) => {
+  try {
+    localStorage.setItem(OCCUPATIONS_LS_KEY, JSON.stringify(arr));
+  } catch {}
+};
+
+const dedupeList = (arr) => {
+  const map = new Map();
+  (arr || []).forEach((x) => {
+    const v = cleanText(x);
+    if (!v) return;
+    const key = v.toLowerCase();
+    if (!map.has(key)) map.set(key, v);
+  });
+  return Array.from(map.values());
+};
+
+/* =========================
+   PDF helpers
 ========================= */
 
 const safe = (v, fallback = "—") => {
@@ -32,13 +91,7 @@ const formatDateMX = (d = new Date()) =>
   });
 
 const getPhoneMultiline = (s) => {
-  const raw =
-    s?.numero ??
-    s?.tel ??
-    s?.telefono ??
-    s?.phone ??
-    "";
-
+  const raw = s?.numero ?? s?.tel ?? s?.telefono ?? s?.phone ?? "";
   if (Array.isArray(raw)) return raw.join("\n");
   return safe(raw, "");
 };
@@ -72,24 +125,6 @@ const exportSuppliersToPDF = (suppliers) => {
 
   drawHeader(doc, "REPORTE DE PROVEEDORES");
 
-  // ===== Resumen =====
-  let y = 70;
-  const pageW = doc.internal.pageSize.getWidth();
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("Resumen General", pageW / 2, y, { align: "center" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(
-    `Total de Proveedores: ${list.length}`,
-    pageW / 2,
-    y + 20,
-    { align: "center" }
-  );
-
-  // ===== Tabla =====
   const rows = list.map((s, idx) => [
     idx + 1,
     safe(s?.nombre ?? s?.name),
@@ -100,45 +135,125 @@ const exportSuppliersToPDF = (suppliers) => {
   ]);
 
   doc.autoTable({
-    startY: y + 45,
+    startY: 90,
     head: [["#", "NOMBRE", "EMPRESA", "NÚMERO", "CORREO", "OCUPACIÓN"]],
     body: rows,
     theme: "grid",
     margin: { left: 30, right: 30 },
-
     styles: {
-      font: "helvetica",
       fontSize: 9,
       cellPadding: 5,
-      valign: "middle",
       overflow: "linebreak",
-      lineColor: [0, 0, 0],
-      lineWidth: 0.6,
-      textColor: [50, 50, 50],
     },
-
     headStyles: {
       fillColor: [10, 74, 138],
       textColor: 255,
-      fontStyle: "bold",
       halign: "center",
     },
-
     alternateRowStyles: {
       fillColor: [245, 245, 245],
-    },
-
-    columnStyles: {
-      0: { cellWidth: 30, halign: "center" },
-      1: { cellWidth: 140 },
-      2: { cellWidth: 90 },
-      3: { cellWidth: 90 },
-      4: { cellWidth: 120 },
-      5: { cellWidth: 110 },
     },
   });
 
   doc.save(`PROVEEDORES_${new Date().toISOString().split("T")[0]}.pdf`);
+};
+
+/* =========================
+   Modal Ver Ocupaciones
+========================= */
+const ViewOccupationsModal = ({ isOpen = false, onClose }) => {
+  const [custom, setCustom] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCustom(readCustomOccupations());
+
+    const onStorage = (e) => {
+      if (e.key === OCCUPATIONS_LS_KEY) setCustom(readCustomOccupations());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [isOpen]);
+
+  const all = useMemo(() => {
+    const fixed = FIXED_OCCUPATIONS.map((x) => ({ name: x, fixed: true }));
+    const dyn = dedupeList(custom).map((x) => ({ name: x, fixed: false }));
+    // evita duplicar si alguien guardó una fija dentro de custom
+    const fixedKeys = new Set(FIXED_OCCUPATIONS.map((x) => x.toLowerCase()));
+    const dynFiltered = dyn.filter((x) => !fixedKeys.has(x.name.toLowerCase()));
+    return [...fixed, ...dynFiltered];
+  }, [custom]);
+
+  const removeDynamic = (name) => {
+    const key = String(name || "").toLowerCase().trim();
+    const next = (readCustomOccupations() || []).filter(
+      (x) => String(x).toLowerCase().trim() !== key
+    );
+    writeCustomOccupations(next);
+    setCustom(next);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-1050 p-4">
+      <div className="bg-card border border-border rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-border flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Ocupaciones</h2>
+          <button
+            className="h-9 px-3 rounded-md border border-border"
+            onClick={onClose}
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="p-6">
+          {all.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No hay ocupaciones registradas.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {all.map((o) => (
+                <div
+                  key={`${o.fixed ? "fixed" : "dyn"}:${o.name}`}
+                  className="flex items-center justify-between border border-border rounded-md px-3 py-2"
+                >
+                  <div className="text-sm">
+                    {o.name}{" "}
+                    {o.fixed ? (
+                      <span className="text-xs text-muted-foreground">
+                        (fija)
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        (agregada)
+                      </span>
+                    )}
+                  </div>
+
+                  {!o.fixed && (
+                    <button
+                      className="h-8 px-3 rounded-md text-xs border border-border hover:bg-muted/60"
+                      onClick={() => removeDynamic(o.name)}
+                      title="Eliminar ocupación"
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-border text-xs text-muted-foreground">
+          * Las ocupaciones “fijas” no se eliminan desde aquí.
+        </div>
+      </div>
+    </div>
+  );
 };
 
 /* =========================
@@ -159,12 +274,14 @@ const SuppliersPage = () => {
   const [openEdit, setOpenEdit] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
 
+  const [openAddOccupation, setOpenAddOccupation] = useState(false);
+  const [openViewOccupations, setOpenViewOccupations] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
         const res = await getSuppliers();
-        const data = Array.isArray(res) ? res : res?.data ?? [];
-        setSuppliers(data);
+        setSuppliers(Array.isArray(res) ? res : res?.data ?? []);
       } catch {
         showError?.("No se pudieron cargar los proveedores");
       }
@@ -176,15 +293,6 @@ const SuppliersPage = () => {
     [suppliers, filters]
   );
 
-  const handleExport = () => {
-    try {
-      exportSuppliersToPDF(filteredSuppliers);
-      showSuccess?.("PDF generado");
-    } catch {
-      showError?.("No se pudo exportar a PDF");
-    }
-  };
-
   const getId = (s) => s?.id ?? s?._id ?? s?.Id;
 
   const handleDelete = (supplier) => {
@@ -193,7 +301,7 @@ const SuppliersPage = () => {
 
     showConfirm?.(`¿Eliminar proveedor "${supplier?.empresa}"?`, {
       onConfirm: async () => {
-        setSuppliers((prev) => prev.filter((x) => getId(x) !== id));
+        setSuppliers((p) => p.filter((x) => getId(x) !== id));
         try {
           await deleteSupplier(id);
           showSuccess?.("Proveedor eliminado");
@@ -205,17 +313,13 @@ const SuppliersPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex w-full overflow-x-hidden">
+    <div className="min-h-screen bg-background flex">
       <Sidebar
         isCollapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((s) => !s)}
       />
 
-      <div
-        className={`flex-1 transition-all duration-300 ${
-          sidebarCollapsed ? "lg:ml-16" : "lg:ml-60"
-        }`}
-      >
+      <div className={`flex-1 ${sidebarCollapsed ? "lg:ml-16" : "lg:ml-60"}`}>
         <Header
           onMenuToggle={() => setHeaderMenuOpen((s) => !s)}
           isMenuOpen={headerMenuOpen}
@@ -232,19 +336,50 @@ const SuppliersPage = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => setOpenCreate(true)}
-              className="h-10 px-4 rounded-md bg-primary text-primary-foreground"
-            >
-              + Crear Proveedor
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setOpenAddOccupation(true)}
+                className="
+                  h-8 px-3 rounded-md
+                  text-xs font-medium
+                  bg-muted text-foreground
+                  border border-border
+                  hover:bg-muted/70
+                  opacity-90
+                "
+              >
+                + Agregar Ocupación
+              </button>
+
+              {/* ✅ NUEVO BOTÓN EN MEDIO */}
+              <button
+                onClick={() => setOpenViewOccupations(true)}
+                className="
+                  h-8 px-3 rounded-md
+                  text-xs font-medium
+                  bg-muted text-foreground
+                  border border-border
+                  hover:bg-muted/70
+                  opacity-90
+                "
+              >
+                Ver Ocupaciones
+              </button>
+
+              <button
+                onClick={() => setOpenCreate(true)}
+                className="h-10 px-4 rounded-md bg-primary text-primary-foreground"
+              >
+                + Crear Proveedor
+              </button>
+            </div>
           </div>
 
           <SuppliersFilters
             onFiltersChange={setFilters}
             totalSuppliers={suppliers.length}
             filteredSuppliers={filteredSuppliers.length}
-            onExport={handleExport}
+            onExport={() => exportSuppliersToPDF(filteredSuppliers)}
           />
 
           <SuppliersTable
@@ -270,10 +405,20 @@ const SuppliersPage = () => {
         supplier={selectedSupplier}
         onClose={() => setOpenEdit(false)}
         onSubmit={(s) =>
-          setSuppliers((p) =>
-            p.map((x) => (getId(x) === getId(s) ? s : x))
-          )
+          setSuppliers((p) => p.map((x) => (getId(x) === getId(s) ? s : x)))
         }
+      />
+
+      <CreateOccupationModal
+        isOpen={openAddOccupation}
+        onClose={() => setOpenAddOccupation(false)}
+        onCreated={(name) => showSuccess?.(`Ocupación agregada: ${name}`)}
+      />
+
+      {/* ✅ MODAL VER OCUPACIONES */}
+      <ViewOccupationsModal
+        isOpen={openViewOccupations}
+        onClose={() => setOpenViewOccupations(false)}
       />
     </div>
   );
