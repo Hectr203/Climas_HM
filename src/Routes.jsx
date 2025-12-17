@@ -18,6 +18,7 @@ import LoginPage from './pages/login';
 import FinancialManagement from './pages/financial-management';
 import PersonnelManagement from './pages/personnel-management';
 import ClientManagement from './pages/client-management';
+import SuppliersPage from './pages/suppliers-page';
 import WorkOrderProcessing from './pages/work-order-processing';
 import WorkshopOperationsManagement from './pages/workshop-operations-management';
 import WorkshopOperationsCenter from './pages/workshop-operations-center';

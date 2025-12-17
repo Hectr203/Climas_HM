@@ -27,6 +27,7 @@ const Breadcrumb = ({ customItems = null }) => {
     '/personal': { label: 'Gestión de personal', icon: 'UserCheck' },
     '/inventario': { label: 'Gestión de inventario', icon: 'Package' },
     '/usuarios': { label: 'Gestión de Usuarios', icon: 'Users' },
+    '/proveedores': { label: 'Gestión de Proveedores', icon: 'Users' },
     '/oportunidades': { label: 'Oportunidades de Venta', icon: 'TrendingUp' },
     '/constructor-cotizaciones': { label: 'Creación de Cotizaciones', icon: 'FileText' },
     '/cotizaciones': { label: 'Centro de Desarrollo de Cotizaciones', icon: 'FileEdit' },
