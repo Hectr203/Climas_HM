@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// Comentado temporalmente para necesidades futuras
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
@@ -8,6 +10,10 @@ import { getAllowedNavigationItems } from '../../utils/auth';
 import useAuth from '../../hooks/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
 import { useConfirmDialog } from '../../ui/ConfirmDialogContext';
+// Comentado temporalmente para necesidades futuras
+// import { useSignalR } from '../../hooks/useSignalR';
+// import { useNotificaciones } from '../../hooks/useNotificaciones';
+// import NotificationsModal from './NotificationsModal';
 
 const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const location = useLocation();
@@ -16,8 +22,36 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [navigationItems, setNavigationItems] = useState([]);
+  // Comentado temporalmente para necesidades futuras
+  // const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  // const [totalUnread, setTotalUnread] = useState(0);
+  // const [allowSignalRNotifications, setAllowSignalRNotifications] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const { showSuccess } = useNotifications();
+  // Comentado temporalmente para necesidades futuras
+  // const { notificaciones, newCount, resetearContador, limpiarNotificaciones } = useSignalR(true, allowSignalRNotifications);
+  // const { obtenerTotalNotificacionesSinLeer } = useNotificaciones();
+
+  // Comentado temporalmente para necesidades futuras
+  // // Manejar el estado del modal de notificaciones para controlar SignalR
+  // const handleModalStateChange = useCallback((isModalOpen) => {
+  //   setAllowSignalRNotifications(isModalOpen);
+
+  //   // Cuando se cierra el modal, limpiar las notificaciones de SignalR
+  //   if (!isModalOpen) {
+  //     limpiarNotificaciones();
+  //   }
+  // }, [limpiarNotificaciones]);
+
+  // // Manejar cuando se marca una notificación como leída
+  // const handleNotificationRead = useCallback(async () => {
+  //   try {
+  //     const result = await obtenerTotalNotificacionesSinLeer();
+  //     const total = result.data?.total || result.total || 0;
+  //     setTotalUnread(total);
+  //   } catch (err) {
+  //   }
+  // }, [obtenerTotalNotificacionesSinLeer]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -28,13 +62,74 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     }
   }, [isAuthenticated, user, navigate]);
 
+  // Comentado temporalmente para necesidades futuras
+  // // Cargar el total de notificaciones sin leer solo una vez cuando el usuario esté autenticado
+  // useEffect(() => {
+  //   let isMounted = true; // Flag para evitar actualizaciones de estado si el componente se desmonta
+
+  //   if (isAuthenticated) {
+  //     const loadTotal = async () => {
+  //       try {
+  //         // Ahora no necesitamos pasar userId, el hook lo extraerá del token automáticamente
+  //         const result = await obtenerTotalNotificacionesSinLeer();
+
+  //         // Solo actualizar el estado si el componente aún está montado
+  //         if (isMounted) {
+  //           const total = result.data?.total || result.total || 0;
+  //           setTotalUnread(total);
+  //         }
+  //       } catch (err) {
+  //         if (isMounted) {
+  //           setTotalUnread(0);
+  //         }
+  //       }
+  //     };
+  //     loadTotal();
+  //   } else {
+  //     if (isMounted) {
+  //       setTotalUnread(0);
+  //     }
+  //   }
+
+  //   // Cleanup function
+  //   return () => {
+  //     isMounted = false;
+  //   };
+  // }, [isAuthenticated]); // Solo depende de isAuthenticated
+
+  // Comentado temporalmente para necesidades futuras
+  // // Escuchar eventos de notificaciones marcadas como leídas
+  // useEffect(() => {
+  //   const handleNotificationReadEvent = async () => {
+  //     try {
+  //       const result = await obtenerTotalNotificacionesSinLeer();
+  //       const total = result.data?.total || result.total || 0;
+  //       setTotalUnread(total);
+  //     } catch (err) {
+  //     }
+  //   };
+
+  //   window.addEventListener('notificationRead', handleNotificationReadEvent);
+
+  //   return () => {
+  //     window.removeEventListener('notificationRead', handleNotificationReadEvent);
+  //   };
+  // }, [obtenerTotalNotificacionesSinLeer]);  // Actualizar contador cuando lleguen nuevas notificaciones via SignalR
+  // useEffect(() => {
+  //   if (newCount > 0) {
+  //     setTotalUnread(prev => prev + newCount);
+  //     // Resetear el contador de nuevas notificaciones después de sumarlo
+  //     resetearContador();
+  //   }
+  // }, [newCount, resetearContador]);
+
   const [expandedItems, setExpandedItems] = useState(['Recursos', 'Negocio']);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
     if (query?.length > 2) {
       // Filter search results based on user's allowed paths
-      const allowedPaths = navigationItems?.flatMap(item => 
+      const allowedPaths = navigationItems?.flatMap(item =>
         item?.children ? item?.children?.map(child => child?.path) : [item?.path]
       )?.filter(Boolean);
 
@@ -42,11 +137,11 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
         { type: 'project', title: 'Instalación Aire Acondicionado - Edificio A', path: '/proyectos' },
         { type: 'client', title: 'ABC Corporation', path: '/clientes' },
         { type: 'work-order', title: 'WO-2024-001', path: '/operaciones' }
-      ]?.filter(item => 
+      ]?.filter(item =>
         item?.title?.toLowerCase()?.includes(query?.toLowerCase()) &&
         allowedPaths?.includes(item?.path)
       );
-      
+
       setSearchResults(mockResults);
       setShowSearchResults(true);
     } else {
@@ -55,8 +150,8 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   };
 
   const toggleExpanded = (label) => {
-    setExpandedItems(prev => 
-      prev?.includes(label) 
+    setExpandedItems(prev =>
+      prev?.includes(label)
         ? prev?.filter(item => item !== label)
         : [...prev, label]
     );
@@ -87,25 +182,33 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
     const hasChildren = item?.children && item?.children?.length > 0;
     const isExpanded = expandedItems?.includes(item?.label);
 
+    // Comentado temporalmente para necesidades futuras
+    // // Dynamic badge for notifications
+    // const badge = item?.path === '/notificaciones' ? (totalUnread + newCount) : item?.badge;
+    const badge = item?.badge;
+
     const handleItemClick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
+
+      // Comentado temporalmente para necesidades futuras
+      // if (item?.path === '/notificaciones') {
+      //   setShowNotificationsModal(true);
+      //   return;
+      // }
+
       if (hasChildren) {
         toggleExpanded(item?.label);
       } else if (item?.path) {
         handleNavigation(item?.path);
       }
-    };
-
-    return (
+    }; return (
       <div key={item?.label} className="relative">
         <div
-          className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-smooth group ${
-            isActive
-              ? 'bg-primary text-primary-foreground'
-              : 'text-foreground hover:bg-muted'
-          } ${level > 0 ? 'ml-4' : ''}`}
+          className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-smooth group ${isActive
+            ? 'bg-primary text-primary-foreground'
+            : 'text-foreground hover:bg-muted'
+            } ${level > 0 ? 'ml-4' : ''}`}
           onClick={handleItemClick}
           title={isCollapsed ? item?.tooltip : ''}
           role="button"
@@ -117,9 +220,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
           }}
         >
           <div className="flex items-center space-x-3 min-w-0 flex-1">
-            <Icon 
-              name={item?.icon} 
-              size={20} 
+            <Icon
+              name={item?.icon}
+              size={20}
               className={`flex-shrink-0 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}
             />
             {!isCollapsed && (
@@ -129,18 +232,17 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
 
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
-              {item?.badge && (
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  isActive 
-                    ? 'bg-primary-foreground text-primary' 
-                    : 'bg-accent text-accent-foreground'
-                }`}>
-                  {item?.badge}
+              {badge && (
+                <span className={`px-2 py-1 text-xs rounded-full ${isActive
+                  ? 'bg-primary-foreground text-primary'
+                  : 'bg-accent text-accent-foreground'
+                  }`}>
+                  {badge}
                 </span>
               )}
               {hasChildren && (
-                <Icon 
-                  name={isExpanded ? 'ChevronDown' : 'ChevronRight'} 
+                <Icon
+                  name={isExpanded ? 'ChevronDown' : 'ChevronRight'}
                   size={16}
                   className={`transition-transform ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`}
                 />
@@ -160,10 +262,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
   return (
     <>
       {/* Sidebar */}
-      <aside 
-        className={`fixed left-0 top-0 h-full bg-card border-r border-border sidebar-shadow z-1000 transition-all duration-300 ${
-          isCollapsed ? 'w-16' : 'w-60'
-        }`}
+      <aside
+        className={`fixed left-0 top-0 h-full bg-card border-r border-border sidebar-shadow z-[9999] transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-60'
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
@@ -183,7 +284,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                 </div>
               </div>
             )}
-            
+
             <Button
               variant="ghost"
               size="icon"
@@ -206,9 +307,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                   onChange={(e) => handleSearch(e?.target?.value)}
                   className="pl-10"
                 />
-                <Icon 
-                  name="Search" 
-                  size={16} 
+                <Icon
+                  name="Search"
+                  size={16}
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
                 />
               </div>
@@ -227,9 +328,9 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                         }}
                         className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-popover-foreground hover:bg-muted transition-smooth"
                       >
-                        <Icon 
-                          name={result?.type === 'project' ? 'FolderOpen' : result?.type === 'client' ? 'Users' : 'ClipboardList'} 
-                          size={16} 
+                        <Icon
+                          name={result?.type === 'project' ? 'FolderOpen' : result?.type === 'client' ? 'Users' : 'ClipboardList'}
+                          size={16}
                         />
                         <div className="text-left">
                           <div className="font-medium">{result?.title}</div>
@@ -283,11 +384,23 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       </aside>
       {/* Overlay for mobile */}
       {!isCollapsed && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-999 lg:hidden"
           onClick={onToggle}
         />
       )}
+      {/* Comentado temporalmente para necesidades futuras */}
+      {/* <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        notificaciones={notificaciones}
+        onModalStateChange={handleModalStateChange}
+        onNotificationRead={handleNotificationRead}
+        onViewAll={() => {
+          setShowNotificationsModal(false);
+          navigate('/notificaciones');
+        }}
+      /> */}
     </>
   );
 };

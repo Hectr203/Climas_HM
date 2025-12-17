@@ -21,15 +21,15 @@ const personService = {
     }
   },
 
-  // 🔹 NUEVA FUNCIÓN PARA ACTUALIZAR EMPLEADO EXISTENTE
+  // 🔹 OBTENER PERSONAL POR DEPARTAMENTO (Taller, Oficina, Obra)
   async getPersonsByDepartment(department) {
     try {
       const response = await httpService.get(
-        `/obtenerEmpleadosPorDepartamentos?departamentos=${encodeURIComponent(department)}`
+        `/personal/departamento/${encodeURIComponent(department)}`
       );
       return response;
     } catch (error) {
-      console.error("Error al obtener empleados por departamento:", error);
+      console.error("Error al obtener personal por departamento:", error);
       throw error;
     }
   },
@@ -53,6 +53,22 @@ const personService = {
       return response;
     } catch (error) {
       console.error("Error al actualizar empleado:", error);
+      throw error;
+    }
+  },
+
+  // 🔹 OBTENER EMPLEADOS SIN USUARIO ASIGNADO (para crear usuarios obra)
+  async getPersonsWithoutUser() {
+    try {
+      console.log('🔍 Llamando a /empleados?sin_usuario=true...');
+      console.log('🔑 Token presente:', !!localStorage.getItem('authToken'));
+      const response = await httpService.get("/empleados?sin_usuario=true");
+      console.log('✅ Respuesta recibida:', response);
+      return response;
+    } catch (error) {
+      console.error("❌ Error al obtener empleados sin usuario:", error);
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Data:", error.response?.data);
       throw error;
     }
   },

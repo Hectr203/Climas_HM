@@ -4,12 +4,12 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import useConsumoMateriales from '../../../hooks/useConsumoMateriales';
-import useInventory from '../../../hooks/useInventory';
+import useInventarioTaller from '../../../hooks/useInventarioTaller';
 import { useNotifications } from '../../../context/NotificationContext';
 
 const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
   const { showSuccess, showError } = useNotifications();
-  const { articulos, getArticulos, loading: inventoryLoading } = useInventory();
+  const { inventarioTaller, getInventarioTaller, loading: inventoryLoading } = useInventarioTaller();
   const { registrarConsumo, loading: consumoLoading } = useConsumoMateriales();
   
   const [materiales, setMateriales] = useState([]);
@@ -23,26 +23,25 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
   const [mostrarSelector, setMostrarSelector] = useState(false);
 
   useEffect(() => {
-    getArticulos();
-  }, [getArticulos]);
+    getInventarioTaller(true); // Solo materiales disponibles en taller
+  }, [getInventarioTaller]);
 
-  // Filtrar artículos según búsqueda
+  // Filtrar artículos según búsqueda (desde inventario de taller)
   const articulosFiltrados = useMemo(() => {
-    if (!busquedaArticulo.trim()) return articulos;
+    if (!busquedaArticulo.trim()) return inventarioTaller;
     
     const busquedaLower = busquedaArticulo.toLowerCase();
-    return articulos.filter(articulo => 
-      articulo?.nombre?.toLowerCase().includes(busquedaLower) ||
-      articulo?.codigo?.toLowerCase().includes(busquedaLower) ||
-      articulo?.descripcion?.toLowerCase().includes(busquedaLower) ||
-      articulo?.categoria?.toLowerCase().includes(busquedaLower)
+    return inventarioTaller.filter(articulo => 
+      articulo?.nombreMaterial?.toLowerCase().includes(busquedaLower) ||
+      articulo?.articuloId?.toLowerCase().includes(busquedaLower) ||
+      articulo?.origen?.requisicionId?.toLowerCase().includes(busquedaLower)
     );
-  }, [articulos, busquedaArticulo]);
+  }, [inventarioTaller, busquedaArticulo]);
 
-  // Obtener artículo seleccionado
+  // Obtener artículo seleccionado (del inventario de taller)
   const articuloSeleccionado = useMemo(() => {
-    return articulos.find(a => a.id === nuevoMaterial.articuloId);
-  }, [articulos, nuevoMaterial.articuloId]);
+    return inventarioTaller.find(a => a.articuloId === nuevoMaterial.articuloId);
+  }, [inventarioTaller, nuevoMaterial.articuloId]);
 
   const handleAgregarMaterial = () => {
     if (!nuevoMaterial.articuloId || !nuevoMaterial.cantidad || parseFloat(nuevoMaterial.cantidad) <= 0) {
@@ -56,12 +55,12 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
       return;
     }
 
-    // Verificar stock disponible
-    const stockActual = articulo.stockActual || articulo.currentStock || 0;
+    // Verificar stock disponible en taller
+    const stockActual = articulo.cantidadDisponible || 0;
     const cantidadSolicitada = parseFloat(nuevoMaterial.cantidad);
     
     if (cantidadSolicitada > stockActual) {
-      showError(`Stock insuficiente. Disponible: ${stockActual} ${articulo.unidad || 'pcs'}`);
+      showError(`Stock insuficiente en taller. Disponible: ${stockActual} ${articulo.unidad || 'pcs'}`);
       return;
     }
 
@@ -70,9 +69,10 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
       cantidad: cantidadSolicitada,
       unidad: nuevoMaterial.unidad || articulo.unidad || 'pcs',
       notas: nuevoMaterial.notas || '',
-      nombre: articulo.nombre || articulo.descripcion || 'Sin nombre',
-      codigo: articulo.codigo || articulo.codigoArticulo || 'Sin código',
-      stockDisponible: stockActual
+      nombre: articulo.nombreMaterial || 'Sin nombre',
+      codigo: articulo.articuloId || 'Sin código',
+      stockDisponible: stockActual,
+      origen: articulo.origen // Información de trazabilidad
     };
 
     setMateriales(prev => [...prev, material]);
@@ -93,7 +93,7 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
   const handleSeleccionarArticulo = (articulo) => {
     setNuevoMaterial(prev => ({
       ...prev,
-      articuloId: articulo.id,
+      articuloId: articulo.articuloId,
       unidad: articulo.unidad || 'pcs'
     }));
     setMostrarSelector(false);
@@ -107,16 +107,22 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
     }
 
     try {
-      await registrarConsumo(materiales, null, () => {
-        // Recargar inventario después del consumo
-        getArticulos();
+      // Agregar ordenTrabajo a cada material si está disponible en origen
+      const materialesConOrden = materiales.map(m => ({
+        ...m,
+        ordenTrabajo: m.origen?.ordenTrabajo || m.origen?.numeroOrdenTrabajo || null
+      }));
+      
+      await registrarConsumo(materialesConOrden, null, () => {
+        // Recargar inventario del taller después del consumo
+        getInventarioTaller(true);
         // Notificar al componente padre si existe el callback
         if (onInventoryUpdate) {
           onInventoryUpdate();
         }
       });
       setMateriales([]);
-      showSuccess('Consumo registrado exitosamente');
+      showSuccess('Consumo registrado y descontado del inventario del taller');
     } catch (error) {
       console.error('Error al registrar consumo:', error);
     }
@@ -164,24 +170,29 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
               {mostrarSelector && articulosFiltrados.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 md:max-h-60 overflow-y-auto">
                   {articulosFiltrados.map(articulo => {
-                    const stockActual = articulo.stockActual || articulo.currentStock || 0;
+                    const stockActual = articulo.cantidadDisponible || 0;
                     return (
                       <button
-                        key={articulo.id}
+                        key={articulo.id || articulo.articuloId}
                         type="button"
                         onClick={() => handleSeleccionarArticulo(articulo)}
-                        className="w-full text-left px-3 md:px-4 py-2 hover:bg-muted transition-colors flex items-center justify-between text-sm"
+                        className="w-full text-left px-3 md:px-4 py-2 hover:bg-muted transition-colors flex flex-col text-sm"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-foreground truncate">
-                            {articulo.nombre || articulo.descripcion || 'Sin nombre'}
+                            {articulo.nombreMaterial || 'Sin nombre'}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {articulo.codigo || articulo.codigoArticulo || 'Sin código'} • 
-                            Stock: {stockActual} {articulo.unidad || 'pcs'}
+                            {articulo.articuloId || 'Sin código'} • 
+                            Stock en Taller: {stockActual} {articulo.unidad || 'pcs'}
                           </div>
+                          {articulo.origen?.requisicionId && (
+                            <div className="text-xs text-blue-500 mt-1">
+                              📦 Origen: Req. {articulo.origen.requisicionId.substring(0, 8)}
+                            </div>
+                          )}
                         </div>
-                        {articuloSeleccionado?.id === articulo.id && (
+                        {articuloSeleccionado?.articuloId === articulo.articuloId && (
                           <Icon name="Check" size={16} className="text-primary flex-shrink-0 ml-2" />
                         )}
                       </button>
@@ -192,10 +203,15 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
             </div>
             {articuloSeleccionado && (
               <div className="mt-2 p-2 bg-primary/10 rounded text-xs md:text-sm">
-                <span className="font-medium">Seleccionado: </span>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Seleccionado: </span>
+                  <span className="text-xs text-blue-600">
+                    {articuloSeleccionado.origen?.requisicionId && `📦 Req: ${articuloSeleccionado.origen.requisicionId.substring(0, 8)}`}
+                  </span>
+                </div>
                 <span className="truncate inline-block max-w-full">
-                  {articuloSeleccionado.nombre || articuloSeleccionado.descripcion} 
-                  {' '}(Stock: {articuloSeleccionado.stockActual || articuloSeleccionado.currentStock || 0} {articuloSeleccionado.unidad || 'pcs'})
+                  {articuloSeleccionado.nombreMaterial} 
+                  {' '}(Stock en Taller: {articuloSeleccionado.cantidadDisponible || 0} {articuloSeleccionado.unidad || 'pcs'})
                 </span>
               </div>
             )}
@@ -273,6 +289,11 @@ const MaterialConsumptionPanel = ({ onInventoryUpdate }) => {
                     {material.codigo} • {material.cantidad} {material.unidad}
                     {material.notas && ` • ${material.notas}`}
                   </div>
+                  {material.origen?.requisicionId && (
+                    <div className="text-xs text-blue-500 mt-1">
+                      Origen: Requisición {material.origen.requisicionId.substring(0, 8)}
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="ghost"

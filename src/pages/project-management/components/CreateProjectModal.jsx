@@ -264,20 +264,21 @@ const CreateProjectModal = ({ isOpen, onClose, onSubmit }) => {
       if (rate > 0) {
         setExchangeRate(rate);
         return rate;
+      } else {
+        const msg = 'No llegó una tasa válida.';
+        setFxError(msg);
+        showError(msg);
+        return null;
       }
-
-      const msg = 'No llegó una tasa válida.';
-      setFxError(msg);
-      showError(msg);
-      return null;
-    } catch (err) {
-      setFxError('Error consultando tipo de cambio.');
-      handleError(err, 'Tipo de cambio');
+    } catch (e) {
+      handleError(e, 'Tipo de cambio');
       return null;
     } finally {
       setLoadingFx(false);
     }
-  }, [handleError, showError]);
+  },
+  [handleError, showError]
+  );
 
   const toggleEquipmentUSD = (checked) => {
     setIsEquipmentInUSD(checked);

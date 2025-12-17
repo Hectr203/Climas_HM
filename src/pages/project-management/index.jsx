@@ -22,7 +22,7 @@ const uiEstadoCache = {
   _read() { try { return JSON.parse(localStorage.getItem(UI_ESTADO_KEY)) || {}; } catch { return {}; } },
   get(id) { if (!id) return null; const m = this._read(); return m[id] || null; },
   set(id, estado) { if (!id) return; const m = this._read(); if (estado) m[id] = estado; else delete m[id]; localStorage.setItem(UI_ESTADO_KEY, JSON.stringify(m)); },
-  bulkMergeFromApi(list=[]) {
+  bulkMergeFromApi(list = []) {
     const m = this._read(); let changed = false;
     list.forEach(p => {
       const id = p?.id ?? p?._id; if (!id) return;
@@ -71,9 +71,9 @@ const ProjectManagement = () => {
   /* ====== Normalización de proyectos para filtros ====== */
   const normalizeProjectForFilters = (doc) => {
     if (!doc) return null;
-    
+
     const clienteNode = doc.cliente ?? doc.client ?? doc.customer ?? doc.account ?? null;
-    
+
     // Función auxiliar para normalizar texto (quita tildes)
     const norm = (s) => (s ?? '').toString().normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -83,12 +83,12 @@ const ProjectManagement = () => {
     // Obtener estado normalizado
     const cachedEstado = uiEstadoCache.get(doc.id ?? doc._id);
     const estadoRaw = cachedEstado || doc.estado || doc.status || '';
-    
+
     // Normalizar estado a formato esperado por los filtros
     const estadoNormalizado = (() => {
       const v = norm(estadoRaw); // Usar norm para quitar tildes
       const vLower = String(estadoRaw).toLowerCase().trim();
-      
+
       if (v.includes('planific') || vLower === 'planning' || vLower === '0') return 'planning';
       if (v.includes('proceso') || v.includes('progress') || vLower === 'in-progress' || vLower === 'in_progress' || vLower === '1') return 'in-progress';
       if (v.includes('pausa') || v.includes('hold') || vLower === 'on-hold' || vLower === 'on_hold' || vLower === 'paused' || vLower === '2') return 'on-hold';
@@ -130,11 +130,11 @@ const ProjectManagement = () => {
       name: doc.nombreProyecto ?? doc.nombre ?? '',
       client: {
         id: (clienteNode && typeof clienteNode === 'object' && (clienteNode.id || clienteNode._id)) ||
-            doc.clienteId || doc.idCliente || doc.clientId || null,
-        name: (clienteNode && typeof clienteNode === 'object' && 
-               (clienteNode.nombre || clienteNode.name || clienteNode.empresa || clienteNode.razonSocial)) ||
-               (typeof clienteNode === 'string' ? clienteNode : null) ||
-               doc.clienteNombre || doc.clientName || null,
+          doc.clienteId || doc.idCliente || doc.clientId || null,
+        name: (clienteNode && typeof clienteNode === 'object' &&
+          (clienteNode.nombre || clienteNode.name || clienteNode.empresa || clienteNode.razonSocial)) ||
+          (typeof clienteNode === 'string' ? clienteNode : null) ||
+          doc.clienteNombre || doc.clientName || null,
       },
       status: estadoNormalizado,
       statusLabel: doc.statusLabel || estadoRaw,
@@ -150,13 +150,13 @@ const ProjectManagement = () => {
   /* ====== filtros ====== */
   const handleFiltersChange = (filters) => {
     const rawProjects = Array.isArray(projects) ? projects : [];
-    
+
     // Normalizar proyectos para aplicar filtros
     const normalizedProjects = rawProjects.map(normalizeProjectForFilters).filter(Boolean);
-    
+
     // Aplicar filtros usando la función completa
     const filtered = applyProjectFilters(normalizedProjects, filters);
-    
+
     // Convertir de vuelta al formato original para mantener compatibilidad
     const filteredRaw = filtered.map(p => {
       // Buscar el proyecto original por ID
@@ -205,7 +205,7 @@ const ProjectManagement = () => {
     }
 
     try {
-      const headers = ['Código','Nombre','Cliente','Estado','Prioridad','Presupuesto','Inicio','Fin'];
+      const headers = ['Código', 'Nombre', 'Cliente', 'Estado', 'Prioridad', 'Presupuesto', 'Inicio', 'Fin'];
 
       const rows = filteredProjects.map(p =>
         [
@@ -223,10 +223,10 @@ const ProjectManagement = () => {
       );
 
       const csv = [headers.join(','), ...rows].join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `proyectos_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `proyectos_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -259,7 +259,7 @@ const ProjectManagement = () => {
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
       <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} />
+        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} sidebarCollapsed={sidebarCollapsed} />
 
         <div className="">
           <div className="container mx-auto px-4 py-8">
@@ -279,7 +279,7 @@ const ProjectManagement = () => {
 
               <div className="flex items-center space-x-4 mt-4 lg:mt-0">
                 <div className="flex bg-muted rounded-lg p-1">
-                  {[ 
+                  {[
                     { value: 'table', label: 'Tabla', icon: 'Table' },
                     { value: 'timeline', label: 'Cronograma', icon: 'Calendar' },
                     { value: 'quotations', label: 'Cotizaciones', icon: 'FileText' },
@@ -331,7 +331,7 @@ const ProjectManagement = () => {
               {activeView === 'timeline' && (
                 <ProjectTimeline
                   projects={filteredProjects}
-                  onGenerateReport={() => {}}
+                  onGenerateReport={() => { }}
                 />
               )}
 
@@ -375,4 +375,3 @@ const ProjectManagement = () => {
 };
 
 export default ProjectManagement;
- 

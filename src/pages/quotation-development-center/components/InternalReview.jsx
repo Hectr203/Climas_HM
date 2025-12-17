@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useNotifications } from '../../../context/NotificationContext';
 import useQuotation from '../../../hooks/useQuotation';
-        import Icon from '../../../components/AppIcon';
-        import Button from '../../../components/ui/Button';
-        import Input from '../../../components/ui/Input';
+import quotationService from '../../../services/quotationService';
+import Icon from '../../../components/AppIcon';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
 
-        const InternalReview = ({ quotation, onSubmitReview }) => {
+        const InternalReview = ({ quotation, onSubmitReview, onQuotationUpdate }) => {
           const { showSuccess, showError } = useNotifications();
           const { upsertRevision } = useQuotation();
+          
+          // Estado para manejo de aprobación de cotizaciones
+          const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
           
           // ✅ Función para verificar si un área tiene datos válidos
           const areaTieneDatos = (area) => {
@@ -176,6 +180,81 @@ import useQuotation from '../../../hooks/useQuotation';
             onSubmitReview?.(approvedReview);
             sendRevisionToBackend(approvedReview);
           };
+          
+          // Funciones para aprobación de cotizaciones
+          const handleApproveQuotation = async () => {
+            if (isSubmittingApproval) return;
+            
+            setIsSubmittingApproval(true);
+            try {
+              await quotationService.updateEstadoAprobacion(
+                quotation.id, 
+                'aprobada', 
+                '',
+                'Sistema' // Aquí iría el usuario actual
+              );
+              showSuccess('Cotización aprobada exitosamente');
+              // Actualizar el estado local en tiempo real
+              if (onQuotationUpdate) {
+                console.log('Aprobando cotización:', quotation.id);
+                onQuotationUpdate(quotation.id, {
+                  estado_aprobacion: 'aprobada',
+                  approvalDate: new Date().toISOString().split('T')[0]
+                });
+              }
+              // Forzar re-render del componente
+              setReviewData(prev => ({ ...prev, quotationApprovalStatus: 'aprobada' }));
+              if (onSubmitReview) {
+                onSubmitReview({ 
+                  ...reviewData, 
+                  quotationStatus: 'aprobada',
+                  approvalDate: new Date().toISOString().split('T')[0]
+                });
+              }
+            } catch (error) {
+              showError('Error al aprobar la cotización');
+              console.error('Error:', error);
+            } finally {
+              setIsSubmittingApproval(false);
+            }
+          };
+
+          const handleRejectQuotation = async () => {
+            if (isSubmittingApproval) return;
+            
+            setIsSubmittingApproval(true);
+            try {
+              await quotationService.updateEstadoAprobacion(
+                quotation.id, 
+                'rechazada', 
+                '',
+                'Sistema' // Aquí iría el usuario actual
+              );
+              showSuccess('Cotización rechazada - movida al historial');
+              // Actualizar el estado local en tiempo real
+              if (onQuotationUpdate) {
+                console.log('Rechazando cotización:', quotation.id);
+                onQuotationUpdate(quotation.id, {
+                  estado_aprobacion: 'rechazada',
+                  rejectionDate: new Date().toISOString().split('T')[0]
+                });
+              }
+              // Forzar re-render del componente
+              setReviewData(prev => ({ ...prev, quotationApprovalStatus: 'rechazada' }));
+              if (onSubmitReview) {
+                onSubmitReview({ 
+                  ...reviewData, 
+                  quotationStatus: 'rechazada',
+                  rejectionDate: new Date().toISOString().split('T')[0]
+                });
+              }
+            } catch (error) {
+              showError('Error al rechazar la cotización');
+              console.error('Error:', error);
+            } finally {
+              setIsSubmittingApproval(false);
+            }
+          };
 
           const getStatusColor = (status) => {
             switch (status) {
@@ -184,6 +263,16 @@ import useQuotation from '../../../hooks/useQuotation';
               case 'rejected': return 'text-red-600 bg-red-50 border-red-200';
               case 'pending': return 'text-gray-600 bg-gray-50 border-gray-200';
               default: return 'text-gray-600 bg-gray-50 border-gray-200';
+            }
+          };
+          
+          // Función para obtener color del estado de aprobación
+          const getApprovalStatusColor = (status) => {
+            switch (status) {
+              case 'aprobada': return 'text-green-600 bg-green-50 border-green-200';
+              case 'pendiente': return 'text-orange-600 bg-orange-50 border-orange-200';
+              case 'rechazada': return 'text-red-600 bg-red-50 border-red-200';
+              default: return 'text-orange-600 bg-orange-50 border-orange-200';
             }
           };
 
@@ -195,6 +284,57 @@ import useQuotation from '../../../hooks/useQuotation';
 
           return (
             <div className="space-y-6">
+              {/* Sección de Aprobación/Rechazo de Cotización - PRIMERA */}
+              <div className="bg-card border rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold">Estado de Aprobación de Cotización</h3>
+                  <div className={`px-3 py-1 text-sm rounded-full border ${getApprovalStatusColor(quotation?.estado_aprobacion || 'pendiente')}`}>
+                    {quotation?.estado_aprobacion === 'aprobada' ? '✓ Aprobada' :
+                     quotation?.estado_aprobacion === 'rechazada' ? '✗ Rechazada' : '⏳ Pendiente'}
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  {quotation?.estado_aprobacion === 'pendiente' && (
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={handleApproveQuotation}
+                        disabled={isSubmittingApproval}
+                        iconName="CheckCircle"
+                        iconPosition="left"
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isSubmittingApproval ? 'Procesando...' : 'Aprobar Cotización'}
+                      </Button>
+                      <Button
+                        onClick={handleRejectQuotation}
+                        disabled={isSubmittingApproval}
+                        variant="outline"
+                        iconName="X"
+                        iconPosition="left"
+                        className="border-red-600 text-red-600 hover:bg-red-50"
+                      >
+                        {isSubmittingApproval ? 'Procesando...' : 'Rechazar Cotización'}
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {quotation?.estado_aprobacion === 'aprobada' && (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <Icon name="CheckCircle" size={16} />
+                      <span className="text-sm font-medium">Esta cotización ha sido aprobada</span>
+                    </div>
+                  )}
+                  
+                  {quotation?.estado_aprobacion === 'rechazada' && (
+                    <div className="flex items-center space-x-2 text-red-600">
+                      <Icon name="X" size={16} />
+                      <span className="text-sm font-medium">Esta cotización ha sido rechazada</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-semibold">Revisión Comercial Interna</h3>

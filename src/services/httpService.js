@@ -71,6 +71,26 @@ class HttpService {
           return { data: { data: [] } };
         }
 
+        // Suprimir completamente 404 y 500 en imágenes de empleados (puede no tener imagen o endpoint no disponible)
+        if (
+          (error.response?.status === 404 || error.response?.status === 500) &&
+          error.config?.url?.includes("/empleados/") &&
+          error.config?.url?.includes("/imagen")
+        ) {
+          // Retornar respuesta vacía (sin imagen)
+          return { data: { success: true, data: null } };
+        }
+
+        // Suprimir completamente 404 y 500 en documentos de empleados (puede no tener documentos o endpoint no disponible)
+        if (
+          (error.response?.status === 404 || error.response?.status === 500) &&
+          error.config?.url?.includes("/empleados/") &&
+          error.config?.url?.includes("/documentos")
+        ) {
+          // Retornar respuesta vacía (sin documentos)
+          return { data: { success: true, data: { documentos: [], count: 0 } } };
+        }
+
         if (error.response?.status === 401) this.handleUnauthorized();
         return Promise.reject(this.normalizeError(error));
       }
@@ -111,15 +131,16 @@ class HttpService {
     };
   }
 
-  // Métodos HTTP
-  async get(url, config = {}) {
-    const res = await this.api.get(url, config);
-    // Si es un blob, devolver el blob directamente
-    if (config.responseType === 'blob') {
-      return res.data;
-    }
-    return res.data;
+  // Modificacion para que descargue archivos clientes
+ async get(url, config = {}) {
+  const finalConfig = { ...config };
+  if (finalConfig.responseType === "blob" || finalConfig.responseType === "arraybuffer") {
+    delete finalConfig.headers;
   }
+  const res = await this.api.get(url, finalConfig);
+  return finalConfig.responseType ? res.data : res.data;
+}
+
 
   async post(url, data = {}, config = {}) {
     const res = await this.api.post(url, data, config);

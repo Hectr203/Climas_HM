@@ -387,9 +387,9 @@ const SalesOpportunityManagement = () => {
     setOpportunities(prev => prev?.map(opp =>
       opp?.id === opportunityId
         ? {
-            ...opp,
-            communications: [...(opp?.communications || []), communication]
-          }
+          ...opp,
+          communications: [...(opp?.communications || []), communication]
+        }
         : opp
     ));
     if (selectedOpportunity?.id === opportunityId) {
@@ -412,10 +412,10 @@ const SalesOpportunityManagement = () => {
     setOpportunities(prev => prev?.map(opp =>
       opp?.id === opportunityId
         ? {
-            ...opp,
-            workOrderGenerated: true,
-            workOrderRef: workOrderData?.reference
-          }
+          ...opp,
+          workOrderGenerated: true,
+          workOrderRef: workOrderData?.reference
+        }
         : opp
     ));
     if (selectedOpportunity?.id === opportunityId) {
@@ -470,8 +470,12 @@ const SalesOpportunityManagement = () => {
     <div className="min-h-screen bg-background flex">
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
-      <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
-        <Header onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)} isMenuOpen={headerMenuOpen} />
+      <div className={`flex-1 transition-all duration-300 ml-60 lg:${sidebarCollapsed ? 'ml-16' : 'ml-60'}`}>
+        <Header
+          onMenuToggle={() => setHeaderMenuOpen(!headerMenuOpen)}
+          isMenuOpen={headerMenuOpen}
+          sidebarCollapsed={sidebarCollapsed}
+        />
 
         <main className="">
           <div className="container mx-auto px-4 py-8">
@@ -553,23 +557,22 @@ const SalesOpportunityManagement = () => {
                                   {opportunity.clientName}
                                 </h4>
                                 <span
-                                  className={`text-xs px-2 py-1 rounded-full ${
-                                    opportunity.priority === 'urgent'
-                                      ? 'bg-red-100 text-red-800'
-                                      : opportunity.priority === 'high'
+                                  className={`text-xs px-2 py-1 rounded-full ${opportunity.priority === 'urgent'
+                                    ? 'bg-red-100 text-red-800'
+                                    : opportunity.priority === 'high'
                                       ? 'bg-orange-100 text-orange-800'
                                       : opportunity.priority === 'medium'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-green-100 text-green-800'
-                                  }`}
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-green-100 text-green-800'
+                                    }`}
                                 >
                                   {opportunity.priority === 'urgent'
                                     ? 'Urgente'
                                     : opportunity.priority === 'high'
-                                    ? 'Alta'
-                                    : opportunity.priority === 'medium'
-                                    ? 'Media'
-                                    : 'Baja'}
+                                      ? 'Alta'
+                                      : opportunity.priority === 'medium'
+                                        ? 'Media'
+                                        : 'Baja'}
                                 </span>
                               </div>
 
@@ -581,11 +584,10 @@ const SalesOpportunityManagement = () => {
                                   />
                                   <span className="capitalize">{opportunity.contactChannel}</span>
                                   <span
-                                    className={`px-2 py-0.5 rounded text-xs ${
-                                      opportunity.projectType === 'project'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-purple-100 text-purple-800'
-                                    }`}
+                                    className={`px-2 py-0.5 rounded text-xs ${opportunity.projectType === 'project'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-purple-100 text-purple-800'
+                                      }`}
                                   >
                                     {opportunity.projectType === 'project' ? 'Proyecto' : 'Pieza'}
                                   </span>
@@ -760,20 +762,20 @@ const SalesOpportunityManagement = () => {
                           <div className="space-y-2">
                             <label className="text-sm font-medium">Avanzar Etapa</label>
                             <div className="grid grid-cols-1 gap-2">{salesStages?.map((stage) => (
-                                <Button
-                                  key={stage?.id}
-                                  variant={selectedOpportunity?.stage === stage?.id ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() =>
-                                    handleStageTransition(selectedOpportunity?.id, stage?.id)
-                                  }
-                                  disabled={selectedOpportunity?.stage === stage?.id}
-                                  className="text-xs justify-start"
-                                >
-                                  <Icon name={stage?.icon} size={14} className="mr-2" />
-                                  {stage?.name}
-                                </Button>
-                              ))}
+                              <Button
+                                key={stage?.id}
+                                variant={selectedOpportunity?.stage === stage?.id ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() =>
+                                  handleStageTransition(selectedOpportunity?.id, stage?.id)
+                                }
+                                disabled={selectedOpportunity?.stage === stage?.id}
+                                className="text-xs justify-start"
+                              >
+                                <Icon name={stage?.icon} size={14} className="mr-2" />
+                                {stage?.name}
+                              </Button>
+                            ))}
                             </div>
                           </div>
                         </div>

@@ -59,11 +59,11 @@ const limpiarNumeroFormateado = (valor) => {
 };
 
 const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave }) => {
-  const presupuestoProyecto = Number(project?.budget) || 0;
+  const presupuestoProyecto = Number(project?.totalPresupuesto) || 0;
   const saldoInicial = Math.max(presupuestoProyecto - Number(currentPaid || 0), 0);
 
   // Hook de abonos
-  const { createAbono, loading } = useAbono();
+  const { createAbono, getAbonosByProyecto, loading } = useAbono();
 
   // Hook de documentos
   const { subirDocumento } = useAbonoDocumentos();
@@ -74,8 +74,11 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
   // Campos requeridos
   const [idProyecto, setIdProyecto] = useState('');
   const [fechaLocal, setFechaLocal] = useState('');
-  const [monto, setMonto] = useState(''); // Valor numérico limpio para cálculos
-  const [montoFormateado, setMontoFormateado] = useState(''); // Valor formateado para mostrar
+  const [montoSinIva, setMontoSinIva] = useState('');
+  const [montoSinIvaFormateado, setMontoSinIvaFormateado] = useState('');
+  const [montoConIva, setMontoConIva] = useState('');
+  const [montoConIvaFormateado, setMontoConIvaFormateado] = useState('');
+  const [porcentajeIva, setPorcentajeIva] = useState(16); // porcentaje de IVA editable
   const [metodoPago, setMetodoPago] = useState('Transferencia');
   const [descripcion, setDescripcion] = useState('');
   const [descripcionMetodo, setDescripcionMetodo] = useState('');
@@ -89,7 +92,7 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
   const [comprobanteWarning, setComprobanteWarning] = useState('');
 
   // Información del proyecto obtenida de la API
-  const [infoProyecto, setInfoProyecto] = useState({ id: '', nombre: '', presupuesto: 0, clienteId: '' });
+  const [infoProyecto, setInfoProyecto] = useState({ id: '', nombre: '', totalPresupuesto: 0, clienteId: '' });
   const [totalAbonado, setTotalAbonado] = useState(0);
 
   // Variables auxiliares
@@ -109,17 +112,17 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
           .then((respuesta) => {
             const proyectoData = respuesta?.data || respuesta;
             if (proyectoData) {
-              const presupuestoTotal = proyectoData.presupuesto?.total || proyectoData.totalPresupuesto || 0;
+              const presupuestoTotal = proyectoData.totalPresupuesto || 0;
               const totalAbonadoData = proyectoData.resumenFinanciero?.totalAbonado || 0;
 
               setInfoProyecto({
                 id: proyectoData.id || proyectoData._id || id,
                 nombre: proyectoData.nombre || proyectoData.name || 'Sin nombre',
-                presupuesto: Number(presupuestoTotal),
+                totalPresupuesto: Number(presupuestoTotal),
                 clienteId: proyectoData.cliente?.id || proyectoData.clienteId || proyectoData.cliente_id || ''
               });
 
-              // Establecer el total abonado desde la API
+              // Intentar usar el resumen del backend si existe
               setTotalAbonado(totalAbonadoData);
 
               // Actualizar saldo basado en presupuesto obtenido de la API
@@ -130,7 +133,7 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
               setInfoProyecto({
                 id,
                 nombre: project?.name || project?.nombreProyecto || 'Sin nombre',
-                presupuesto: presupuestoProyecto,
+                totalPresupuesto: presupuestoProyecto,
                 clienteId: ''
               });
             }
@@ -141,12 +144,33 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
             setInfoProyecto({
               id,
               nombre: project?.name || project?.nombreProyecto || 'Sin nombre',
-              presupuesto: presupuestoProyecto,
+              totalPresupuesto: presupuestoProyecto,
               clienteId: ''
             });
           });
+
+        // Además, cargar abonos del proyecto y sumar con IVA para "Total pagado"
+        (async () => {
+          try {
+            const result = await getAbonosByProyecto(id);
+            const items = result?.items || result || [];
+            const totalConIva = Array.isArray(items)
+              ? items.reduce((sum, a) => {
+                const montoCon = Number(
+                  a?.montoAbonoConIva ?? a?.montoAbono ?? a?.monto ?? a?.monto_abono ?? 0
+                );
+                return sum + (isNaN(montoCon) ? 0 : montoCon);
+              }, 0)
+              : 0;
+            setTotalAbonado(totalConIva);
+            const importeTotal = Number((infoProyecto?.totalPresupuesto ?? presupuestoProyecto) || 0);
+            setSaldo(Math.max(importeTotal - totalConIva, 0));
+          } catch (e) {
+            console.warn('No se pudo cargar abonos para calcular Total pagado:', e);
+          }
+        })();
       } else {
-        setInfoProyecto({ id: '', nombre: 'Sin nombre', presupuesto: 0, clienteId: '' });
+        setInfoProyecto({ id: '', nombre: 'Sin nombre', totalPresupuesto: 0, clienteId: '' });
       }
 
       // Fecha actual por defecto
@@ -156,9 +180,12 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       const dd = String(hoy.getDate()).padStart(2, '0');
       setFechaLocal(`${yyyy}-${mm}-${dd}`);
 
-      setMonto('0');
-      setMontoFormateado('0');
+      setMontoSinIva('0');
+      setMontoSinIvaFormateado('0');
+      setMontoConIva('0');
+      setMontoConIvaFormateado('0');
       setMetodoPago('Transferencia');
+      setPorcentajeIva(16);
       setDescripcion('');
       setDescripcionMetodo('');
       setReferenciaPago('');
@@ -171,22 +198,22 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       setSaldo(Math.max(presupuestoProyecto - Number(currentPaid || 0), 0));
       setError('');
     }
-  }, [isOpen, project, presupuestoProyecto, currentPaid, getProyectoById]);
+  }, [isOpen, project, presupuestoProyecto, currentPaid, getProyectoById, getAbonosByProyecto]);
 
   // Vista previa del total pagado
   const totalPagadoPrevio = useMemo(() => {
-    const m = Number(monto) || 0;
+    const m = Number(montoConIva) || 0;
     return Number(totalAbonado || 0) + (m > 0 ? m : 0);
-  }, [monto, totalAbonado]);
+  }, [montoConIva, totalAbonado]);
 
   // Progreso del pago
   const progreso = useMemo(() => {
-    if (!(infoProyecto?.presupuesto > 0)) return 0;
-    const p = (Number(totalPagadoPrevio) / infoProyecto.presupuesto) * 100;
+    if (!(infoProyecto?.totalPresupuesto > 0)) return 0;
+    const p = (Number(totalPagadoPrevio) / infoProyecto.totalPresupuesto) * 100;
     return Math.round(limitarRango(p, 0, 100));
-  }, [totalPagadoPrevio, infoProyecto?.presupuesto]);
+  }, [totalPagadoPrevio, infoProyecto?.totalPresupuesto]);
 
-  const manejarCambioMonto = (valor) => {
+  const manejarCambioMonto = (valor, tipo) => {
     // Limpiar el valor ingresado (remover comas y caracteres no numéricos excepto punto decimal)
     const valorLimpio = limpiarNumeroFormateado(valor);
 
@@ -194,7 +221,8 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
     let valorFinal = valorLimpio === '' ? '0' : valorLimpio;
 
     // Si el valor actual es "0" y el usuario está escribiendo algo nuevo
-    if (monto === '0' && valorLimpio !== '' && valorLimpio !== '0') {
+    const valorActual = tipo === 'sinIva' ? montoSinIva : montoConIva;
+    if (valorActual === '0' && valorLimpio !== '' && valorLimpio !== '0') {
       // Si el usuario escribe un punto decimal, permitir "0."
       if (valorLimpio === '.' || valorLimpio === '0.') {
         valorFinal = '0.';
@@ -219,16 +247,39 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
     }
 
     // Actualizar el valor numérico limpio para cálculos
-    setMonto(valorFinal);
-
-    // Actualizar el valor formateado para mostrar
-    setMontoFormateado(formatearNumeroConSeparadores(valorFinal));
+    if (tipo === 'sinIva') {
+      setMontoSinIva(valorFinal);
+      setMontoSinIvaFormateado(formatearNumeroConSeparadores(valorFinal));
+      // Calcular y rellenar con IVA automáticamente
+      const numSinIva = Number(valorFinal);
+      const rate = Number(porcentajeIva);
+      if (!isNaN(numSinIva) && rate >= 0) {
+        const multiplicador = 1 + (rate / 100);
+        const calculadoConIva = Math.round((numSinIva * multiplicador) * 100) / 100;
+        setMontoConIva(String(calculadoConIva));
+        setMontoConIvaFormateado(formatearNumeroConSeparadores(calculadoConIva));
+      }
+    } else {
+      setMontoConIva(valorFinal);
+      setMontoConIvaFormateado(formatearNumeroConSeparadores(valorFinal));
+      // Sincronizar sin IVA si está vacío o cero
+      const numConIva = Number(valorFinal);
+      const rate = Number(porcentajeIva);
+      if (!isNaN(numConIva) && rate >= 0) {
+        const divisor = 1 + (rate / 100);
+        const calculadoSinIva = divisor > 0 ? Math.round((numConIva / divisor) * 100) / 100 : numConIva;
+        if (!(Number(montoSinIva) > 0)) {
+          setMontoSinIva(String(calculadoSinIva));
+          setMontoSinIvaFormateado(formatearNumeroConSeparadores(calculadoSinIva));
+        }
+      }
+    }
 
     // Calcular saldo si el valor es numérico válido
     const num = Number(valorFinal);
     if (!isNaN(num)) {
-      const totalPagadoAcumulado = Number(totalAbonado || 0) + Math.max(num, 0);
-      const importeTotal = Number(infoProyecto.presupuesto || 0);
+      const totalPagadoAcumulado = Number(totalAbonado || 0) + Math.max(Number(montoConIva || 0), 0);
+      const importeTotal = Number(infoProyecto.totalPresupuesto || 0);
       const nuevoSaldo = Math.max(importeTotal - totalPagadoAcumulado, 0);
       setSaldo(nuevoSaldo);
 
@@ -242,7 +293,16 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
   const manejarEnvio = async (e) => {
     e.preventDefault();
     setError('');
-    const montoNum = Number(monto);
+    const IVA_RATE = Number(porcentajeIva) / 100;
+    const montoConIvaNum = Number(montoConIva);
+    let montoSinIvaNum = Number(montoSinIva);
+    // Derivar sin IVA si viene vacío/0 pero con IVA sí viene
+    if (!(montoSinIvaNum > 0) && (montoConIvaNum > 0)) {
+      const calculado = montoConIvaNum / (1 + IVA_RATE);
+      montoSinIvaNum = Math.round(calculado * 100) / 100;
+      setMontoSinIva(String(montoSinIvaNum));
+      setMontoSinIvaFormateado(formatearNumeroConSeparadores(montoSinIvaNum));
+    }
 
     if (!idProyecto?.trim()) {
       setError('El ID del proyecto es obligatorio.');
@@ -252,8 +312,12 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       setError('La fecha del abono es obligatoria.');
       return;
     }
-    if (!(montoNum > 0)) {
-      setError('El monto abonado debe ser mayor a 0.');
+    if (!(montoConIvaNum > 0)) {
+      setError('El monto de abono con IVA debe ser mayor a 0.');
+      return;
+    }
+    if (!(montoSinIvaNum > 0)) {
+      setError('El monto de abono sin IVA debe ser mayor a 0.');
       return;
     }
     if (!descripcion?.trim()) {
@@ -273,8 +337,8 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
       return;
     }
     // Validar que el total pagado acumulado no exceda el importe total del proyecto
-    const totalPagadoAcumulado = Number(totalAbonado || 0) + montoNum;
-    const importeTotal = Number(infoProyecto.presupuesto || 0);
+    const totalPagadoAcumulado = Number(totalAbonado || 0) + montoConIvaNum;
+    const importeTotal = Number(infoProyecto.totalPresupuesto || 0);
 
     if (totalPagadoAcumulado > importeTotal) {
       const excedente = totalPagadoAcumulado - importeTotal;
@@ -286,7 +350,8 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
 
     const datos = {
       idProyecto: idProyecto.trim(),
-      montoAbono: Number(monto),
+      montoAbonoSinIva: Number(montoSinIvaNum),
+      montoAbonoConIva: Number(montoConIvaNum),
       fecha: formatearFechaISOUTC(fechaLocal),
       metodoPago,
       descripcion: descripcion.trim(),
@@ -365,8 +430,8 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground">Importe total</span>
-                <span className="text-foreground font-medium block">{formatearMoneda(infoProyecto?.presupuesto || presupuestoProyecto)}</span>
+                <span className="text-muted-foreground">Presupuesto Total</span>
+                <span className="text-foreground font-medium block">{formatearMoneda(infoProyecto?.totalPresupuesto || presupuestoProyecto)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Total pagado</span>
@@ -403,27 +468,73 @@ const ModalRegistroAbono = ({ isOpen, onClose, project, currentPaid = 0, onSave 
                 </p>
               </div>
 
-              {/* Monto */}
+              {/* Monto sin IVA */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Monto abonado</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Monto de abono sin IVA</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder="0.00"
-                  value={montoFormateado}
-                  onChange={(e) => manejarCambioMonto(e.target.value)}
-                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${Number(monto) > 0 && (Number(totalAbonado || 0) + Number(monto || 0)) > Number(infoProyecto.presupuesto || 0)
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-input'
+                  value={montoSinIvaFormateado}
+                  onChange={(e) => manejarCambioMonto(e.target.value, 'sinIva')}
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${Number(montoConIva) > 0 && (Number(totalAbonado || 0) + Number(montoConIva || 0)) > Number(infoProyecto.totalPresupuesto || 0)
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-input'
                     }`}
                   required
                   disabled={loading}
                 />
-                {Number(monto) > 0 && (Number(totalAbonado || 0) + Number(monto || 0)) > Number(infoProyecto.presupuesto || 0) && (
+              </div>
+
+              {/* Monto con IVA */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Monto de abono con IVA</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={montoConIvaFormateado}
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-background ${Number(montoConIva) > 0 && (Number(totalAbonado || 0) + Number(montoConIva || 0)) > Number(infoProyecto.totalPresupuesto || 0)
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-input'
+                    }`}
+                  required
+                  disabled={true}
+                  readOnly
+                />
+                {Number(montoConIva) > 0 && (Number(totalAbonado || 0) + Number(montoConIva || 0)) > Number(infoProyecto.totalPresupuesto || 0) && (
                   <p className="text-xs text-red-600 mt-1">
-                    ⚠️ El monto excede el límite disponible. Saldo disponible: {formatearMoneda(saldo)}
+                    ⚠️ El monto (con IVA) excede el límite disponible. Saldo disponible: {formatearMoneda(saldo)}
                   </p>
                 )}
+              </div>
+
+              {/* Porcentaje IVA */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Porcentaje de IVA</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={porcentajeIva}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    const nuevo = isNaN(v) ? 16 : Math.max(0, Math.min(100, v));
+                    setPorcentajeIva(nuevo);
+                    // Recalcular con IVA en tiempo real cuando cambie el porcentaje
+                    const numSinIva = Number(montoSinIva);
+                    if (!isNaN(numSinIva) && numSinIva > 0) {
+                      const multiplicador = 1 + (nuevo / 100);
+                      const calculadoConIva = Math.round((numSinIva * multiplicador) * 100) / 100;
+                      setMontoConIva(String(calculadoConIva));
+                      setMontoConIvaFormateado(formatearNumeroConSeparadores(calculadoConIva));
+                    }
+                  }}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  disabled={loading}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Se usará para calcular el monto sin IVA.</p>
               </div>
 
               {/* Saldo */}

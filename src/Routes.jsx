@@ -27,15 +27,27 @@ import QuotationDevelopmentCenter from './pages/quotation-development-center';
 import SalesExecutionMonitoring from './pages/sales-execution-monitoring';
 import ProjectAbonosManagement from './pages/project-abonos-management';
 import UserManagement from './pages/user-management';
+import ToolsManagement from './pages/tools-management';
+import MyToolsPage from './pages/my-tools';
+import Notifications from './pages/notifications';
+import PriceManagement from './pages/price-management';
+
+// Componente para redirigir dashboard al inicio del rol (definido fuera para evitar recreación)
+const DashboardRedirect = () => {
+  const userRole = localStorage.getItem('userRole');
+  // Si es admin, ir al MainDashboard real
+  if (userRole === 'admin') {
+    return <Navigate to="/panel-principal" replace />;
+  }
+  const defaultPath = getDefaultPath(userRole);
+  // Evitar loop infinito si defaultPath es /dashboard
+  if (defaultPath === '/dashboard' || !defaultPath) {
+    return <Navigate to="/oportunidades" replace />;
+  }
+  return <Navigate to={defaultPath} replace />;
+};
 
 const Routes = () => {
-  // Componente para redirigir dashboard al inicio del rol
-  const DashboardRedirect = () => {
-    const userRole = localStorage.getItem('userRole');
-    const defaultPath = getDefaultPath(userRole);
-    return <Navigate to={defaultPath} replace />;
-  };
-
   return (
     <ErrorBoundary>
       <ButtonHandlersProvider>
@@ -46,176 +58,211 @@ const Routes = () => {
 
           {/* Redirigir la raíz a login si no está autenticado */}
           <Route path="/" element={<LoginPage />} />
-          
+
           {/* Redirigir dashboard al inicio del rol actual */}
           <Route path="/dashboard" element={<DashboardRedirect />} />
-          
-            <Route 
-              path="/proyectos" 
-              element={
-                <ProtectedRoute requiredPath="/proyectos">
-                  <ProjectManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/galeria-proyecto/:projectId" 
-              element={
-                <ProtectedRoute requiredPath="/galeria-proyecto">
-                  <ProjectDetailGallery />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/project-detail-gallery/:projectId" 
-              element={
-                <ProtectedRoute requiredPath="/project-detail-gallery">
-                  <ProjectDetailGallery />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/visor-galeria/:projectId" 
-              element={
-                <ProtectedRoute requiredPath="/visor-galeria">
-                  <ProjectGalleryViewer />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/documentacion-proyectos" 
-              element={
-                <ProtectedRoute requiredPath="/documentacion-proyectos">
-                  <ProjectDocumentationCenter />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/flujo-proyecto" 
-              element={
-                <ProtectedRoute requiredPath="/flujo-proyecto">
-                  <ProjectWorkflowManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/constructor-cotizaciones" 
-              element={
-                <ProtectedRoute requiredPath="/constructor-cotizaciones">
-                  <QuotationBuilder />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/inventario" 
-              element={
-                <ProtectedRoute requiredPath="/inventario">
-                  <InventoryManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/finanzas" 
-              element={
-                <ProtectedRoute requiredPath="/finanzas">
-                  <FinancialManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/personal" 
-              element={
-                <ProtectedRoute requiredPath="/personal">
-                  <PersonnelManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/clientes" 
-              element={
-                <ProtectedRoute requiredPath="/clientes">
-                  <ClientManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/operaciones" 
-              element={
-                <ProtectedRoute requiredPath="/operaciones">
-                  <WorkOrderProcessing />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/operaciones-taller" 
-              element={
-                <ProtectedRoute requiredPath="/operaciones-taller">
-                  <WorkshopOperationsManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/centro-operaciones-taller" 
-              element={
-                <ProtectedRoute requiredPath="/centro-operaciones-taller">
-                  <WorkshopOperationsCenter />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/oportunidades" 
-              element={
-                <ProtectedRoute requiredPath="/oportunidades">
-                  <SalesOpportunityManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/proveedores" 
-              element={
-                <ProtectedRoute requiredPath="/proveedores">
-                  <SuppliersPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/usuarios" 
-              element={
-                <ProtectedRoute requiredPath="/usuarios">
-                  <UserManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/cotizaciones" 
-              element={
-                <ProtectedRoute requiredPath="/cotizaciones">
-                  <QuotationDevelopmentCenter />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/abonos" 
-              element={
-                <ProtectedRoute requiredPath="/abonos">
-                  <ProjectAbonosManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/monitoreo-ventas" 
-              element={
-                <ProtectedRoute requiredPath="/monitoreo-ventas">
-                  <SalesExecutionMonitoring />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Catch-all route for 404 */}
-            <Route path="*" element={<NotFound />} />
-          </RouterRoutes>
-        </ButtonHandlersProvider>
-      </ErrorBoundary>
+
+          {/* Redirigir main-dashboard al dashboard */}
+          <Route path="/main-dashboard" element={<Navigate to="/dashboard" replace />} />
+
+          {/* Panel Principal - Dashboard para admin */}
+          <Route
+            path="/panel-principal"
+            element={
+              <ProtectedRoute requiredPath="/panel-principal">
+                <MainDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/proyectos"
+            element={
+              <ProtectedRoute requiredPath="/proyectos">
+                <ProjectManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/galeria-proyecto/:projectId"
+            element={
+              <ProtectedRoute requiredPath="/galeria-proyecto">
+                <ProjectDetailGallery />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/project-detail-gallery/:projectId"
+            element={
+              <ProtectedRoute requiredPath="/project-detail-gallery">
+                <ProjectDetailGallery />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/visor-galeria/:projectId"
+            element={
+              <ProtectedRoute requiredPath="/visor-galeria">
+                <ProjectGalleryViewer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documentacion-proyectos"
+            element={
+              <ProtectedRoute requiredPath="/documentacion-proyectos">
+                <ProjectDocumentationCenter />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/flujo-proyecto"
+            element={
+              <ProtectedRoute requiredPath="/flujo-proyecto">
+                <ProjectWorkflowManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/constructor-cotizaciones"
+            element={
+              <ProtectedRoute requiredPath="/constructor-cotizaciones">
+                <QuotationBuilder />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventario"
+            element={
+              <ProtectedRoute requiredPath="/inventario">
+                <InventoryManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/finanzas"
+            element={
+              <ProtectedRoute requiredPath="/finanzas">
+                <FinancialManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/personal"
+            element={
+              <ProtectedRoute requiredPath="/personal">
+                <PersonnelManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clientes"
+            element={
+              <ProtectedRoute requiredPath="/clientes">
+                <ClientManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operaciones"
+            element={
+              <ProtectedRoute requiredPath="/operaciones">
+                <WorkOrderProcessing />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operaciones-taller"
+            element={
+              <ProtectedRoute requiredPath="/operaciones-taller">
+                <WorkshopOperationsManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/centro-operaciones-taller"
+            element={
+              <ProtectedRoute requiredPath="/centro-operaciones-taller">
+                <WorkshopOperationsCenter />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/oportunidades"
+            element={
+              <ProtectedRoute requiredPath="/oportunidades">
+                <SalesOpportunityManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/usuarios"
+            element={
+              <ProtectedRoute requiredPath="/usuarios">
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cotizaciones"
+            element={
+              <ProtectedRoute requiredPath="/cotizaciones">
+                <QuotationDevelopmentCenter />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/abonos"
+            element={
+              <ProtectedRoute requiredPath="/abonos">
+                <ProjectAbonosManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/monitoreo-ventas"
+            element={
+              <ProtectedRoute requiredPath="/monitoreo-ventas">
+                <SalesExecutionMonitoring />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/herramientas"
+            element={
+              <ProtectedRoute requiredPath="/herramientas">
+                <ToolsManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-tools"
+            element={
+              <ProtectedRoute allowedRoles={['obra']}>
+                <MyToolsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notificaciones"
+            element={
+              <ProtectedRoute requiredPath="/notificaciones">
+                <Notifications />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/precios"
+            element={
+              <ProtectedRoute requiredPath="/precios">
+                <PriceManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<NotFound />} />
+        </RouterRoutes>
+      </ButtonHandlersProvider>
+    </ErrorBoundary>
   );
 };
 

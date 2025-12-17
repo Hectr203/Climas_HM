@@ -11,9 +11,7 @@ import Button from '../../components/ui/Button';
 import ClientCard from './components/ClientCard';
 import ClientTable from './components/ClientTable';
 import ClientFilters from './components/ClientFilters';
-import ClientCommunicationPanel from './components/ClientCommunicationPanel';
 import DocumentStatus from './components/DocumentStatus';
-import ContractAlerts from './components/ContractAlerts';
 import NewClientModal from './components/NewClientModal';
 
 const ClientManagement = () => {
@@ -24,13 +22,13 @@ const ClientManagement = () => {
   const [showSidebar, setShowSidebar] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [clientCommunications, setClientCommunications] = useState([]);
-  
+
   const { clients, getClients, createClient, editClient, loading, error } = useClient();
   const { estados } = useEstados();
-  const { 
-    createCommunication, 
-    getComunicacionesByCliente, 
-    loading: loadingComm 
+  const {
+    createCommunication,
+    getComunicacionesByCliente,
+    loading: loadingComm
   } = useCommunication();
 
   // Cálculo de clientes activos (case-insensitive para 'estado')
@@ -249,10 +247,10 @@ const ClientManagement = () => {
         const municipioEmpresa = (client?.ubicacionEmpre?.municipio || '').toString().toLowerCase();
         const estadoDireccion = (client?.ubicacion?.estado || '').toString().toLowerCase();
         const municipioDireccion = (client?.ubicacion?.municipio || '').toString().toLowerCase();
-        return estadoEmpresa.includes(location) || 
-               municipioEmpresa.includes(location) || 
-               estadoDireccion.includes(location) || 
-               municipioDireccion.includes(location);
+        return estadoEmpresa.includes(location) ||
+          municipioEmpresa.includes(location) ||
+          estadoDireccion.includes(location) ||
+          municipioDireccion.includes(location);
       });
     }
 
@@ -331,7 +329,7 @@ const ClientManagement = () => {
     const headers = Object.keys(dataToExport[0]);
     const csvContent = [
       headers.join(','),
-      ...dataToExport.map(row => 
+      ...dataToExport.map(row =>
         headers.map(header => {
           const value = row[header];
           // Escapar comillas y envolver en comillas si contiene comas
@@ -345,12 +343,12 @@ const ClientManagement = () => {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     const fecha = new Date().toISOString().split('T')[0];
     link.setAttribute('href', url);
     link.setAttribute('download', `clientes_${fecha}.csv`);
     link.style.visibility = 'hidden';
-    
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -366,7 +364,7 @@ const ClientManagement = () => {
   // Función para cargar comunicaciones del cliente
   const loadClientCommunications = async (clientId) => {
     if (!clientId) return;
-    
+
     try {
       const response = await getComunicacionesByCliente(clientId);
       if (response && response.data && response.data.comunicaciones) {
@@ -480,49 +478,53 @@ const ClientManagement = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMenuOpen={mobileMenuOpen}
+        sidebarCollapsed={sidebarCollapsed}
+      />
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
-        <Sidebar 
-          isCollapsed={sidebarCollapsed} 
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
           onToggle={handleSidebarToggle}
         />
       </div>
 
       {/* Mobile Header */}
       <div className="lg:hidden">
-        <Header 
+        <Header
           onMenuToggle={handleMobileMenuToggle}
           isMenuOpen={mobileMenuOpen}
         />
       </div>
 
       {/* Main Content */}
-      <div className={`transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
-      }`}>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
+        }`}>
         <div className="flex">
-              {/* Main Content */}
-              <div className={`flex-1 transition-all duration-300 ${showSidebar ? 'mr-96' : ''}`}>
-                <div className="p-6">
-                  {/* Modals */}
-                  <NewClientModal
-                   isOpen={showNewClientModal}
-                   onClose={() => setShowNewClientModal(false)}
-                   onSubmit={handleSubmitNewClient}
-                   mode="create"
-                   createClient={createClient}
-                   editClient={editClient}
-                  />
-                  <NewClientModal
-                   isOpen={editModalState.open}
-                   onClose={() => setEditModalState({ open: false, client: null })}
-                   onSubmit={handleSubmitEditClient}
-                   initialData={editModalState.client}
-                   mode="edit"
-                   createClient={createClient}
-                   editClient={editClient}
-                  />
-                  {/* Breadcrumb */}
+          {/* Main Content */}
+          <div className={`flex-1 transition-all duration-300`}>
+            <div className="p-6">
+              {/* Modals */}
+              <NewClientModal
+                isOpen={showNewClientModal}
+                onClose={() => setShowNewClientModal(false)}
+                onSubmit={handleSubmitNewClient}
+                mode="create"
+                createClient={createClient}
+                editClient={editClient}
+              />
+              <NewClientModal
+                isOpen={editModalState.open}
+                onClose={() => setEditModalState({ open: false, client: null })}
+                onSubmit={handleSubmitEditClient}
+                initialData={editModalState.client}
+                mode="edit"
+                createClient={createClient}
+                editClient={editClient}
+              />
+              {/* Breadcrumb */}
               <div className="mb-6">
                 <Breadcrumb />
               </div>
@@ -649,7 +651,7 @@ const ClientManagement = () => {
 
               {/* Client List */}
               {viewMode === 'table' ? (
-                <div style={{overflowX: 'auto', width: '100%'}}>
+                <div style={{ overflowX: 'auto', width: '100%' }}>
                   <ClientTable
                     clients={filteredClients}
                     onViewDetails={handleViewDetails}
@@ -693,53 +695,36 @@ const ClientManagement = () => {
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Client details modal (replaces right-side panel) */}
           {showSidebar && (
-            <div className="fixed right-0 top-0 h-full bg-card border-l border-border shadow-lg z-1000 overflow-y-auto" style={{width: '500px', minWidth: '440px'}}>
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {selectedClient?.companyName}
-                  </h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowSidebar(false)}
-                  >
-                    <Icon name="X" size={20} />
-                  </Button>
-                </div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setShowSidebar(false)} />
+              <div className="relative bg-card border border-border rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {selectedClient?.companyName}
+                    </h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowSidebar(false)}
+                    >
+                      <Icon name="X" size={20} />
+                    </Button>
+                  </div>
 
-                <div className="space-y-6">
-                  {/* Communication Panel */}
-                  <ClientCommunicationPanel client={selectedClient} />
-
-                  {/* Document Status */}
-                  <DocumentStatus
-                    documents={mockDocuments}
-                    onUploadDocument={handleUploadDocument}
-                    onViewDocument={handleViewDocument}
-                    onDownloadDocument={handleDownloadDocument}
-                  />
-
-                  {/* Contract Alerts */}
-                  <ContractAlerts
-                    contracts={mockContracts}
-                    onViewContract={handleViewContract}
-                    onRenewContract={handleRenewContract}
-                    onScheduleRenewal={handleScheduleRenewal}
-                  />
+                  <div className="space-y-6">
+                    {/* Solo mostrar Estado de Documento */}
+                    <DocumentStatus
+                      clientId={selectedClient?.id || selectedClient?._id}
+                      onViewDocument={handleViewDocument}
+                      onDownloadDocument={handleDownloadDocument}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          )}
-
-          {/* Sidebar Overlay */}
-          {showSidebar && (
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-999 lg:hidden"
-              onClick={() => setShowSidebar(false)}
-            />
           )}
 
           {/* New Client Modal */}

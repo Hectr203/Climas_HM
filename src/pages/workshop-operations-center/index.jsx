@@ -338,13 +338,13 @@ const WorkshopOperationsCenter = () => {
 
   useEffect(() => {
     setWorkOrders(mockWorkOrders);
-    
+
     // Update workshop stats based on work orders
     const stats = {
       activeWorkOrders: mockWorkOrders?.length,
       completedToday: mockWorkOrders?.filter(wo => wo?.stage === 'evidence_submission')?.length,
       pendingMaterials: mockWorkOrders?.filter(wo => wo?.materialsReceived?.status === 'pending')?.length,
-      qualityIssues: mockWorkOrders?.filter(wo => 
+      qualityIssues: mockWorkOrders?.filter(wo =>
         wo?.qualityControl?.checkpoints?.some(cp => cp?.passed === false)
       )?.length,
       attendanceRate: Math.round((currentShift?.attendanceCount / currentShift?.totalTechnicians) * 100),
@@ -374,12 +374,12 @@ const WorkshopOperationsCenter = () => {
   const handleMaterialReception = (workOrderId, materialData) => {
     setWorkOrders(prevOrders =>
       prevOrders?.map(wo =>
-        wo?.id === workOrderId 
-          ? { 
-              ...wo, 
-              materialsReceived: { ...wo?.materialsReceived, ...materialData },
-              stage: materialData?.status === 'completed' ? 'safety_attendance' : wo?.stage
-            }
+        wo?.id === workOrderId
+          ? {
+            ...wo,
+            materialsReceived: { ...wo?.materialsReceived, ...materialData },
+            stage: materialData?.status === 'completed' ? 'safety_attendance' : wo?.stage
+          }
           : wo
       )
     );
@@ -388,12 +388,12 @@ const WorkshopOperationsCenter = () => {
   const handleSafetyChecklist = (workOrderId, safetyData) => {
     setWorkOrders(prevOrders =>
       prevOrders?.map(wo =>
-        wo?.id === workOrderId 
-          ? { 
-              ...wo, 
-              safetyChecklist: { ...wo?.safetyChecklist, ...safetyData },
-              stage: safetyData?.status === 'completed' ? 'manufacturing' : wo?.stage
-            }
+        wo?.id === workOrderId
+          ? {
+            ...wo,
+            safetyChecklist: { ...wo?.safetyChecklist, ...safetyData },
+            stage: safetyData?.status === 'completed' ? 'manufacturing' : wo?.stage
+          }
           : wo
       )
     );
@@ -402,12 +402,12 @@ const WorkshopOperationsCenter = () => {
   const handleManufacturingUpdate = (workOrderId, manufacturingData) => {
     setWorkOrders(prevOrders =>
       prevOrders?.map(wo =>
-        wo?.id === workOrderId 
-          ? { 
-              ...wo, 
-              manufacturing: { ...wo?.manufacturing, ...manufacturingData },
-              stage: manufacturingData?.progress === 100 ? 'quality_control' : wo?.stage
-            }
+        wo?.id === workOrderId
+          ? {
+            ...wo,
+            manufacturing: { ...wo?.manufacturing, ...manufacturingData },
+            stage: manufacturingData?.progress === 100 ? 'quality_control' : wo?.stage
+          }
           : wo
       )
     );
@@ -416,12 +416,12 @@ const WorkshopOperationsCenter = () => {
   const handleQualityControl = (workOrderId, qualityData) => {
     setWorkOrders(prevOrders =>
       prevOrders?.map(wo =>
-        wo?.id === workOrderId 
-          ? { 
-              ...wo, 
-              qualityControl: { ...wo?.qualityControl, ...qualityData },
-              stage: qualityData?.status === 'completed' ? 'evidence_submission' : wo?.stage
-            }
+        wo?.id === workOrderId
+          ? {
+            ...wo,
+            qualityControl: { ...wo?.qualityControl, ...qualityData },
+            stage: qualityData?.status === 'completed' ? 'evidence_submission' : wo?.stage
+          }
           : wo
       )
     );
@@ -430,11 +430,11 @@ const WorkshopOperationsCenter = () => {
   const handleEvidenceSubmission = (workOrderId, evidenceData) => {
     setWorkOrders(prevOrders =>
       prevOrders?.map(wo =>
-        wo?.id === workOrderId 
-          ? { 
-              ...wo, 
-              evidenceSubmission: { ...wo?.evidenceSubmission, ...evidenceData }
-            }
+        wo?.id === workOrderId
+          ? {
+            ...wo,
+            evidenceSubmission: { ...wo?.evidenceSubmission, ...evidenceData }
+          }
           : wo
       )
     );
@@ -443,11 +443,11 @@ const WorkshopOperationsCenter = () => {
   const handleChangeOrder = (workOrderId, changeOrderData) => {
     setWorkOrders(prevOrders =>
       prevOrders?.map(wo =>
-        wo?.id === workOrderId 
-          ? { 
-              ...wo, 
-              changeOrders: [...(wo?.changeOrders || []), changeOrderData]
-            }
+        wo?.id === workOrderId
+          ? {
+            ...wo,
+            changeOrders: [...(wo?.changeOrders || []), changeOrderData]
+          }
           : wo
       )
     );
@@ -458,37 +458,41 @@ const WorkshopOperationsCenter = () => {
   };
 
   const handleReportToProjects = (workOrderId, reportType, reportData) => {
-  // console.log eliminado
+    // console.log eliminado
     // Integration with Projects department
   };
 
   const handleRequestToPurchases = (workOrderId, requestType, requestData) => {
-  // console.log eliminado
+    // console.log eliminado
     // Integration with Purchases department
   };
 
   return (
     <div className="min-h-screen bg-background">
+      <Header
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        isMenuOpen={mobileMenuOpen}
+        sidebarCollapsed={sidebarCollapsed}
+      />
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
-        <Sidebar 
-          isCollapsed={sidebarCollapsed} 
+        <Sidebar
+          isCollapsed={sidebarCollapsed}
           onToggle={handleSidebarToggle}
         />
       </div>
 
       {/* Mobile Header */}
       <div className="lg:hidden">
-        <Header 
+        <Header
           onMenuToggle={handleMobileMenuToggle}
           isMenuOpen={mobileMenuOpen}
         />
       </div>
 
       {/* Main Content */}
-      <div className={`transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
-      }`}>
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'
+        }`}>
         <div className="p-6">
           {/* Breadcrumb */}
           <div className="mb-6">
@@ -536,7 +540,7 @@ const WorkshopOperationsCenter = () => {
           <WorkshopStats stats={workshopStats} currentShift={currentShift} />
 
           {/* Shift Management Panel */}
-          <ShiftManagementPanel 
+          <ShiftManagementPanel
             currentShift={currentShift}
             onAttendanceUpdate={handleAttendanceUpdate}
           />
@@ -574,7 +578,7 @@ const WorkshopOperationsCenter = () => {
                   workOrders={workOrders?.filter(wo => wo?.stage === 'safety_attendance')}
                   onSafetyUpdate={handleSafetyChecklist}
                 />
-                
+
                 <AttendancePanel
                   currentShift={currentShift}
                   onAttendanceUpdate={handleAttendanceUpdate}

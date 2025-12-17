@@ -256,15 +256,31 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
     }
   };
 
-  // Calcular totales
-  const totalAbonado = abonos.reduce((sum, abono) => {
-    const monto = Number(abono?.montoAbono ?? abono?.monto ?? abono?.monto_abono ?? 0);
-    return sum + monto;
+  // Calcular totales (sin IVA y con IVA)
+  const totalAbonadoSinIva = abonos.reduce((sum, abono) => {
+    const montoSin = Number(
+      abono?.montoAbonoSinIva ??
+      abono?.montoSinIva ??
+      0
+    );
+    return sum + (isNaN(montoSin) ? 0 : montoSin);
   }, 0);
 
-  const presupuesto = Number(project?.budget ?? project?.presupuesto?.total ?? project?.totalPresupuesto ?? 0);
-  const saldoRestante = Math.max(presupuesto - totalAbonado, 0);
-  const porcentajePagado = presupuesto > 0 ? Math.round((totalAbonado / presupuesto) * 100) : 0;
+  const totalAbonadoConIva = abonos.reduce((sum, abono) => {
+    const montoCon = Number(
+      abono?.montoAbonoConIva ??
+      abono?.montoAbono ??
+      abono?.monto ??
+      abono?.monto_abono ??
+      0
+    );
+    return sum + (isNaN(montoCon) ? 0 : montoCon);
+  }, 0);
+
+  // Usar la misma fuente de presupuesto total que en EditAbonoModal: totalPresupuesto
+  const presupuesto = Number(project?.totalPresupuesto ?? project?.budget ?? 0);
+  const saldoRestante = Math.max(presupuesto - totalAbonadoConIva, 0);
+  const porcentajePagado = presupuesto > 0 ? Math.round((totalAbonadoConIva / presupuesto) * 100) : 0;
 
   if (!isOpen) return null;
 
@@ -297,8 +313,12 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
               <span className="text-foreground font-medium text-base">{formatearMoneda(presupuesto)}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs">Total Abonado</span>
-              <span className="text-foreground font-medium text-base">{formatearMoneda(totalAbonado)}</span>
+              <span className="text-muted-foreground block text-xs">Total pagado (sin IVA)</span>
+              <span className="text-foreground font-medium text-base">{formatearMoneda(totalAbonadoSinIva)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block text-xs">Total pagado (con IVA)</span>
+              <span className="text-foreground font-medium text-base">{formatearMoneda(totalAbonadoConIva)}</span>
             </div>
             <div>
               <span className="text-muted-foreground block text-xs">Saldo Restante</span>
@@ -345,10 +365,11 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
           {!loading && !error && abonos.length > 0 && (
             <div className="space-y-3">
               {/* Encabezado de tabla (solo desktop) */}
-              <div className="hidden md:grid md:grid-cols-8 gap-4 pb-2 border-b border-border text-xs font-medium text-muted-foreground">
+              <div className="hidden md:grid md:grid-cols-9 gap-4 pb-2 border-b border-border text-xs font-medium text-muted-foreground">
                 <div>Folio/Ref.</div>
                 <div>Fecha</div>
-                <div>Monto</div>
+                <div>Monto (sin IVA)</div>
+                <div>Monto (con IVA)</div>
                 <div>Método de Pago</div>
                 <div>Descripción</div>
                 <div>N° Abono</div>
@@ -358,7 +379,8 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
 
               {/* Lista de abonos */}
               {abonos.map((abono, index) => {
-                const monto = Number(abono?.montoAbono ?? abono?.monto ?? abono?.monto_abono ?? 0);
+                const montoSinIva = Number(abono?.montoAbonoSinIva ?? abono?.montoSinIva ?? 0);
+                const montoConIva = Number(abono?.montoAbonoConIva ?? abono?.montoAbono ?? abono?.monto ?? abono?.monto_abono ?? 0);
                 const fecha = abono?.fecha ?? abono?.fechaAbono ?? abono?.fecha_creacion ?? abono?.createdAt;
                 const metodoPago = abono?.metodoPago ?? abono?.metodo_pago ?? abono?.metodo ?? '—';
                 const descripcion = abono?.descripcion ?? abono?.descripcionAbono ?? '—';
@@ -374,10 +396,11 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                     className="border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors"
                   >
                     {/* Vista Desktop */}
-                    <div className="hidden md:grid md:grid-cols-8 gap-4 items-center">
+                    <div className="hidden md:grid md:grid-cols-9 gap-4 items-center">
                       <div className="text-sm text-foreground font-mono">{folio}</div>
                       <div className="text-sm text-foreground">{formatearFecha(fecha)}</div>
-                      <div className="text-sm font-medium text-foreground">{formatearMoneda(monto)}</div>
+                      <div className="text-sm font-medium text-foreground">{formatearMoneda(montoSinIva)}</div>
+                      <div className="text-sm font-medium text-foreground">{formatearMoneda(montoConIva)}</div>
                       <div className="text-sm text-foreground">{metodoPago}</div>
                       <div className="text-sm text-muted-foreground truncate" title={descripcion}>
                         {descripcion}
@@ -459,7 +482,8 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
                     <div className="md:hidden space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-sm font-medium text-foreground">{formatearMoneda(monto)}</span>
+                          <div className="text-sm font-medium text-foreground">{formatearMoneda(montoConIva)}</div>
+                          <div className="text-xs text-muted-foreground">Sin IVA: {formatearMoneda(montoSinIva)}</div>
                           {folio && folio !== '—' && (
                             <span className="ml-2 text-xs text-muted-foreground font-mono">({folio})</span>
                           )}
@@ -620,7 +644,16 @@ const ViewAbonosModal = ({ isOpen, onClose, project, onAbonoUpdated }) => {
             </div>
             <div className="p-4">
               <div className="mb-3 text-sm text-muted-foreground">
-                Abono: {abonoParaComprobante?.folio ?? abonoParaComprobante?.referencia ?? '—'} - {formatearMoneda(Number(abonoParaComprobante?.montoAbono ?? abonoParaComprobante?.monto ?? 0))}
+                {(() => {
+                  const folio = abonoParaComprobante?.folio ?? abonoParaComprobante?.referencia ?? '—';
+                  const montoSinIva = Number(abonoParaComprobante?.montoAbonoSinIva ?? abonoParaComprobante?.montoSinIva ?? 0);
+                  const montoConIva = Number(abonoParaComprobante?.montoAbonoConIva ?? abonoParaComprobante?.montoAbono ?? abonoParaComprobante?.monto ?? 0);
+                  return (
+                    <>
+                      Abono: {folio} — Con IVA: {formatearMoneda(montoConIva)} (Sin IVA: {formatearMoneda(montoSinIva)})
+                    </>
+                  );
+                })()}
               </div>
               <ComprobanteUploader
                 file={nuevoComprobanteFile}
