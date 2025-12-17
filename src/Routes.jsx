@@ -196,6 +196,14 @@ const Routes = () => {
             }
           />
           <Route
+            path="/proveedores"
+            element={
+              <ProtectedRoute requiredPath="/proveedores">
+                <SuppliersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/usuarios"
             element={
               <ProtectedRoute requiredPath="/usuarios">
