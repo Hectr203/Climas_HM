@@ -34,12 +34,26 @@ const useSupplier = () => {
   );
 
   const updateSupplier = useCallback(
-    async (id, data) => withLoading(() => SupplierService.updateSupplier(id, data)),
+    async (id, data) =>
+      withLoading(() => SupplierService.updateSupplier(id, data)),
     [withLoading]
   );
 
   const deleteSupplier = useCallback(
     async (id) => withLoading(() => SupplierService.deleteSupplier(id)),
+    [withLoading]
+  );
+
+  /* =========================
+     OCUPACIONES (NUEVO)
+  ========================= */
+  const createOccupation = useCallback(
+    async (data) => withLoading(() => SupplierService.createOccupation(data)),
+    [withLoading]
+  );
+
+  const getOccupations = useCallback(
+    async () => withLoading(() => SupplierService.getOccupations()),
     [withLoading]
   );
 
@@ -49,6 +63,11 @@ const useSupplier = () => {
     getSupplierById,
     updateSupplier,
     deleteSupplier,
+
+    // ✅ nuevo
+    createOccupation,
+    getOccupations,
+
     loading,
     error,
   };

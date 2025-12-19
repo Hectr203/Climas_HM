@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Button from "../../../components/ui/Button";
 import Icon from "../../../components/AppIcon";
 import Input from "../../../components/ui/Input";
@@ -6,19 +6,73 @@ import Select from "../../../components/ui/Select";
 import useSupplier from "../../../hooks/useSuppliers";
 import { useErrorHandler, useNotifications } from "context/NotificationContext";
 
-const occupationOptions = [
-  { value: "Proveedor", label: "Proveedor" },
-  { value: "Representante", label: "Representante" },
-  { value: "Ventas", label: "Ventas" },
-  { value: "Administración", label: "Administración" },
-  { value: "Compras", label: "Compras" },
-  { value: "Otro", label: "Otro" },
+/* =========================
+   Ocupaciones fijas (NO se pierden)
+========================= */
+const FIXED_OCCUPATIONS = [
+  "Mantenimiento de HVAC/R",
+  "Refrigerantes",
+  "Aislamiento",
+  "Rejillas",
+  "Difusores",
+  "Multimarcas",
+  "Filtros",
+  "Tubería de cobre para instalaciones",
+  "Minisplit",
+  "Sistemas hidrónicos para HVAC y plomería",
+  "Torres de enfriamiento",
+  "Servicio Integral de Aire Acondicionado e Instalaciones Electromecánicas",
+  "Louvers",
+  "Equipos de AC Minisplit",
+  "Accesorios",
+  "Herramientas",
+  "Gas",
 ];
 
+/* =========================
+   LocalStorage (ocupaciones dinámicas)
+========================= */
+const OCCUPATIONS_LS_KEY = "suppliers_custom_ocupaciones_v1";
+
+const cleanText = (v) =>
+  String(v ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const readCustomOccupations = () => {
+  try {
+    const raw = localStorage.getItem(OCCUPATIONS_LS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arr)) return [];
+    return arr.map(cleanText).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const buildOptions = (fixedList, customList) => {
+  const map = new Map();
+  [...fixedList, ...customList].forEach((x) => {
+    const v = cleanText(x);
+    if (!v) return;
+    const key = v.toLowerCase(); // dedupe
+    if (!map.has(key)) map.set(key, v);
+  });
+
+  return Array.from(map.values()).map((x) => ({ value: x, label: x }));
+};
+
+/* =========================
+   Helpers
+========================= */
 const normalizePhone = (v) => (v || "").toString().replace(/[^\d+]/g, "");
+
 const isValidEmail = (email) =>
   !email ? false : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 
+/* =========================
+   Modal Crear Proveedor
+========================= */
 const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
   const { createSupplier } = useSupplier();
 
@@ -36,13 +90,39 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
     ocupacion: "",
   });
 
+  // ✅ NUEVO: ocupaciones dinámicas (fijas + las agregadas)
+  const [customOccupations, setCustomOccupations] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // al abrir el modal, cargamos las ocupaciones nuevas
+    setCustomOccupations(readCustomOccupations());
+
+    // si otra parte de la app guarda en localStorage, actualiza
+    const onStorage = (e) => {
+      if (e.key === OCCUPATIONS_LS_KEY) {
+        setCustomOccupations(readCustomOccupations());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [isOpen]);
+
+  const occupationOptions = useMemo(() => {
+    return buildOptions(FIXED_OCCUPATIONS, customOccupations);
+  }, [customOccupations]);
+
   const handleInputChange = (key, value) => {
     setFormData((s) => ({ ...s, [key]: value }));
-    if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
+    if (errors[key]) {
+      setErrors((e) => ({ ...e, [key]: undefined }));
+    }
   };
 
   const validate = () => {
     const e = {};
+
     if (!formData.nombre?.trim()) e.nombre = "Requerido";
     if (!formData.empresa?.trim()) e.empresa = "Requerido";
     if (!formData.tel?.trim()) e.tel = "Requerido";
@@ -54,15 +134,14 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
     return Object.keys(e).length === 0;
   };
 
-  // ✅ FIX: mandar "numero" (lo que espera el backend) y conservar "tel" por compatibilidad
   const buildPayloadForBackend = () => {
     const telNormalizado = normalizePhone(formData.tel);
 
     return {
       nombre: formData.nombre?.trim() || "",
       empresa: formData.empresa?.trim() || "",
-      tel: telNormalizado,          // 👈 lo dejas tal cual (por si lo usas en UI/normalizadores)
-      numero: telNormalizado,       // 👈 lo agregas para el backend (proveedoresService.create usa "numero")
+      tel: telNormalizado,
+      numero: telNormalizado,
       correo: formData.correo?.trim() || "",
       ocupacion: formData.ocupacion || "",
     };
@@ -88,13 +167,13 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
     }
 
     setIsSubmitting(true);
+
     try {
       const payload = buildPayloadForBackend();
       const resp = await createSupplier(payload);
 
       handleSuccess("create", "Proveedor");
 
-      // devuelve al padre el doc creado si viene en resp
       const created = resp?.data ?? resp ?? payload;
 
       onSubmit && onSubmit(created);
@@ -123,7 +202,12 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
               Complete la información del proveedor
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} disabled={isSubmitting}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             <Icon name="X" size={20} />
           </Button>
         </div>
@@ -139,7 +223,6 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
 
             <Input
               label="Nombre"
-              type="text"
               placeholder="Ej: Juan Pérez"
               value={formData.nombre}
               onChange={(e) => handleInputChange("nombre", e?.target?.value)}
@@ -149,7 +232,6 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
 
             <Input
               label="Empresa"
-              type="text"
               placeholder="Ej: Refrigeración del Norte"
               value={formData.empresa}
               onChange={(e) => handleInputChange("empresa", e?.target?.value)}
@@ -159,7 +241,6 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
 
             <Input
               label="Tel"
-              type="text"
               placeholder="Ej: 5512345678"
               value={formData.tel}
               onChange={(e) => handleInputChange("tel", e?.target?.value)}
@@ -204,6 +285,7 @@ const CreateSuppliersModal = ({ isOpen = false, onClose, onSubmit }) => {
             >
               Cancelar
             </Button>
+
             <Button
               type="submit"
               loading={isSubmitting}

@@ -25,6 +25,23 @@ const SupplierService = {
     const response = await httpService.delete(`/proveedores/eliminar/${id}`);
     return response.data;
   },
+
+  /* =========================
+     OCUPACIONES (NUEVO)
+  ========================= */
+  async createOccupation(data) {
+    // data = { nombre: string }
+    const response = await httpService.post(
+      "/ocupacionesProveedores/crear",
+      data
+    );
+    return response.data;
+  },
+
+  async getOccupations() {
+    const response = await httpService.get("/ocupacionesProveedores");
+    return response.data;
+  },
 };
 
 export default SupplierService;

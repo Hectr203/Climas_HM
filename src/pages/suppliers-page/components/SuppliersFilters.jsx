@@ -28,7 +28,16 @@ export const applySupplierFilters = (suppliers, filters) => {
     const empresa = norm(s?.empresa ?? s?.company ?? "");
     const tel = norm(s?.numero ?? s?.tel ?? s?.telefono ?? s?.phone ?? "");
     const correo = norm(s?.correo ?? s?.email ?? "");
-    const ocupacion = norm(s?.ocupacion ?? s?.role ?? s?.puesto ?? s?.rol ?? "");
+
+    // ✅ ocupa más fallbacks por si viene con otro nombre
+    const ocupacion = norm(
+      s?.ocupacion ??
+        s?.role ??
+        s?.puesto ??
+        s?.rol ??
+        s?.occupation ??
+        ""
+    );
 
     const matchSearch =
       !q ||
@@ -68,12 +77,35 @@ const SuppliersFilters = ({
   const ocupacionOptions = useMemo(
     () => [
       { value: "", label: "Todas las Ocupaciones" },
-      { value: "Proveedor", label: "Proveedor" },
-      { value: "Representante", label: "Representante" },
-      { value: "Ventas", label: "Ventas" },
-      { value: "Administración", label: "Administración" },
-      { value: "Compras", label: "Compras" },
-      { value: "Otro", label: "Otro" },
+
+      { value: "Mantenimiento de HVAC/R", label: "Mantenimiento de HVAC/R" },
+      { value: "Refrigerantes", label: "Refrigerantes" },
+      { value: "Aislamiento", label: "Aislamiento" },
+      { value: "Rejillas", label: "Rejillas" },
+      { value: "Difusores", label: "Difusores" },
+      { value: "Multimarcas", label: "Multimarcas" },
+      { value: "Filtros", label: "Filtros" },
+      {
+        value: "Tubería de cobre para instalaciones",
+        label: "Tubería de cobre para instalaciones",
+      },
+      { value: "Minisplit", label: "Minisplit" },
+      {
+        value: "Sistemas hidrónicos para HVAC y plomería",
+        label: "Sistemas hidrónicos para HVAC y plomería",
+      },
+      { value: "Torres de enfriamiento", label: "Torres de enfriamiento" },
+      {
+        value:
+          "Servicio Integral de Aire Acondicionado e Instalaciones Electromecánicas",
+        label:
+          "Servicio Integral de Aire Acondicionado e Instalaciones Electromecánicas",
+      },
+      { value: "Louvers", label: "Louvers" },
+      { value: "Equipos de AC Minisplit", label: "Equipos de AC Minisplit" },
+      { value: "Accesorios", label: "Accesorios" },
+      { value: "Herramientas", label: "Herramientas" },
+      { value: "Gas", label: "Gas" },
     ],
     []
   );

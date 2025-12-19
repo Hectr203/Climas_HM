@@ -6,15 +6,65 @@ import Select from "../../../components/ui/Select";
 import useSupplier from "../../../hooks/useSuppliers";
 import { useErrorHandler, useNotifications } from "context/NotificationContext";
 
-const occupationOptions = [
-  { value: "Proveedor", label: "Proveedor" },
-  { value: "Representante", label: "Representante" },
-  { value: "Ventas", label: "Ventas" },
-  { value: "Administración", label: "Administración" },
-  { value: "Compras", label: "Compras" },
-  { value: "Otro", label: "Otro" },
+/* =========================
+   Ocupaciones fijas (NO se pierden)
+========================= */
+const FIXED_OCCUPATIONS = [
+  "Mantenimiento de HVAC/R",
+  "Refrigerantes",
+  "Aislamiento",
+  "Rejillas",
+  "Difusores",
+  "Multimarcas",
+  "Filtros",
+  "Tubería de cobre para instalaciones",
+  "Minisplit",
+  "Sistemas hidrónicos para HVAC y plomería",
+  "Torres de enfriamiento",
+  "Servicio Integral de Aire Acondicionado e Instalaciones Electromecánicas",
+  "Louvers",
+  "Equipos de AC Minisplit",
+  "Accesorios",
+  "Herramientas",
+  "Gas",
 ];
 
+/* =========================
+   LocalStorage (ocupaciones dinámicas)
+========================= */
+const OCCUPATIONS_LS_KEY = "suppliers_custom_ocupaciones_v1";
+
+const cleanText = (v) =>
+  String(v ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const readCustomOccupations = () => {
+  try {
+    const raw = localStorage.getItem(OCCUPATIONS_LS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arr)) return [];
+    return arr.map(cleanText).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const buildOptions = (fixedList, customList) => {
+  const map = new Map();
+  [...fixedList, ...customList].forEach((x) => {
+    const v = cleanText(x);
+    if (!v) return;
+    const key = v.toLowerCase(); // dedupe
+    if (!map.has(key)) map.set(key, v);
+  });
+
+  return Array.from(map.values()).map((x) => ({ value: x, label: x }));
+};
+
+/* =========================
+   Helpers
+========================= */
 const normalizePhone = (v) => (v || "").toString().replace(/[^\d+]/g, "");
 const isValidEmail = (email) =>
   !email ? false : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
@@ -43,6 +93,27 @@ const EditSuppliersModal = ({ isOpen = false, onClose, onSubmit, supplier }) => 
 
   const { handleError, handleSuccess } = useErrorHandler();
   const { showWarning } = useNotifications();
+
+  // ✅ NUEVO: ocupaciones dinámicas
+  const [customOccupations, setCustomOccupations] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setCustomOccupations(readCustomOccupations());
+
+    const onStorage = (e) => {
+      if (e.key === OCCUPATIONS_LS_KEY) {
+        setCustomOccupations(readCustomOccupations());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [isOpen]);
+
+  const occupationOptions = useMemo(() => {
+    return buildOptions(FIXED_OCCUPATIONS, customOccupations);
+  }, [customOccupations]);
 
   /* ============= CARGA DEL SUPPLIER COMPLETO (si hay id) ============= */
   useEffect(() => {
@@ -107,8 +178,8 @@ const EditSuppliersModal = ({ isOpen = false, onClose, onSubmit, supplier }) => 
     return {
       nombre: formData.nombre?.trim() || "",
       empresa: formData.empresa?.trim() || "",
-      tel: telNormalizado, // lo conservas
-      numero: telNormalizado, // lo agregas para el backend
+      tel: telNormalizado,
+      numero: telNormalizado,
       correo: formData.correo?.trim() || "",
       ocupacion: formData.ocupacion || "",
     };
