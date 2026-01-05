@@ -7,7 +7,7 @@ import axios from "axios";
 class HttpService {
   constructor() {
     // Usar siempre la URL absoluta de la API
-    const apiBaseUrl ="https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net/api";
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net/api";
     this.api = axios.create({
       baseURL: apiBaseUrl,
       timeout: 30000,
