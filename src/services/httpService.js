@@ -6,11 +6,8 @@ import axios from "axios";
  */
 class HttpService {
   constructor() {
-    // Usar el proxy de Vite en desarrollo, y la URL absoluta en producción
-    const isDev = import.meta.env.DEV;
-    const apiBaseUrl = isDev
-      ? "/api"
-      : (import.meta.env.VITE_API_URL || "https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net/api");
+    // Usar siempre la URL absoluta de la API
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net/api";
     this.api = axios.create({
       baseURL: apiBaseUrl,
       timeout: 30000,
@@ -19,7 +16,7 @@ class HttpService {
         Accept: "application/json",
       },
     });
-
+ 
     this.setupInterceptors();
   }
 
