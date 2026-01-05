@@ -13,17 +13,9 @@ export default defineConfig({
   },
   plugins: [tsconfigPaths(), react(), tagger()],
   server: {
-      port: 3000,
+    port: 3000,
     host: "0.0.0.0",
     strictPort: true,
     allowedHosts: ['.amazonaws.com', '.builtwithrocket.new']
-      ,
-      proxy: {
-        '/api': {
-          target: 'https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '/api')
-        }
-      }
   }
 });
