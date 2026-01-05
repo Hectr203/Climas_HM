@@ -14,7 +14,12 @@ const ROUTES = {
 
 // ⚠️ NUEVO: este endpoint vive en otro host/puerto (7071)
 const EXTERNAL_ROUTES = {
-  STATS: "http://localhost:7071/api/proyectos/estadisticas",
+  STATS:
+    ((typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL)
+      ? import.meta.env.VITE_API_URL
+      : (typeof process !== "undefined" && process.env && process.env.VITE_API_URL)
+        ? process.env.VITE_API_URL
+        : "") + "/proyectos/estadisticas",
 };
 
 const EXTERNALS = {

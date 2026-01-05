@@ -4,7 +4,7 @@
 
 class EnvConfig {
   static get API_URL() {
-    return import.meta.env.VITE_API_URL || "http://localhost:7071/api";
+    return import.meta.env.VITE_API_URL || "https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net/api";
   }
 
   // Validación básica

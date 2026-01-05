@@ -20,7 +20,7 @@ export default defineConfig({
       ,
       proxy: {
         '/api': {
-          target: 'http://localhost:7071',
+          target: 'https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '/api')
         }
