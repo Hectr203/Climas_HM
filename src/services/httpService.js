@@ -6,16 +6,17 @@ import axios from "axios";
  */
 class HttpService {
   constructor() {
-    // Usar el proxy de Vite — no poner localhost ni IP
+    // Usar siempre la URL absoluta de la API
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "https://climasapi-fhfsgfedgsb7a5he.mexicocentral-01.azurewebsites.net/api";
     this.api = axios.create({
-      baseURL: "/api",
+      baseURL: apiBaseUrl,
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
-
+ 
     this.setupInterceptors();
   }
 

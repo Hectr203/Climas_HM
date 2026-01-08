@@ -5,6 +5,7 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import httpService from '../../../services/httpService';
 
 const LoginForm = () => {
   const navigate = useNavigate();
@@ -60,22 +61,14 @@ const LoginForm = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/usuarios/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        })
+      const data = await httpService.post('/usuarios/login', {
+        email: formData.email,
+        password: formData.password
       });
-      const data = await response.json();
-      console.log('Login response status:', response.status);
       console.log('Login response body:', data);
-      if (response.ok && data?.data?.token && data?.data?.usuario?.rol) {
+      if (data?.data?.token && data?.data?.usuario?.rol) {
         // Guardar token y expiración (24h)
-  localStorage.setItem('authToken', data.data.token);
+        localStorage.setItem('authToken', data.data.token);
         localStorage.setItem('tokenExpiresAt', String(Date.now() + 24 * 60 * 60 * 1000));
         localStorage.setItem('userRole', data.data.usuario.rol);
         localStorage.setItem('userEmail', data.data.usuario.email);
@@ -98,8 +91,9 @@ const LoginForm = () => {
         });
       }
     } catch (error) {
+      console.error('Error en login:', error);
       setErrors({
-        general: 'Error de conexión. Por favor, intente nuevamente.'
+        general: error?.userMessage || error?.message || 'Error de conexión. Por favor, intente nuevamente.'
       });
     } finally {
       setIsLoading(false);
